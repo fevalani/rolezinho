@@ -8,8 +8,8 @@ import {
   type ReactNode,
 } from "react";
 import type { User, Session } from "@supabase/supabase-js";
-import { Profile } from "./types";
-import { supabase } from "./supabase";
+import { supabase } from "@/lib/supabase";
+import type { Profile } from "@/lib/types";
 
 interface AuthContextValue {
   user: User | null;
@@ -29,6 +29,7 @@ interface AuthContextValue {
   updateProfile: (
     updates: Partial<Pick<Profile, "display_name" | "avatar_url">>,
   ) => Promise<void>;
+  changePassword: (newPassword: string) => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -153,6 +154,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user],
   );
 
+  const changePassword = useCallback(async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) return { error: translateAuthError(error.message) };
+    return { error: null };
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -164,6 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signUp,
         signOut,
         updateProfile,
+        changePassword,
       }}
     >
       {children}

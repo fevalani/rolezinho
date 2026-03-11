@@ -4,6 +4,7 @@ import { LoginPage } from "@/pages/LoginPage";
 import { HomePage } from "@/pages/HomePage";
 import { AppShell } from "@/components/AppShell";
 import { TavernaPage } from "@/features/taverna/TavernaPage";
+import { ProfilePage } from "./pages/ProfilePage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -43,6 +44,7 @@ function AppRoutes() {
         }
       >
         <Route path="/" element={<HomePage />} />
+        <Route path="/profile" element={<ProfilePage />} />
         <Route path="/taverna" element={<TavernaPage />} />
         {/* Future features go here */}
         {/* <Route path="/racha-conta" element={<RachaContaPage />} /> */}
