@@ -5,7 +5,7 @@ import { HomePage } from "@/pages/HomePage";
 import { ProfilePage } from "@/pages/ProfilePage";
 import { AppShell } from "@/components/AppShell";
 import { TavernaPage } from "@/features/taverna/TavernaPage";
-import { AniversariosPage } from "@/pages/AniversariosPage";
+import { AniversariosPage } from "@/features/aniversarios/AniversariosPage";
 import { RachaContaPage } from "./features/racha-conta/RachaContaPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {

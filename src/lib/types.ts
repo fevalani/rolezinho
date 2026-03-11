@@ -44,13 +44,13 @@ export const DICE_CONFIG: Record<
   DiceType,
   { sides: number; label: string; icon: string }
 > = {
-  d4: { sides: 4, label: "D4", icon: "▲" },
-  d6: { sides: 6, label: "D6", icon: "⬡" },
-  d8: { sides: 8, label: "D8", icon: "◆" },
-  d10: { sides: 10, label: "D10", icon: "⬠" },
-  d12: { sides: 12, label: "D12", icon: "⬡" },
-  d20: { sides: 20, label: "D20", icon: "⬡" },
-  d100: { sides: 100, label: "D100", icon: "%" },
+  d4: { sides: 4, label: "D4", icon: "/images/D4.png" },
+  d6: { sides: 6, label: "D6", icon: "/images/D6.png" },
+  d8: { sides: 8, label: "D8", icon: "/images/D8.png" },
+  d10: { sides: 10, label: "D10", icon: "/images/D10.png" },
+  d12: { sides: 12, label: "D12", icon: "/images/D12.png" },
+  d20: { sides: 20, label: "D20", icon: "/images/D20.png" },
+  d100: { sides: 100, label: "D100", icon: "/images/D100.png" },
 };
 
 export const DICE_TYPES: DiceType[] = [

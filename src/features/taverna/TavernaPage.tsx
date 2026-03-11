@@ -165,6 +165,12 @@ export function TavernaPage() {
     setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, MAX_ROLLS));
   };
 
+  const setDiceHandler = (type: DiceType) => {
+    setSelectedDice(type);
+    setQuantity(1);
+    setLastResults([]);
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 min-h-[300px] text-[var(--text-muted)] italic">
@@ -238,7 +244,7 @@ export function TavernaPage() {
         {DICE_TYPES.map((type) => (
           <button
             key={type}
-            onClick={() => setSelectedDice(type)}
+            onClick={() => setDiceHandler(type)}
             className={`flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-lg min-w-[48px] shrink-0 transition-all border cursor-pointer
               ${
                 selectedDice === type
@@ -246,9 +252,10 @@ export function TavernaPage() {
                   : "bg-[var(--bg-card)] border-[rgba(201,165,90,0.06)] hover:bg-[var(--bg-elevated)] hover:border-[rgba(201,165,90,0.15)]"
               }`}
           >
-            <span className="text-base text-[var(--gold)]">
-              {DICE_CONFIG[type].icon}
-            </span>
+            <img
+              className="w-8 h-8 mb-1 object-contain"
+              src={DICE_CONFIG[type]?.icon}
+            />
             <span
               className={`text-[0.6rem] font-semibold ${selectedDice === type ? "text-[var(--gold)]" : "text-[var(--text-secondary)]"}`}
               style={{ fontFamily: "var(--font-mono)" }}
@@ -311,10 +318,13 @@ export function TavernaPage() {
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(201,165,90,0.05)_0%,transparent_60%)]" />
             {isRolling ? (
               <span
-                className="text-5xl font-black text-[var(--text-primary)] relative z-10 anim-dice"
+                className="text-5xl font-black text-[var(--text-primary)] relative z-10"
                 style={{ fontFamily: "var(--font-display)" }}
               >
-                ?
+                <img
+                  className="w-12 h-12 mb-1 object-contain animate-bounce animate-spin"
+                  src={DICE_CONFIG[selectedDice]?.icon}
+                />
               </span>
             ) : lastResults.length === 1 ? (
               <span
@@ -342,9 +352,13 @@ export function TavernaPage() {
               </div>
             ) : (
               <span
-                className="text-xl text-[var(--text-muted)] relative z-10"
+                className="text-xl text-[var(--text-muted)] relative z-10 flex flex-col items-center"
                 style={{ fontFamily: "var(--font-display)" }}
               >
+                <img
+                  className="w-8 h-8 mb-1 object-contain animate-bounce"
+                  src={DICE_CONFIG[selectedDice]?.icon}
+                />
                 {quantity > 1
                   ? `${quantity}${DICE_CONFIG[selectedDice].label}`
                   : DICE_CONFIG[selectedDice].label}

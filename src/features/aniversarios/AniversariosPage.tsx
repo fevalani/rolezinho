@@ -190,7 +190,7 @@ export function AniversariosPage() {
                     className="text-sm font-bold text-[var(--gold)] uppercase tracking-wider"
                     style={{ fontFamily: "var(--font-display)" }}
                   >
-                    Hoje é aniversário!
+                    Hoje tem aniversário!
                   </span>
                 </div>
                 <div className="flex flex-col divide-y divide-[rgba(201,165,90,0.08)]">
@@ -296,12 +296,10 @@ function BirthdayRow({
             </span>
           )}
           <div className="h-5 rounded-xs flex justify-center items-center">
-            {entry.isToday
-              ? `${entry.age} anos hoje! 🎉`
-              : `${entry.age - 1} anos`}
+            {entry.isToday ? `· ${entry.age} anos hoje! 🎉` : ""}
           </div>
         </div>
-        <span className="text-xs text-[var(--text-muted)]">
+        <span className="text-sm text-[var(--text-muted)]">
           {formatBirthday(entry.birthday)}
           {" · "}
           <span className="font-medium">
