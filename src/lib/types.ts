@@ -7,6 +7,8 @@ export interface Profile {
   email: string;
   display_name: string;
   avatar_url: string | null;
+  /** Aniversário no formato MM-DD (ex: "07-25"). Sem ano. */
+  birthday: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -179,6 +181,14 @@ export const APP_FEATURES: Feature[] = [
     path: "/racha-conta",
     enabled: true,
     description: "Divisão de gastos entre amigos",
+  },
+  {
+    id: "aniversarios",
+    name: "Aniversários",
+    icon: "🎂",
+    path: "/aniversarios",
+    enabled: true,
+    description: "Próximos aniversários dos integrantes",
   },
   {
     id: "ficha",

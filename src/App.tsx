@@ -5,6 +5,7 @@ import { HomePage } from "@/pages/HomePage";
 import { ProfilePage } from "@/pages/ProfilePage";
 import { AppShell } from "@/components/AppShell";
 import { TavernaPage } from "@/features/taverna/TavernaPage";
+import { AniversariosPage } from "@/pages/AniversariosPage";
 import { RachaContaPage } from "./features/racha-conta/RachaContaPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -47,6 +48,7 @@ function AppRoutes() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/dados" element={<TavernaPage />} />
         <Route path="/racha-conta" element={<RachaContaPage />} />
+        <Route path="/aniversarios" element={<AniversariosPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -27,7 +27,7 @@ interface AuthContextValue {
   ) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   updateProfile: (
-    updates: Partial<Pick<Profile, "display_name" | "avatar_url">>,
+    updates: Partial<Pick<Profile, "display_name" | "avatar_url" | "birthday">>,
   ) => Promise<void>;
   changePassword: (newPassword: string) => Promise<{ error: string | null }>;
 }
@@ -53,7 +53,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Auto-create on first login (DB trigger also does this, but belt-and-suspenders)
       const displayName =
         (meta?.full_name as string) ||
         (meta?.display_name as string) ||
@@ -66,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email,
           display_name: displayName,
           avatar_url: null,
+          birthday: null,
         })
         .select()
         .single();
@@ -122,11 +122,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       });
       if (error) return { error: translateAuthError(error.message) };
-
-      // Supabase pode exigir confirmação de email.
-      // Se o user voltou sem session, precisa confirmar.
       if (data.user && !data.session) {
-        return { error: null }; // success — show "check your email" message in the UI
+        return { error: null };
       }
       return { error: null };
     },
@@ -141,7 +138,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateProfile = useCallback(
-    async (updates: Partial<Pick<Profile, "display_name" | "avatar_url">>) => {
+    async (
+      updates: Partial<
+        Pick<Profile, "display_name" | "avatar_url" | "birthday">
+      >,
+    ) => {
       if (!user) return;
       const { data } = await supabase
         .from("profiles")
@@ -185,7 +186,6 @@ export function useAuth(): AuthContextValue {
   return ctx;
 }
 
-/** Traduz erros comuns do Supabase Auth para PT-BR */
 function translateAuthError(msg: string): string {
   const map: Record<string, string> = {
     "Invalid login credentials": "Email ou senha incorretos",

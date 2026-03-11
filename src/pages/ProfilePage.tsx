@@ -24,6 +24,27 @@ const EMOJI_AVATARS = [
   "🦅",
 ];
 
+/** Converte "YYYY-MM-DD" para exibição "DD/MM/AAAA" */
+function birthdayToDisplay(raw: string | null): string {
+  if (!raw) return "";
+  const [yyyy, mm, dd] = raw.split("-");
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+/** Converte input "DD/MM/AAAA" para storage "YYYY-MM-DD". Retorna null se inválido. */
+function displayToBirthday(input: string): string | null {
+  const clean = input.replace(/\D/g, "");
+  if (clean.length < 8) return null;
+  const dd = parseInt(clean.slice(0, 2));
+  const mm = parseInt(clean.slice(2, 4));
+  const yyyy = parseInt(clean.slice(4, 8));
+  const currentYear = new Date().getFullYear();
+  if (mm < 1 || mm > 12) return null;
+  if (dd < 1 || dd > 31) return null;
+  if (yyyy < 1900 || yyyy > currentYear) return null;
+  return `${yyyy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+}
+
 export function ProfilePage() {
   const { user, profile, updateProfile, changePassword } = useAuth();
   const navigate = useNavigate();
@@ -32,6 +53,11 @@ export function ProfilePage() {
   const [displayName, setDisplayName] = useState(profile?.display_name ?? "");
   const [avatarPreview, setAvatarPreview] = useState(profile?.avatar_url ?? "");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+
+  // Birthday: armazenamos no state como "DD/MM/AAAA" para exibição
+  const [birthdayInput, setBirthdayInput] = useState(
+    birthdayToDisplay(profile?.birthday ?? null),
+  );
 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -79,16 +105,13 @@ export function ProfilePage() {
     if (!user) return null;
     const ext = file.name.split(".").pop() ?? "jpg";
     const path = `${user.id}/avatar.${ext}`;
-
     const { error: upErr } = await supabase.storage
       .from("avatars")
       .upload(path, file, { upsert: true, contentType: file.type });
-
     if (upErr) {
       console.error("Upload error:", upErr);
       return null;
     }
-
     const { data } = supabase.storage.from("avatars").getPublicUrl(path);
     return `${data.publicUrl}?t=${Date.now()}`;
   };
@@ -105,12 +128,35 @@ export function ProfilePage() {
     setAvatarPreview("");
   };
 
+  /** Formata o input como DD/MM/AAAA enquanto o usuário digita */
+  const handleBirthdayChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    clearMsg();
+    const digits = e.target.value.replace(/\D/g, "").slice(0, 8);
+    let formatted = digits;
+    if (digits.length > 4) {
+      formatted = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+    } else if (digits.length > 2) {
+      formatted = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    }
+    setBirthdayInput(formatted);
+  };
+
   const handleSave = async () => {
     clearMsg();
     const trimName = displayName.trim();
     if (!trimName || trimName.length < 2) {
       setError("Nome deve ter pelo menos 2 caracteres");
       return;
+    }
+
+    // Valida birthday se preenchido
+    let birthdayValue: string | null = null;
+    if (birthdayInput.trim()) {
+      birthdayValue = displayToBirthday(birthdayInput);
+      if (!birthdayValue) {
+        setError("Data inválida. Use o formato DD/MM/AAAA (ex: 25/07/1995)");
+        return;
+      }
     }
 
     setSaving(true);
@@ -132,6 +178,7 @@ export function ProfilePage() {
       await updateProfile({
         display_name: trimName,
         avatar_url: finalUrl || null,
+        birthday: birthdayValue,
       });
       setMessage("Perfil atualizado!");
     } catch {
@@ -215,7 +262,6 @@ export function ProfilePage() {
             )}
           </div>
 
-          {/* Actions */}
           <div className="flex items-center gap-2">
             <input
               ref={fileInputRef}
@@ -240,7 +286,6 @@ export function ProfilePage() {
             )}
           </div>
 
-          {/* Emoji grid */}
           <p className="text-xs text-[var(--text-muted)] mt-1">
             ou escolha um avatar
           </p>
@@ -280,6 +325,25 @@ export function ProfilePage() {
             }}
             className={inputClass}
           />
+        </div>
+
+        {/* Birthday */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm text-[var(--text-secondary)] font-semibold">
+            🎂 Aniversário
+          </label>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={birthdayInput}
+            placeholder="DD/MM/AAAA"
+            maxLength={10}
+            onChange={handleBirthdayChange}
+            className={inputClass}
+          />
+          <span className="text-[0.7rem] text-[var(--text-muted)] italic">
+            Apenas para cálculo de idade — o ano não é exibido para outros
+          </span>
         </div>
 
         {/* Email */}

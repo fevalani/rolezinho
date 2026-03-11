@@ -1,11 +1,41 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { APP_FEATURES } from "@/lib/types";
+import { supabase } from "@/lib/supabase";
+import { Avatar } from "@/components/Avatar";
+
+interface TodayBirthday {
+  id: string;
+  display_name: string;
+  avatar_url: string | null;
+}
+
+/** Retorna "MM-DD" para comparar com o sufixo do birthday "YYYY-MM-DD" */
+function getTodayMMDD(): string {
+  const now = new Date();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  return `${mm}-${dd}`;
+}
 
 export function HomePage() {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const firstName = profile?.display_name?.split(" ")[0] ?? "Aventureiro";
+
+  const [todayBirthdays, setTodayBirthdays] = useState<TodayBirthday[]>([]);
+
+  useEffect(() => {
+    const today = getTodayMMDD();
+    supabase
+      .from("profiles")
+      .select("id, display_name, avatar_url, birthday")
+      .like("birthday", `%-${today}`)
+      .then(({ data }) => {
+        if (data?.length) setTodayBirthdays(data as TodayBirthday[]);
+      });
+  }, []);
 
   return (
     <div className="flex flex-col min-h-[calc(100dvh-52px)]">
@@ -36,8 +66,64 @@ export function HomePage() {
         </p>
       </div>
 
-      {/* Feature cards */}
       <div className="max-w-[500px] mx-auto w-full px-5 pb-10 flex flex-col gap-2.5">
+        {/* Banner de aniversariantes de hoje */}
+        {todayBirthdays.length > 0 && (
+          <button
+            onClick={() => navigate("/aniversarios")}
+            className="w-full flex items-center gap-3 py-3.5 px-4 rounded-xl text-left
+              bg-gradient-to-r from-[rgba(201,165,90,0.12)] to-[rgba(201,165,90,0.05)]
+              border border-[rgba(201,165,90,0.25)]
+              hover:border-[rgba(201,165,90,0.4)] hover:-translate-y-0.5
+              hover:shadow-[0_4px_16px_rgba(201,165,90,0.1)]
+              transition-all anim-slideUp"
+            style={{ animationDelay: "0.08s" }}
+          >
+            <span className="text-2xl shrink-0">🎂</span>
+            <div className="flex-1 min-w-0">
+              {todayBirthdays.length === 1 ? (
+                <>
+                  <p className="text-sm font-semibold text-[var(--gold)] leading-tight">
+                    Hoje é aniversário de{" "}
+                    <span>{todayBirthdays[0].display_name.split(" ")[0]}</span>!
+                  </p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                    Mande uma mensagem para celebrar 🎉
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-[var(--gold)] leading-tight">
+                    {todayBirthdays.length} aniversariantes hoje!
+                  </p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                    {todayBirthdays
+                      .map((b) => b.display_name.split(" ")[0])
+                      .join(", ")}
+                  </p>
+                </>
+              )}
+            </div>
+            {/* Avatares empilhados */}
+            <div className="flex -space-x-2 shrink-0">
+              {todayBirthdays.slice(0, 3).map((b) => (
+                <div
+                  key={b.id}
+                  className="ring-2 ring-[var(--bg-deep)] rounded-full"
+                >
+                  <Avatar url={b.avatar_url} name={b.display_name} size="sm" />
+                </div>
+              ))}
+              {todayBirthdays.length > 3 && (
+                <div className="w-8 h-8 rounded-full bg-[var(--bg-elevated)] ring-2 ring-[var(--bg-deep)] flex items-center justify-center text-[0.6rem] font-bold text-[var(--text-muted)]">
+                  +{todayBirthdays.length - 3}
+                </div>
+              )}
+            </div>
+          </button>
+        )}
+
+        {/* Feature cards */}
         {APP_FEATURES.map((feat, i) => (
           <button
             key={feat.id}
