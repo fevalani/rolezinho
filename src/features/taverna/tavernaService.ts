@@ -7,6 +7,7 @@ const ROLL_SELECT = `
   user_id,
   dice_type,
   result,
+  batch_id,
   created_at,
   profiles:user_id (
     id,
@@ -22,6 +23,7 @@ function mapRow(row: Record<string, unknown>): DiceRoll {
     user_id: row.user_id as string,
     dice_type: row.dice_type as DiceType,
     result: row.result as number,
+    batch_id: (row.batch_id as string) ?? null,
     created_at: row.created_at as string,
     profile: row.profiles as DiceRoll["profile"],
   };
@@ -48,10 +50,14 @@ export async function performMultiRoll(
   diceType: DiceType,
   quantity: number,
 ): Promise<DiceRoll[]> {
+  // Generate a batch_id to group multi-dice rolls
+  const batchId = quantity > 1 ? crypto.randomUUID() : null;
+
   const rows = Array.from({ length: quantity }, () => ({
     user_id: userId,
     dice_type: diceType,
     result: rollDice(diceType),
+    batch_id: batchId,
   }));
 
   const { data, error } = await supabase
@@ -93,12 +99,11 @@ export function subscribeToRolls(onNewRoll: (roll: DiceRoll) => void) {
 
 /** Delete all rolls except the most recent 50 */
 export async function cleanupOldRolls(): Promise<number> {
-  // Get the 50th most recent roll's timestamp
   const { data: recentRolls } = await supabase
     .from("dice_rolls")
     .select("created_at")
     .order("created_at", { ascending: false })
-    .range(49, 49); // 0-indexed, so index 49 = 50th item
+    .range(49, 49);
 
   if (!recentRolls || recentRolls.length === 0) return 0;
 

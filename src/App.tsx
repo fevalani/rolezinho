@@ -5,6 +5,7 @@ import { HomePage } from "@/pages/HomePage";
 import { ProfilePage } from "@/pages/ProfilePage";
 import { AppShell } from "@/components/AppShell";
 import { TavernaPage } from "@/features/taverna/TavernaPage";
+import { RachaContaPage } from "./features/racha-conta/RachaContaPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -45,6 +46,7 @@ function AppRoutes() {
         <Route path="/" element={<HomePage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/dados" element={<TavernaPage />} />
+        <Route path="/racha-conta" element={<RachaContaPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

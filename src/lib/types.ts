@@ -22,8 +22,19 @@ export interface DiceRoll {
   user_id: string;
   dice_type: DiceType;
   result: number;
+  batch_id: string | null;
   created_at: string;
-  // joined from profiles
+  profile?: Profile;
+}
+
+/** A group of rolls (single or multi-dice) displayed as one line */
+export interface RollGroup {
+  key: string;
+  user_id: string;
+  dice_type: DiceType;
+  rolls: DiceRoll[];
+  total: number;
+  created_at: string;
   profile?: Profile;
 }
 
@@ -49,6 +60,95 @@ export const DICE_TYPES: DiceType[] = [
   "d20",
   "d100",
 ];
+
+// ═══════════════════════════════════════════
+// Racha Conta
+// ═══════════════════════════════════════════
+
+export type SplitType = "equal" | "custom" | "percent";
+
+export type ExpenseCategory =
+  | "alimentação"
+  | "bebidas"
+  | "hospedagem"
+  | "transporte"
+  | "lazer"
+  | "moradia"
+  | "compras"
+  | "outros";
+
+/** Membro de um grupo — pode ser usuário do app ou pessoa externa */
+export interface GroupMember {
+  /** UUID de profile para usuários do app; string local ("ext_<timestamp>") para externos */
+  id: string;
+  display_name: string;
+  /** Iniciais para o avatar fallback */
+  avatar_letter: string;
+  avatar_url: string | null;
+  /** true = tem conta no app (profiles table); false = externo */
+  is_app_user: boolean;
+  /** true = é o usuário autenticado atual */
+  is_me: boolean;
+}
+
+/**
+ * Mapa de splits por member id.
+ * - splitType "custom"  → valor em reais  (ex: { "uuid-a": 60, "uuid-b": 80 })
+ * - splitType "percent" → porcentagem 0-100 (ex: { "uuid-a": 50, "uuid-b": 50 })
+ * - splitType "equal"   → objeto vazio {}
+ */
+export type SplitsMap = Record<string, number>;
+
+export interface Expense {
+  id: string;
+  group_id: string;
+  name: string;
+  amount: number;
+  paid_by: string; // GroupMember.id
+  split_type: SplitType;
+  /** IDs dos membros que participam deste gasto */
+  participant_ids: string[];
+  splits: SplitsMap;
+  category: ExpenseCategory;
+  date: string; // ISO date "YYYY-MM-DD"
+  created_by: string; // GroupMember.id
+  created_at: string; // ISO timestamp
+}
+
+export interface Payment {
+  id: string;
+  group_id: string;
+  from_member_id: string;
+  to_member_id: string;
+  amount: number;
+  date: string; // ISO date "YYYY-MM-DD"
+  settled: true;
+  created_at: string;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  emoji: string;
+  created_by: string; // profile id
+  created_at: string;
+  members: GroupMember[];
+  expenses: Expense[];
+  payments: Payment[];
+}
+
+/** Transação mínima calculada pelo algoritmo greedy */
+export interface DebtTransaction {
+  from: string; // GroupMember.id
+  to: string; // GroupMember.id
+  amount: number;
+}
+
+/** Transação enriquecida com contexto de grupo (usada na home global) */
+export interface GlobalDebtTransaction extends DebtTransaction {
+  group_id: string;
+  group_name: string;
+}
 
 // ═══════════════════════════════════════════
 // Features registry
@@ -77,7 +177,7 @@ export const APP_FEATURES: Feature[] = [
     name: "Racha Conta",
     icon: "💰",
     path: "/racha-conta",
-    enabled: false,
+    enabled: true,
     description: "Divisão de gastos entre amigos",
   },
   {
