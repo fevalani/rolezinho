@@ -2,9 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
 import { LoginPage } from "@/pages/LoginPage";
 import { HomePage } from "@/pages/HomePage";
+import { ProfilePage } from "@/pages/ProfilePage";
 import { AppShell } from "@/components/AppShell";
 import { TavernaPage } from "@/features/taverna/TavernaPage";
-import { ProfilePage } from "./pages/ProfilePage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -35,7 +35,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   return (
     <Routes>
-      {/* Protected app shell with nested routes */}
       <Route
         element={
           <ProtectedRoute>
@@ -45,13 +44,9 @@ function AppRoutes() {
       >
         <Route path="/" element={<HomePage />} />
         <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/taverna" element={<TavernaPage />} />
-        {/* Future features go here */}
-        {/* <Route path="/racha-conta" element={<RachaContaPage />} /> */}
-        {/* <Route path="/fichas" element={<FichasPage />} /> */}
+        <Route path="/dados" element={<TavernaPage />} />
       </Route>
 
-      {/* Catch all */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

@@ -1,18 +1,20 @@
-import { useState } from 'react';
-import { useAuth } from '@/lib/AuthContext';
-import styles from './LoginPage.module.css';
+import { useState } from "react";
+import { useAuth } from "@/lib/AuthContext";
 
 export function LoginPage() {
   const { signIn, signUp, loading } = useAuth();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const clearMessages = () => { setError(''); setSuccess(''); };
+  const clearMessages = () => {
+    setError("");
+    setSuccess("");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,25 +24,25 @@ export function LoginPage() {
     const trimName = name.trim();
 
     if (!trimEmail || !password) {
-      setError('Preencha todos os campos');
+      setError("Preencha todos os campos");
       return;
     }
-    if (mode === 'signup' && !trimName) {
-      setError('Insira seu nome de aventureiro');
+    if (mode === "signup" && !trimName) {
+      setError("Insira seu nome");
       return;
     }
-    if (mode === 'signup' && trimName.length < 2) {
-      setError('Nome deve ter pelo menos 2 caracteres');
+    if (mode === "signup" && trimName.length < 2) {
+      setError("Nome deve ter pelo menos 2 caracteres");
       return;
     }
     if (password.length < 6) {
-      setError('Senha deve ter pelo menos 6 caracteres');
+      setError("Senha deve ter pelo menos 6 caracteres");
       return;
     }
 
     setSubmitting(true);
 
-    if (mode === 'login') {
+    if (mode === "login") {
       const { error: err } = await signIn(trimEmail, password);
       if (err) setError(err);
     } else {
@@ -48,10 +50,12 @@ export function LoginPage() {
       if (err) {
         setError(err);
       } else {
-        setSuccess('Conta criada! Verifique seu email para confirmar e depois faça login.');
-        setMode('login');
-        setPassword('');
-        setName('');
+        setSuccess(
+          "Conta criada! Verifique seu email para confirmar e depois faça login.",
+        );
+        setMode("login");
+        setPassword("");
+        setName("");
       }
     }
 
@@ -60,119 +64,123 @@ export function LoginPage() {
 
   if (loading) {
     return (
-      <div className={`page ${styles.page}`}>
-        <div className={styles.center}>
-          <div className="spinner" />
-        </div>
+      <div className="page flex items-center justify-center min-h-dvh">
+        <div className="spinner" />
       </div>
     );
   }
 
+  const inputClass =
+    "w-full py-3 px-4 bg-[var(--bg-primary)] border border-[rgba(201,165,90,0.12)] rounded-lg text-[var(--text-primary)] outline-none transition-all focus:border-[var(--gold)] focus:shadow-[0_0_0_3px_rgba(201,165,90,0.08)] placeholder:text-[var(--text-muted)]";
+
   return (
-    <div className={`page ${styles.page}`}>
-      <div className={styles.center}>
-        {/* Logo */}
-        <div className={`${styles.logoWrap} anim-bounce`}>
-          <svg viewBox="0 0 100 100" width={88} height={88} className={styles.logoSvg}>
-            <defs>
-              <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#e8c86e" />
-                <stop offset="100%" stopColor="#8b7a3e" />
-              </linearGradient>
-            </defs>
-            <polygon
-              points="50,3 97,28 97,72 50,97 3,72 3,28"
-              fill="none"
-              stroke="url(#logoGrad)"
-              strokeWidth="2.5"
-            />
-            <polygon
-              points="50,16 84,34 84,66 50,84 16,66 16,34"
-              fill="none"
-              stroke="#c9a55a"
-              strokeWidth="1"
-              opacity="0.25"
-            />
-            <text
-              x="50"
-              y="59"
-              textAnchor="middle"
-              fill="#c9a55a"
-              fontFamily="serif"
-              fontSize="26"
-              fontWeight="bold"
-            >
-              20
-            </text>
-          </svg>
+    <div className="page flex items-center justify-center min-h-dvh px-5 py-10">
+      <div className="flex flex-col items-center gap-4 max-w-[380px] w-full">
+        {/* Logo image */}
+        <div className="anim-bounce mb-1">
+          <img
+            src="/images/rolezinho-roots.jpeg"
+            alt="Rolezinho Roots"
+            className="w-24 h-24 rounded-full object-cover border-2 border-[rgba(201,165,90,0.25)] shadow-[0_0_28px_rgba(201,165,90,0.18)]"
+          />
         </div>
 
-        <h1 className={`${styles.title} anim-fade d1`}>Taverna dos Amigos</h1>
-        <p className={`${styles.subtitle} anim-fade d2`}>
-          {mode === 'login'
-            ? 'Entre na sua conta para acessar a taverna'
-            : 'Crie sua conta de aventureiro'}
+        <h1
+          className="text-2xl text-[var(--gold)] tracking-wide text-center anim-fade"
+          style={{ fontFamily: "var(--font-display)", animationDelay: "0.05s" }}
+        >
+          Rolezinho Roots
+        </h1>
+        <p
+          className="text-base text-[var(--text-secondary)] text-center leading-relaxed mb-2 anim-fade"
+          style={{ animationDelay: "0.1s" }}
+        >
+          {mode === "login"
+            ? "Entre na sua conta para acessar o app"
+            : "Crie sua conta"}
         </p>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className={`${styles.form} anim-slideUp d3`}>
-          {mode === 'signup' && (
+        <form
+          onSubmit={handleSubmit}
+          className="w-full flex flex-col gap-3 anim-slideUp"
+          style={{ animationDelay: "0.15s" }}
+        >
+          {mode === "signup" && (
             <input
-              className="input"
+              className={inputClass}
               type="text"
-              placeholder="Nome de aventureiro"
+              placeholder="Seu nome"
               value={name}
-              onChange={(e) => { setName(e.target.value); clearMessages(); }}
+              onChange={(e) => {
+                setName(e.target.value);
+                clearMessages();
+              }}
               autoComplete="name"
               maxLength={40}
-              data-testid="name-input"
             />
           )}
           <input
-            className="input"
+            className={inputClass}
             type="email"
             placeholder="Email"
             value={email}
-            onChange={(e) => { setEmail(e.target.value); clearMessages(); }}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              clearMessages();
+            }}
             autoComplete="email"
-            data-testid="email-input"
           />
           <input
-            className="input"
+            className={inputClass}
             type="password"
             placeholder="Senha (mínimo 6 caracteres)"
             value={password}
-            onChange={(e) => { setPassword(e.target.value); clearMessages(); }}
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            data-testid="password-input"
+            onChange={(e) => {
+              setPassword(e.target.value);
+              clearMessages();
+            }}
+            autoComplete={
+              mode === "login" ? "current-password" : "new-password"
+            }
           />
 
-          {error && <p className={styles.error} data-testid="auth-error">{error}</p>}
-          {success && <p className={styles.success} data-testid="auth-success">{success}</p>}
+          {error && (
+            <p className="text-sm text-center py-2 px-3 rounded-lg text-[var(--red)] bg-[rgba(196,64,64,0.08)] border border-[rgba(196,64,64,0.15)]">
+              {error}
+            </p>
+          )}
+          {success && (
+            <p className="text-sm text-center py-2 px-3 rounded-lg text-[var(--green)] bg-[rgba(58,186,122,0.08)] border border-[rgba(58,186,122,0.15)] leading-snug">
+              {success}
+            </p>
+          )}
 
           <button
             type="submit"
-            className="btn btn-gold btn-full btn-lg"
             disabled={submitting}
-            data-testid="submit-btn"
+            className="w-full py-3.5 px-6 rounded-lg font-semibold text-lg text-[var(--bg-abyss)] bg-gradient-to-br from-[var(--gold-dark)] to-[var(--gold)] shadow-[0_2px_8px_rgba(0,0,0,0.5),0_0_12px_rgba(201,165,90,0.1)] hover:from-[var(--gold)] hover:to-[var(--gold-bright)] hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
           >
             {submitting
-              ? 'Carregando...'
-              : mode === 'login'
-                ? 'Entrar'
-                : 'Criar conta'}
+              ? "Carregando..."
+              : mode === "login"
+                ? "Entrar"
+                : "Criar conta"}
           </button>
         </form>
 
         {/* Toggle */}
         <button
-          className={`${styles.toggleMode} anim-fade d4`}
-          onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); clearMessages(); }}
-          data-testid="toggle-mode"
+          className="text-sm text-[var(--gold-dark)] hover:text-[var(--gold)] transition-colors p-2 anim-fade"
+          onClick={() => {
+            setMode(mode === "login" ? "signup" : "login");
+            clearMessages();
+          }}
+          style={{ animationDelay: "0.2s" }}
         >
-          {mode === 'login'
-            ? 'Não tem conta? Criar agora'
-            : 'Já tem conta? Fazer login'}
+          {mode === "login"
+            ? "Não tem conta? Criar agora"
+            : "Já tem conta? Fazer login"}
         </button>
       </div>
     </div>

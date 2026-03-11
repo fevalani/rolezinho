@@ -33,35 +33,16 @@ export function AppShell() {
         </button>
 
         <div className="flex-1 flex items-center gap-2">
-          <svg
-            viewBox="0 0 100 100"
-            width={24}
-            height={24}
-            className="text-[var(--gold)]"
-          >
-            <polygon
-              points="50,5 95,30 95,70 50,95 5,70 5,30"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="5"
-            />
-            <text
-              x="50"
-              y="60"
-              textAnchor="middle"
-              fill="currentColor"
-              fontFamily="serif"
-              fontSize="30"
-              fontWeight="bold"
-            >
-              20
-            </text>
-          </svg>
+          <img
+            src="/images/rolezinho-roots.jpeg"
+            alt=""
+            className="w-7 h-7 rounded-full object-cover border border-[rgba(201,165,90,0.2)]"
+          />
           <span
             className="text-[1.05rem] font-bold text-[var(--gold)] tracking-wide"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            Taverna
+            Rolezinho Roots
           </span>
         </div>
 
@@ -198,7 +179,7 @@ export function AppShell() {
                 className="text-[0.65rem] text-[var(--text-muted)]"
                 style={{ fontFamily: "var(--font-mono)" }}
               >
-                v2.0.0
+                v2.1.0
               </span>
             </div>
           </nav>
