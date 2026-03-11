@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Taverna dos Amigos</string>
+    <string name="title_activity_main">Taverna dos Amigos</string>
+    <string name="package_name">com.taverna.amigos</string>
+    <string name="custom_url_scheme">com.taverna.amigos</string>
+</resources>
