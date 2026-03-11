@@ -1,0 +1,121 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 52px);
+}
+
+.heroSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px 32px;
+  gap: 12px;
+}
+
+.logoContainer {
+  filter: drop-shadow(0 0 40px rgba(201,165,90,0.12));
+}
+
+.logo {
+  display: block;
+}
+
+.greeting {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  color: var(--gold);
+  text-align: center;
+  margin-top: 8px;
+}
+
+.tagline {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+/* Feature cards */
+.featureGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 40px;
+}
+
+.featureCard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: var(--bg-card);
+  border: 1px solid rgba(201,165,90,0.06);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  font-family: var(--font-body);
+  width: 100%;
+}
+.featureCard:hover:not(:disabled) {
+  background: var(--bg-elevated);
+  border-color: rgba(201,165,90,0.15);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+.featureCard:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.featureDisabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.featureIcon {
+  font-size: 1.6rem;
+  width: 40px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.featureInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.featureName {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.featureDesc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.comingSoon {
+  font-size: 0.6rem;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(201,165,90,0.08);
+  color: var(--gold-dark);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.arrow {
+  color: var(--gold-dark);
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+.featureCard:hover .arrow {
+  transform: translateX(3px);
+  color: var(--gold);
+}
