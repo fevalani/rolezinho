@@ -8,6 +8,7 @@ export interface Profile {
   display_name: string;
   avatar_url: string | null;
   /** Aniversário no formato MM-DD (ex: "07-25"). Sem ano. */
+  hidden_features: string[];
   birthday: string | null;
   created_at: string;
   updated_at: string;
@@ -191,11 +192,27 @@ export const APP_FEATURES: Feature[] = [
     description: "Próximos aniversários dos integrantes",
   },
   {
+    id: "musicas",
+    name: "Músicas de Hoje",
+    icon: "🎵",
+    path: "/musicas",
+    enabled: true,
+    description: "Uma indicação musical por pessoa por dia",
+  },
+  {
     id: "ficha",
     name: "Mesas de RPG",
     icon: "🏰",
     path: "/rpg",
-    enabled: true,
+    enabled: false,
     description: "Mesas de RPG, fichas D&D e sessões ao vivo",
+  },
+  {
+    id: "frases",
+    name: "Frases do Dia",
+    icon: "💬",
+    path: "/frases",
+    enabled: false,
+    description: "Uma frase inspiradora por dia",
   },
 ];

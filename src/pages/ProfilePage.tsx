@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { getInitials } from "@/lib/utils";
+import { APP_FEATURES } from "@/lib/types";
 
 const EMOJI_AVATARS = [
   "🧙",
@@ -62,6 +63,12 @@ export function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  // Home customization
+  const [hiddenFeatures, setHiddenFeatures] = useState<string[]>(
+    profile?.hidden_features ?? [],
+  );
+  const [savingHome, setSavingHome] = useState(false);
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -371,7 +378,91 @@ export function ProfilePage() {
 
         <div className={divider} />
 
-        {/* Password */}
+        {/* Home customization */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h2
+              className="text-xs text-(--text-muted) uppercase tracking-widest font-semibold"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              Minha Home
+            </h2>
+            <span className="text-xs text-(--text-muted)">
+              {APP_FEATURES.filter((f) => f.enabled).length -
+                hiddenFeatures.length}{" "}
+              de {APP_FEATURES.filter((f) => f.enabled).length} visíveis
+            </span>
+          </div>
+          <p className="text-xs text-(--text-muted) -mt-1">
+            Escolha quais atalhos aparecem na tela inicial.
+          </p>
+
+          <div className="flex flex-col gap-2">
+            {APP_FEATURES.filter((f) => f.enabled).map((feat) => {
+              const isHidden = hiddenFeatures.includes(feat.id);
+              return (
+                <button
+                  key={feat.id}
+                  onClick={() => {
+                    setHiddenFeatures((prev) =>
+                      isHidden
+                        ? prev.filter((id) => id !== feat.id)
+                        : [...prev, feat.id],
+                    );
+                  }}
+                  className={`flex items-center gap-3 px-3.5 py-3 rounded-xl border transition-all text-left w-full
+                    ${
+                      isHidden
+                        ? "bg-[var(--bg-primary)] border-[rgba(255,255,255,0.05)] opacity-50"
+                        : "bg-[var(--bg-card)] border-[rgba(201,165,90,0.12)] hover:border-[rgba(201,165,90,0.25)]"
+                    }`}
+                >
+                  <span className="text-xl w-8 text-center shrink-0">
+                    {feat.icon}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`text-sm font-medium leading-tight ${isHidden ? "text-(--text-muted)" : "text-(--text-primary)"}`}
+                    >
+                      {feat.name}
+                    </p>
+                    <p className="text-xs text-(--text-muted) mt-0.5 truncate">
+                      {feat.description}
+                    </p>
+                  </div>
+                  {/* Toggle pill */}
+                  <div
+                    className={`shrink-0 w-10 h-5.5 rounded-full transition-all relative
+                      ${isHidden ? "bg-[rgba(255,255,255,0.08)]" : "bg-[rgba(201,165,90,0.3)]"}`}
+                  >
+                    <div
+                      className={`absolute top-0.5 w-4 h-4 rounded-full shadow transition-all
+                        ${
+                          isHidden
+                            ? "left-0.5 bg-[rgba(255,255,255,0.3)]"
+                            : "left-[calc(100%-1.125rem)] bg-(--gold)"
+                        }`}
+                    />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={async () => {
+              setSavingHome(true);
+              await updateProfile({ hidden_features: hiddenFeatures });
+              setSavingHome(false);
+            }}
+            disabled={savingHome}
+            className={btnGold}
+          >
+            {savingHome ? "Salvando..." : "Salvar home"}
+          </button>
+        </div>
+
+        <div className={divider} />
         <div className="flex flex-col gap-3">
           <h2
             className="text-xs text-(--text-muted) uppercase tracking-widest font-semibold"

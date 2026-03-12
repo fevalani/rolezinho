@@ -24,6 +24,10 @@ export function HomePage() {
   const navigate = useNavigate();
   const firstName = profile?.display_name?.split(" ")[0] ?? "Aventureiro";
 
+  const visibleFeatures = APP_FEATURES.filter(
+    (f) => !(profile?.hidden_features ?? []).includes(f.id),
+  );
+
   const [todayBirthdays, setTodayBirthdays] = useState<TodayBirthday[]>([]);
 
   useEffect(() => {
@@ -124,7 +128,7 @@ export function HomePage() {
         )}
 
         {/* Feature cards */}
-        {APP_FEATURES.map((feat, i) => (
+        {visibleFeatures.map((feat, i) => (
           <button
             key={feat.id}
             onClick={() => feat.enabled && navigate(feat.path)}

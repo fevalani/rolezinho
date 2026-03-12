@@ -10,6 +10,8 @@ import { RachaContaPage } from "./features/racha-conta/RachaContaPage";
 import { RpgHomePage } from "@/features/rpg/RpgHomePage";
 import { RpgTablePage } from "@/features/rpg/RpgTablePage";
 import { RpgSheetPage } from "@/features/rpg/RpgSheetView";
+import { MusicasPage } from "./features/musicas/MusciasPage";
+import { FrasesPage } from "./features/frases/FrasesPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -55,6 +57,8 @@ function AppRoutes() {
         <Route path="/rpg" element={<RpgHomePage />} />
         <Route path="/rpg/mesa/:tableId" element={<RpgTablePage />} />
         <Route path="/rpg/ficha/:sheetId" element={<RpgSheetPage />} />
+        <Route path="/musicas" element={<MusicasPage />} />
+        <Route path="/frases" element={<FrasesPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

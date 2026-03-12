@@ -27,7 +27,12 @@ interface AuthContextValue {
   ) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   updateProfile: (
-    updates: Partial<Pick<Profile, "display_name" | "avatar_url" | "birthday">>,
+    updates: Partial<
+      Pick<
+        Profile,
+        "display_name" | "avatar_url" | "birthday" | "hidden_features"
+      >
+    >,
   ) => Promise<void>;
   changePassword: (newPassword: string) => Promise<{ error: string | null }>;
 }
@@ -140,7 +145,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updateProfile = useCallback(
     async (
       updates: Partial<
-        Pick<Profile, "display_name" | "avatar_url" | "birthday">
+        Pick<
+          Profile,
+          "display_name" | "avatar_url" | "birthday" | "hidden_features"
+        >
       >,
     ) => {
       if (!user) return;
