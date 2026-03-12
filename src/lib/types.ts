@@ -7,7 +7,6 @@ export interface Profile {
   email: string;
   display_name: string;
   avatar_url: string | null;
-  /** Aniversário no formato MM-DD (ex: "07-25"). Sem ano. */
   hidden_features: string[];
   birthday: string | null;
   created_at: string;
@@ -168,22 +167,6 @@ export interface Feature {
 
 export const APP_FEATURES: Feature[] = [
   {
-    id: "dados",
-    name: "Dados D20",
-    icon: "🎲",
-    path: "/dados",
-    enabled: true,
-    description: "Rolagem de dados de RPG em tempo real",
-  },
-  {
-    id: "splitwise",
-    name: "Racha Conta",
-    icon: "💰",
-    path: "/racha-conta",
-    enabled: true,
-    description: "Divisão de gastos entre amigos",
-  },
-  {
     id: "aniversarios",
     name: "Aniversários",
     icon: "🎂",
@@ -200,19 +183,43 @@ export const APP_FEATURES: Feature[] = [
     description: "Uma indicação musical por pessoa por dia",
   },
   {
+    id: "agenda",
+    name: "Agenda",
+    icon: "📅",
+    path: "/agenda",
+    enabled: true,
+    description: "Eventos, confirmações e finalizados",
+  },
+  {
+    id: "splitwise",
+    name: "Racha Conta",
+    icon: "💰",
+    path: "/racha-conta",
+    enabled: true,
+    description: "Divisão de gastos entre amigos",
+  },
+  {
+    id: "dados",
+    name: "Dados D20",
+    icon: "🎲",
+    path: "/dados",
+    enabled: true,
+    description: "Rolagem de dados de RPG em tempo real",
+  },
+  {
     id: "ficha",
-    name: "Mesas de RPG",
+    name: "RPG",
     icon: "🏰",
     path: "/rpg",
     enabled: false,
     description: "Mesas de RPG, fichas D&D e sessões ao vivo",
   },
   {
-    id: "frases",
-    name: "Frases do Dia",
-    icon: "💬",
-    path: "/frases",
+    id: "bolao",
+    name: "Bolão",
+    icon: "⚽",
+    path: "/bolao",
     enabled: false,
-    description: "Uma frase inspiradora por dia",
+    description: "Bolão para eventos esportivos, com palpites e pontuação",
   },
 ];

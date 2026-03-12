@@ -296,6 +296,41 @@ export function ProfilePage() {
           <p className="text-xs text-(--text-muted) mt-1">
             ou escolha um avatar
           </p>
+
+          {/* Custom emoji input */}
+          <div className="w-full max-w-xs flex items-center gap-2">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={isEmoji(avatarPreview) ? avatarPreview : ""}
+                onChange={(e) => {
+                  const val = e.target.value.trim();
+                  if (!val) return;
+                  // Extrai o primeiro emoji válido do input usando spread do string
+                  // (suporta emojis multi-codepoint como flags e sequências ZWJ)
+                  const chars = [...val]; // spread respeita surrogate pairs
+                  // Testa progressivamente agrupamentos de chars até achar emoji
+                  for (let len = Math.min(chars.length, 8); len >= 1; len--) {
+                    const candidate = chars.slice(chars.length - len).join("");
+                    if (isEmoji(candidate)) {
+                      clearMsg();
+                      setPendingFile(null);
+                      setAvatarPreview(candidate);
+                      return;
+                    }
+                  }
+                }}
+                placeholder="✨ Digite qualquer emoji"
+                className="w-full py-2.5 px-3 bg-[var(--bg-primary)] border border-[rgba(201,165,90,0.12)] rounded-lg text-(--text-primary) outline-none transition-all focus:border-(--gold) focus:shadow-[0_0_0_3px_rgba(201,165,90,0.08)] placeholder:text-(--text-muted) text-sm"
+              />
+            </div>
+            {isEmoji(avatarPreview) && (
+              <div className="w-10 h-10 rounded-lg bg-[rgba(201,165,90,0.08)] border border-[rgba(201,165,90,0.2)] flex items-center justify-center text-2xl shrink-0">
+                {avatarPreview}
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-8 gap-1.5 w-full max-w-xs">
             {EMOJI_AVATARS.map((emoji) => (
               <button

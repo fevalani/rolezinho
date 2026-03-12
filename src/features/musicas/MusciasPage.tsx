@@ -9,7 +9,9 @@ import {
   resolveMusicMeta,
   savePick,
   deletePick,
+  toggleLike,
   subscribePicksByDate,
+  subscribeLikesByDate,
   todayDateStr,
   type MusicPick,
   type MusicMeta,
@@ -70,13 +72,26 @@ const TYPE_LABEL: Record<string, string> = {
 function PickCard({
   pick,
   isMe,
+  canLike,
   onDelete,
+  onLike,
 }: {
   pick: MusicPick;
   isMe: boolean;
+  canLike: boolean;
   onDelete: () => void;
+  onLike: () => void;
 }) {
+  const { user } = useAuth();
   const [imgError, setImgError] = useState(false);
+  const [likeAnim, setLikeAnim] = useState(false);
+
+  const handleLike = () => {
+    if (!canLike && !pick.liked_by_me) return;
+    setLikeAnim(true);
+    setTimeout(() => setLikeAnim(false), 300);
+    onLike();
+  };
 
   return (
     <div className="relative flex gap-3 p-3 rounded-2xl bg-[var(--bg-card)] border border-[rgba(255,255,255,0.04)] hover:border-[rgba(255,255,255,0.08)] transition-all group">
@@ -97,7 +112,6 @@ function PickCard({
         ) : (
           <span className="text-2xl opacity-40">🎵</span>
         )}
-        {/* Play overlay */}
         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
           <span className="text-white text-lg">▶</span>
         </div>
@@ -116,7 +130,6 @@ function PickCard({
           )}
         </div>
         <div className="flex items-center gap-1.5 mt-1.5">
-          {/* Source badge */}
           <span
             className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
             style={{
@@ -138,22 +151,53 @@ function PickCard({
         </div>
       </div>
 
-      {/* Indicado por */}
-      <div className="shrink-0 flex flex-col items-end justify-between py-0.5">
-        <Avatar
-          url={pick.profile?.avatar_url ?? null}
-          name={pick.profile?.display_name ?? "?"}
-          size="sm"
-        />
-        {isMe && (
+      {/* Right col: avatar + like + delete */}
+      <div className="shrink-0 flex flex-col items-end justify-between py-0.5 gap-1">
+        <div className="flex gap-1 justify-center items-center">
+          <Avatar
+            url={pick.profile?.avatar_url ?? null}
+            name={pick.profile?.display_name ?? "?"}
+            size="sm"
+          />
+          <span className={`text-xs`}>
+            {pick.profile?.id !== user?.id &&
+              pick.profile?.display_name?.split(" ")[0]}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {/* Like button */}
           <button
-            onClick={onDelete}
-            className="text-(--text-muted) hover:text-(--red) text-xs transition-colors p-0.5"
-            title="Remover indicação"
+            onClick={handleLike}
+            disabled={!canLike && !pick.liked_by_me}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition-all
+              ${
+                pick.liked_by_me
+                  ? "text-[var(--gold)] bg-[rgba(201,165,90,0.15)] border border-[rgba(201,165,90,0.3)]"
+                  : canLike
+                    ? "text-(--text-muted) bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] hover:text-(--gold) hover:bg-[rgba(201,165,90,0.08)] hover:border-[rgba(201,165,90,0.2)]"
+                    : "text-(--text-muted) opacity-40 cursor-default border border-transparent"
+              } ${likeAnim ? "scale-110" : "scale-100"}`}
+            style={{ transition: "all 0.15s ease" }}
+            title={pick.liked_by_me ? "Remover like" : canLike ? "Curtir" : ""}
           >
-            ✕
+            <span className="text-sm leading-none">
+              {pick.liked_by_me ? "❤️" : "🖤"}
+            </span>
+            {pick.like_count > 0 && (
+              <span className="text-sm">{pick.like_count}</span>
+            )}
           </button>
-        )}
+
+          {isMe && (
+            <button
+              onClick={onDelete}
+              className="text-(--text-muted) hover:text-(--red) text-xs transition-colors p-0.5"
+              title="Remover indicação"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -313,6 +357,14 @@ function AddPickModal({
   );
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────
+function sortByLikes(picks: MusicPick[]): MusicPick[] {
+  return [...picks].sort((a, b) => {
+    if (b.like_count !== a.like_count) return b.like_count - a.like_count;
+    return a.created_at.localeCompare(b.created_at);
+  });
+}
+
 // ─── Main Page ────────────────────────────────────────────────────
 export function MusicasPage() {
   const { user, profile } = useAuth();
@@ -343,24 +395,29 @@ export function MusicasPage() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      fetchPicksByDate(selectedDate),
+      fetchPicksByDate(selectedDate, user?.id),
       user ? fetchMyPickForDate(user.id, selectedDate) : Promise.resolve(null),
     ]).then(([p, mine]) => {
-      setPicks(p);
+      // sort by likes desc, ties broken by created_at asc
+      setPicks(sortByLikes(p));
       setMyPick(mine);
       setLoading(false);
     });
   }, [selectedDate, user]);
 
-  // Realtime
+  // Realtime picks
   useEffect(() => {
     if (selectedDate !== today) return;
     const ch = subscribePicksByDate(
       selectedDate,
       (pick) => {
-        setPicks((prev) =>
-          prev.some((p) => p.id === pick.id) ? prev : [...prev, pick],
-        );
+        setPicks((prev) => {
+          if (prev.some((p) => p.id === pick.id)) return prev;
+          return sortByLikes([
+            ...prev,
+            { ...pick, like_count: 0, liked_by_me: false },
+          ]);
+        });
         if (pick.user_id === user?.id) setMyPick(pick);
       },
       (id) => {
@@ -373,6 +430,79 @@ export function MusicasPage() {
     };
   }, [selectedDate, today, user?.id]);
 
+  // Realtime likes — só aplica em picks conhecidos e ignora eventos próprios
+  // (os próprios já foram tratados pelo optimistic update no handleLike)
+  useEffect(() => {
+    const ch = subscribeLikesByDate(
+      selectedDate,
+      (pickId, delta, fromUserId) => {
+        // Ignora eventos do próprio usuário — já foram aplicados optimisticamente
+        if (fromUserId === user?.id) return;
+        setPicks((prev) => {
+          // Só atualiza se o pick pertence à data selecionada (está na lista)
+          if (!prev.some((p) => p.id === pickId)) return prev;
+          return sortByLikes(
+            prev.map((p) =>
+              p.id === pickId
+                ? { ...p, like_count: Math.max(0, p.like_count + delta) }
+                : p,
+            ),
+          );
+        });
+      },
+    );
+    return () => {
+      ch.unsubscribe();
+    };
+  }, [selectedDate, user?.id]);
+
+  const handleLike = async (pick: MusicPick) => {
+    if (!user) return;
+    const wasLiked = pick.liked_by_me;
+    // Optimistic update — não espera o realtime, que vai ser ignorado para o próprio user
+    setPicks((prev) =>
+      sortByLikes(
+        prev.map((p) =>
+          p.id === pick.id
+            ? {
+                ...p,
+                liked_by_me: !wasLiked,
+                like_count: Math.max(0, p.like_count + (wasLiked ? -1 : 1)),
+              }
+            : p,
+        ),
+      ),
+    );
+    const { liked, error } = await toggleLike(user.id, pick.id, wasLiked);
+    if (error) {
+      // Reverte em caso de erro
+      setPicks((prev) =>
+        sortByLikes(
+          prev.map((p) =>
+            p.id === pick.id
+              ? {
+                  ...p,
+                  liked_by_me: wasLiked,
+                  like_count: Math.max(0, p.like_count + (wasLiked ? 1 : -1)),
+                }
+              : p,
+          ),
+        ),
+      );
+      showToast("Erro ao registrar like.");
+    }
+    // Se o servidor retornou estado diferente do esperado (ex: race condition), sincroniza
+    if (!error && liked !== !wasLiked) {
+      setPicks((prev) =>
+        sortByLikes(
+          prev.map((p) =>
+            p.id === pick.id ? { ...p, liked_by_me: liked } : p,
+          ),
+        ),
+      );
+    }
+  };
+
   const handleSave = async (meta: MusicMeta) => {
     if (!user) return;
     const { data, error } = await savePick(user.id, meta);
@@ -382,25 +512,20 @@ export function MusicasPage() {
     }
     if (data) {
       setShowAdd(false);
-      setMyPick({
+      const enriched = {
         ...data,
+        like_count: 0,
+        liked_by_me: false,
         profile: {
           id: user.id,
           display_name: profile?.display_name ?? "",
           avatar_url: profile?.avatar_url ?? null,
         },
-      });
-      setPicks((prev) => [
-        ...prev.filter((p) => p.user_id !== user.id),
-        {
-          ...data,
-          profile: {
-            id: user.id,
-            display_name: profile?.display_name ?? "",
-            avatar_url: profile?.avatar_url ?? null,
-          },
-        },
-      ]);
+      };
+      setMyPick(enriched);
+      setPicks((prev) =>
+        sortByLikes([...prev.filter((p) => p.user_id !== user.id), enriched]),
+      );
       showToast("Indicação salva! 🎵");
     }
   };
@@ -508,7 +633,9 @@ export function MusicasPage() {
                 key={pick.id}
                 pick={pick}
                 isMe={pick.user_id === user?.id}
+                canLike={!!user && pick.user_id !== user.id}
                 onDelete={() => handleDelete(pick.id)}
+                onLike={() => handleLike(pick)}
               />
             ))}
 

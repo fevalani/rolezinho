@@ -36,7 +36,12 @@ export interface MusicPick {
     display_name: string;
     avatar_url: string | null;
   };
+  like_count: number; // total de likes recebidos
+  liked_by_me: boolean; // se o usuário atual já curtiu
 }
+
+// Map: pickId → { count, likedByMe }
+export type LikeMap = Record<string, { count: number; likedByMe: boolean }>;
 
 // ═══════════════════════════════════════════
 // URL Parsers
@@ -238,7 +243,10 @@ export function todayDateStr(): string {
   return `${y}-${m}-${d}`;
 }
 
-export async function fetchPicksByDate(date: string): Promise<MusicPick[]> {
+export async function fetchPicksByDate(
+  date: string,
+  currentUserId?: string,
+): Promise<MusicPick[]> {
   const { data, error } = await supabase
     .from("music_picks")
     .select("*")
@@ -259,7 +267,17 @@ export async function fetchPicksByDate(date: string): Promise<MusicPick[]> {
     .in("id", userIds);
 
   const pm = new Map((profiles ?? []).map((p) => [p.id, p]));
-  return data.map((p) => ({ ...p, profile: pm.get(p.user_id) })) as MusicPick[];
+
+  // fetch likes for all picks
+  const pickIds = data.map((p) => p.id);
+  const likeMap = await fetchLikeMap(pickIds, currentUserId);
+
+  return data.map((p) => ({
+    ...p,
+    profile: pm.get(p.user_id),
+    like_count: likeMap[p.id]?.count ?? 0,
+    liked_by_me: likeMap[p.id]?.likedByMe ?? false,
+  })) as MusicPick[];
 }
 
 export async function fetchMyPickForDate(
@@ -318,6 +336,81 @@ export async function savePick(
 
 export async function deletePick(pickId: string): Promise<void> {
   await supabase.from("music_picks").delete().eq("id", pickId);
+}
+
+// ═══════════════════════════════════════════
+// Likes
+// ═══════════════════════════════════════════
+
+/** Busca contagens e "liked_by_me" para um conjunto de pickIds */
+export async function fetchLikeMap(
+  pickIds: string[],
+  currentUserId?: string,
+): Promise<LikeMap> {
+  if (!pickIds.length) return {};
+
+  const { data: likes } = await supabase
+    .from("music_pick_likes")
+    .select("pick_id, user_id")
+    .in("pick_id", pickIds);
+
+  const map: LikeMap = {};
+  for (const id of pickIds) map[id] = { count: 0, likedByMe: false };
+  for (const like of likes ?? []) {
+    map[like.pick_id].count++;
+    if (currentUserId && like.user_id === currentUserId) {
+      map[like.pick_id].likedByMe = true;
+    }
+  }
+  return map;
+}
+
+export async function toggleLike(
+  userId: string,
+  pickId: string,
+  currentlyLiked: boolean,
+): Promise<{ liked: boolean; error: string | null }> {
+  if (currentlyLiked) {
+    const { error } = await supabase
+      .from("music_pick_likes")
+      .delete()
+      .eq("user_id", userId)
+      .eq("pick_id", pickId);
+    if (error) return { liked: true, error: error.message };
+    return { liked: false, error: null };
+  } else {
+    const { error } = await supabase
+      .from("music_pick_likes")
+      .insert({ user_id: userId, pick_id: pickId });
+    if (error) {
+      if (error.code === "23505") return { liked: true, error: null }; // already liked
+      return { liked: false, error: error.message };
+    }
+    return { liked: true, error: null };
+  }
+}
+
+export function subscribeLikesByDate(
+  date: string,
+  onLikeChange: (pickId: string, delta: 1 | -1, fromUserId: string) => void,
+) {
+  // Supabase realtime não permite filter em FK, então recebemos todos os
+  // eventos de likes e deixamos a página filtrar por picks conhecidos.
+  // O fromUserId é passado para que o chamador ignore seus próprios eventos
+  // (já tratados pelo optimistic update).
+  return supabase
+    .channel(`music_likes:${date}`)
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "music_pick_likes" },
+      (payload) => onLikeChange(payload.new.pick_id, 1, payload.new.user_id),
+    )
+    .on(
+      "postgres_changes",
+      { event: "DELETE", schema: "public", table: "music_pick_likes" },
+      (payload) => onLikeChange(payload.old.pick_id, -1, payload.old.user_id),
+    )
+    .subscribe();
 }
 
 export function subscribePicksByDate(

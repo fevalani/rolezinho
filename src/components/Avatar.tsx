@@ -3,11 +3,12 @@ import { getInitials } from "@/lib/utils";
 interface AvatarProps {
   url: string | null | undefined;
   name: string;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "xs";
   className?: string;
 }
 
 const sizes = {
+  xs: { box: "w-6 h-6", emoji: "text-sm", initials: "text-[0.5rem]" },
   sm: { box: "w-8 h-8", emoji: "text-lg", initials: "text-[0.65rem]" },
   md: { box: "w-10 h-10", emoji: "text-xl", initials: "text-xs" },
   lg: { box: "w-14 h-14", emoji: "text-3xl", initials: "text-base" },
