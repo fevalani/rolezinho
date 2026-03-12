@@ -513,3 +513,26 @@ body::before {
     transform: rotate(360deg);
   }
 }
+
+/* ─── RPG Input Fields ───────────────────────── */
+.input-field {
+  background: var(--bg-elevated);
+  border: 1px solid rgba(201, 165, 90, 0.15);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.input-field:focus {
+  border-color: rgba(201, 165, 90, 0.4);
+}
+.input-field::placeholder {
+  color: var(--text-muted);
+}
+.input-field option {
+  background: var(--bg-deep);
+  color: var(--text-primary);
+}

@@ -7,6 +7,9 @@ import { AppShell } from "@/components/AppShell";
 import { TavernaPage } from "@/features/taverna/TavernaPage";
 import { AniversariosPage } from "@/features/aniversarios/AniversariosPage";
 import { RachaContaPage } from "./features/racha-conta/RachaContaPage";
+import { RpgHomePage } from "@/features/rpg/RpgHomePage";
+import { RpgTablePage } from "@/features/rpg/RpgTablePage";
+import { RpgSheetPage } from "@/features/rpg/RpgSheetView";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -49,6 +52,9 @@ function AppRoutes() {
         <Route path="/dados" element={<TavernaPage />} />
         <Route path="/racha-conta" element={<RachaContaPage />} />
         <Route path="/aniversarios" element={<AniversariosPage />} />
+        <Route path="/rpg" element={<RpgHomePage />} />
+        <Route path="/rpg/mesa/:tableId" element={<RpgTablePage />} />
+        <Route path="/rpg/ficha/:sheetId" element={<RpgSheetPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

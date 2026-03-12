@@ -192,10 +192,10 @@ export const APP_FEATURES: Feature[] = [
   },
   {
     id: "ficha",
-    name: "Fichas de RPG",
-    icon: "📋",
-    path: "/fichas",
-    enabled: false,
-    description: "Gerenciamento de fichas de personagem",
+    name: "Mesas de RPG",
+    icon: "🏰",
+    path: "/rpg",
+    enabled: true,
+    description: "Mesas de RPG, fichas D&D e sessões ao vivo",
   },
 ];
