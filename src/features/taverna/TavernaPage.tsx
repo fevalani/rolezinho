@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "@/components/Avatar";
@@ -7,7 +6,7 @@ import {
   performMultiRoll,
   subscribeToRolls,
   fetchProfiles,
-  cleanupOldRolls,
+  // cleanupOldRolls,
 } from "@/features/taverna/tavernaService";
 import { isCriticalHit, isCriticalFail, formatRelativeTime } from "@/lib/utils";
 import type { DiceType, DiceRoll, Profile, RollGroup } from "@/lib/types";
@@ -74,7 +73,7 @@ export function TavernaPage() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cleaning, setCleaning] = useState(false);
+  // const [cleaning, setCleaning] = useState(false);
   const [filterUserId, setFilterUserId] = useState<string | null>(null);
   const skipRealtimeRef = useRef(new Set<string>());
 
@@ -139,15 +138,15 @@ export function TavernaPage() {
     setIsRolling(false);
   }, [isRolling, user, profile, selectedDice, quantity]);
 
-  const handleCleanup = async () => {
-    setCleaning(true);
-    const deleted = await cleanupOldRolls();
-    if (deleted > 0) {
-      const freshRolls = await fetchRolls(MAX_ROLLS);
-      setRolls(freshRolls);
-    }
-    setCleaning(false);
-  };
+  // const handleCleanup = async () => {
+  //   setCleaning(true);
+  //   const deleted = await cleanupOldRolls();
+  //   if (deleted > 0) {
+  //     const freshRolls = await fetchRolls(MAX_ROLLS);
+  //     setRolls(freshRolls);
+  //   }
+  //   setCleaning(false);
+  // };
 
   // Filter rolls by user
   const filteredRolls = useMemo(() => {
