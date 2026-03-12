@@ -71,7 +71,7 @@ export function LoginPage() {
   }
 
   const inputClass =
-    "w-full py-3 px-4 bg-[var(--bg-primary)] border border-[rgba(201,165,90,0.12)] rounded-lg text-[var(--text-primary)] outline-none transition-all focus:border-[var(--gold)] focus:shadow-[0_0_0_3px_rgba(201,165,90,0.08)] placeholder:text-[var(--text-muted)]";
+    "w-full py-3 px-4 bg-[var(--bg-primary)] border border-[rgba(201,165,90,0.12)] rounded-lg text-(--text-primary) outline-none transition-all focus:border-(--gold) focus:shadow-[0_0_0_3px_rgba(201,165,90,0.08)] placeholder:text-(--text-muted)";
 
   return (
     <div className="page flex items-center justify-center min-h-dvh px-5 py-10">
@@ -86,13 +86,13 @@ export function LoginPage() {
         </div>
 
         <h1
-          className="text-2xl text-[var(--gold)] tracking-wide text-center anim-fade"
+          className="text-2xl text-(--gold) tracking-wide text-center anim-fade"
           style={{ fontFamily: "var(--font-display)", animationDelay: "0.05s" }}
         >
           Rolezinho Roots
         </h1>
         <p
-          className="text-base text-[var(--text-secondary)] text-center leading-relaxed mb-2 anim-fade"
+          className="text-base text-(--text-secondary) text-center leading-relaxed mb-2 anim-fade"
           style={{ animationDelay: "0.1s" }}
         >
           {mode === "login"
@@ -146,7 +146,7 @@ export function LoginPage() {
           />
 
           {error && (
-            <p className="text-sm text-center py-2 px-3 rounded-lg text-[var(--red)] bg-[rgba(196,64,64,0.08)] border border-[rgba(196,64,64,0.15)]">
+            <p className="text-sm text-center py-2 px-3 rounded-lg text-(--red) bg-[rgba(196,64,64,0.08)] border border-[rgba(196,64,64,0.15)]">
               {error}
             </p>
           )}
@@ -159,7 +159,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3.5 px-6 rounded-lg font-semibold text-lg text-[var(--bg-abyss)] bg-gradient-to-br from-[var(--gold-dark)] to-[var(--gold)] shadow-[0_2px_8px_rgba(0,0,0,0.5),0_0_12px_rgba(201,165,90,0.1)] hover:from-[var(--gold)] hover:to-[var(--gold-bright)] hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+            className="w-full py-3.5 px-6 rounded-lg font-semibold text-lg text-[var(--bg-abyss)] bg-gradient-to-br from-(--gold-dark) to-(--gold) shadow-[0_2px_8px_rgba(0,0,0,0.5),0_0_12px_rgba(201,165,90,0.1)] hover:from-(--gold) hover:to-[var(--gold-bright)] hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
           >
             {submitting
               ? "Carregando..."
@@ -171,7 +171,7 @@ export function LoginPage() {
 
         {/* Toggle */}
         <button
-          className="text-sm text-[var(--gold-dark)] hover:text-[var(--gold)] transition-colors p-2 anim-fade"
+          className="text-sm text-(--gold-dark) hover:text-(--gold) transition-colors p-2 anim-fade"
           onClick={() => {
             setMode(mode === "login" ? "signup" : "login");
             clearMessages();

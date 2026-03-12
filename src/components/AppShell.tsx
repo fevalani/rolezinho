@@ -25,11 +25,11 @@ export function AppShell() {
         <button
           onClick={() => setMenuOpen(true)}
           aria-label="Abrir menu"
-          className="flex flex-col gap-1 p-2 rounded-lg hover:bg-[var(--bg-elevated)] transition-colors"
+          className="flex flex-col gap-1 p-2 rounded-lg hover:bg-(--bg-elevated) transition-colors"
         >
-          <span className="block w-5 h-0.5 bg-[var(--gold)] rounded-sm" />
-          <span className="block w-5 h-0.5 bg-[var(--gold)] rounded-sm" />
-          <span className="block w-5 h-0.5 bg-[var(--gold)] rounded-sm" />
+          <span className="block w-5 h-0.5 bg-(--gold) rounded-sm" />
+          <span className="block w-5 h-0.5 bg-(--gold) rounded-sm" />
+          <span className="block w-5 h-0.5 bg-(--gold) rounded-sm" />
         </button>
 
         <div className="flex-1 flex items-center gap-2">
@@ -39,7 +39,7 @@ export function AppShell() {
             className="w-7 h-7 rounded-full object-cover border border-[rgba(201,165,90,0.2)]"
           />
           <span
-            className="text-[1.05rem] font-bold text-[var(--gold)] tracking-wide"
+            className="text-[1.05rem] font-bold text-(--gold) tracking-wide"
             style={{ fontFamily: "var(--font-display)" }}
           >
             Rolezinho Roots
@@ -87,18 +87,18 @@ export function AppShell() {
               />
               <div className="flex-1 min-w-0">
                 <span
-                  className="block text-sm font-bold text-[var(--text-primary)] truncate"
+                  className="block text-sm font-bold text-(--text-primary) truncate"
                   style={{ fontFamily: "var(--font-display)" }}
                 >
                   {profile?.display_name}
                 </span>
-                <span className="block text-xs text-[var(--text-muted)] truncate">
+                <span className="block text-xs text-(--text-muted) truncate">
                   {profile?.email}
                 </span>
               </div>
               <button
                 onClick={() => setMenuOpen(false)}
-                className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                className="p-2 text-(--text-muted) hover:text-(--text-primary) transition-colors"
               >
                 ✕
               </button>
@@ -113,8 +113,8 @@ export function AppShell() {
                 className={`flex items-center gap-3 w-full text-left px-4 py-2.5 rounded-lg text-[0.95rem] transition-colors
                   ${
                     location.pathname === "/"
-                      ? "bg-[rgba(201,165,90,0.07)] text-[var(--gold)]"
-                      : "text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+                      ? "bg-[rgba(201,165,90,0.07)] text-(--gold)"
+                      : "text-(--text-primary) hover:bg-[var(--bg-hover)]"
                   }`}
               >
                 <span className="w-6 text-center text-[1.05rem]">🏠</span>
@@ -126,15 +126,15 @@ export function AppShell() {
                 className={`flex items-center gap-3 w-full text-left px-4 py-2.5 rounded-lg text-[0.95rem] transition-colors
                   ${
                     location.pathname === "/profile"
-                      ? "bg-[rgba(201,165,90,0.07)] text-[var(--gold)]"
-                      : "text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+                      ? "bg-[rgba(201,165,90,0.07)] text-(--gold)"
+                      : "text-(--text-primary) hover:bg-[var(--bg-hover)]"
                   }`}
               >
                 <span className="w-6 text-center text-[1.05rem]">👤</span>
                 <span>Meu Perfil</span>
               </button>
 
-              <div className="text-[0.65rem] text-[var(--text-muted)] uppercase tracking-widest font-semibold px-4 pt-3 pb-1.5">
+              <div className="text-[0.65rem] text-(--text-muted) uppercase tracking-widest font-semibold px-4 pt-3 pb-1.5">
                 Features
               </div>
 
@@ -147,8 +147,8 @@ export function AppShell() {
                     ${!feat.enabled ? "opacity-45 cursor-default" : ""}
                     ${
                       location.pathname === feat.path
-                        ? "bg-[rgba(201,165,90,0.07)] text-[var(--gold)]"
-                        : "text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+                        ? "bg-[rgba(201,165,90,0.07)] text-(--gold)"
+                        : "text-(--text-primary) hover:bg-[var(--bg-hover)]"
                     }`}
                 >
                   <span className="w-6 text-center text-[1.05rem]">
@@ -156,7 +156,7 @@ export function AppShell() {
                   </span>
                   <span>{feat.name}</span>
                   {!feat.enabled && (
-                    <span className="ml-auto text-[0.6rem] px-2 py-0.5 rounded-md bg-[rgba(201,165,90,0.08)] text-[var(--gold-dark)] font-semibold uppercase tracking-wide">
+                    <span className="ml-auto text-[0.6rem] px-2 py-0.5 rounded-md bg-[rgba(201,165,90,0.08)] text-(--gold-dark) font-semibold uppercase tracking-wide">
                       Em breve
                     </span>
                   )}
@@ -171,12 +171,12 @@ export function AppShell() {
                   setMenuOpen(false);
                   signOut();
                 }}
-                className="w-full py-2 px-4 text-sm font-semibold text-[var(--red)] bg-[rgba(196,64,64,0.12)] border border-[rgba(196,64,64,0.25)] rounded-lg hover:bg-[rgba(196,64,64,0.22)] transition-colors"
+                className="w-full py-2 px-4 text-sm font-semibold text-(--red) bg-[rgba(196,64,64,0.12)] border border-[rgba(196,64,64,0.25)] rounded-lg hover:bg-[rgba(196,64,64,0.22)] transition-colors"
               >
                 Sair da conta
               </button>
               <span
-                className="text-[0.65rem] text-[var(--text-muted)]"
+                className="text-[0.65rem] text-(--text-muted)"
                 style={{ fontFamily: "var(--font-mono)" }}
               >
                 v2.1.0

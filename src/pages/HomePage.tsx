@@ -53,13 +53,13 @@ export function HomePage() {
         </div>
 
         <h1
-          className="text-xl text-[var(--gold)] mt-2 anim-fade"
+          className="text-xl text-(--gold) mt-2 anim-fade"
           style={{ fontFamily: "var(--font-display)", animationDelay: "0.1s" }}
         >
           Olá, {firstName}
         </h1>
         <p
-          className="text-base text-[var(--text-secondary)] anim-fade"
+          className="text-base text-(--text-secondary) anim-fade"
           style={{ animationDelay: "0.15s" }}
         >
           O que vamos fazer hoje?
@@ -83,20 +83,20 @@ export function HomePage() {
             <div className="flex-1 min-w-0">
               {todayBirthdays.length === 1 ? (
                 <>
-                  <p className="text-sm font-semibold text-[var(--gold)] leading-tight">
+                  <p className="text-sm font-semibold text-(--gold) leading-tight">
                     Hoje é aniversário de{" "}
                     <span>{todayBirthdays[0].display_name.split(" ")[0]}</span>!
                   </p>
-                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  <p className="text-xs text-(--text-muted) mt-0.5">
                     Mande uma mensagem para celebrar 🎉
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="text-sm font-semibold text-[var(--gold)] leading-tight">
+                  <p className="text-sm font-semibold text-(--gold) leading-tight">
                     {todayBirthdays.length} aniversariantes hoje!
                   </p>
-                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  <p className="text-xs text-(--text-muted) mt-0.5">
                     {todayBirthdays
                       .map((b) => b.display_name.split(" ")[0])
                       .join(", ")}
@@ -115,7 +115,7 @@ export function HomePage() {
                 </div>
               ))}
               {todayBirthdays.length > 3 && (
-                <div className="w-8 h-8 rounded-full bg-[var(--bg-elevated)] ring-2 ring-[var(--bg-deep)] flex items-center justify-center text-[0.6rem] font-bold text-[var(--text-muted)]">
+                <div className="w-8 h-8 rounded-full bg-(--bg-elevated) ring-2 ring-[var(--bg-deep)] flex items-center justify-center text-[0.6rem] font-bold text-(--text-muted)">
                   +{todayBirthdays.length - 3}
                 </div>
               )}
@@ -131,10 +131,10 @@ export function HomePage() {
             disabled={!feat.enabled}
             className={`
               flex items-center gap-3.5 py-4 px-4.5 rounded-xl text-left w-full transition-all
-              bg-[var(--bg-card)] border border-[rgba(201,165,90,0.06)]
+              bg-(--bg-card) border border-[rgba(201,165,90,0.06)]
               ${
                 feat.enabled
-                  ? "cursor-pointer hover:bg-[var(--bg-elevated)] hover:border-[rgba(201,165,90,0.15)] hover:-translate-y-0.5 hover:shadow-[0_2px_8px_rgba(0,0,0,0.5)] active:translate-y-0"
+                  ? "cursor-pointer hover:bg-(--bg-elevated) hover:border-[rgba(201,165,90,0.15)] hover:-translate-y-0.5 hover:shadow-[0_2px_8px_rgba(0,0,0,0.5)] active:translate-y-0"
                   : "opacity-40 cursor-default"
               }
               anim-slideUp
@@ -145,19 +145,19 @@ export function HomePage() {
               {feat.icon}
             </span>
             <div className="flex-1 min-w-0">
-              <div className="text-base font-semibold text-[var(--text-primary)]">
+              <div className="text-base font-semibold text-(--text-primary)">
                 {feat.name}
               </div>
-              <div className="text-sm text-[var(--text-muted)]">
+              <div className="text-sm text-(--text-muted)">
                 {feat.description}
               </div>
             </div>
             {feat.enabled ? (
-              <span className="text-[var(--gold-dark)] text-lg shrink-0 transition-transform group-hover:translate-x-1">
+              <span className="text-(--gold-dark) text-lg shrink-0 transition-transform group-hover:translate-x-1">
                 →
               </span>
             ) : (
-              <span className="text-[0.6rem] px-2 py-1 rounded-md bg-[rgba(201,165,90,0.08)] text-[var(--gold-dark)] font-semibold uppercase tracking-wide shrink-0">
+              <span className="text-[0.6rem] px-2 py-1 rounded-md bg-[rgba(201,165,90,0.08)] text-(--gold-dark) font-semibold uppercase tracking-wide shrink-0">
                 Em breve
               </span>
             )}

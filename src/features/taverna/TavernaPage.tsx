@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "@/components/Avatar";
@@ -173,7 +174,7 @@ export function TavernaPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 min-h-[300px] text-[var(--text-muted)] italic">
+      <div className="flex flex-col items-center justify-center gap-4 min-h-75 text-(--text-muted) italic">
         <div className="spinner" />
         <span>Carregando...</span>
       </div>
@@ -185,12 +186,12 @@ export function TavernaPage() {
       {/* Adventurers — clickable for filter */}
       <section className="mb-3">
         <h2
-          className="text-xs text-[var(--text-muted)] uppercase tracking-widest flex items-center gap-2 pb-2.5"
+          className="text-xs text-(--text-muted) uppercase tracking-widest flex items-center gap-2 pb-2.5"
           style={{ fontFamily: "var(--font-display)" }}
         >
           Aventureiros
           <span
-            className="text-[0.65rem] bg-[rgba(201,165,90,0.08)] text-[var(--gold-dark)] px-2 py-0.5 rounded-md"
+            className="text-[0.65rem] bg-[rgba(201,165,90,0.08)] text-(--gold-dark) px-2 py-0.5 rounded-md"
             style={{ fontFamily: "var(--font-mono)" }}
           >
             {profiles.length}
@@ -206,8 +207,8 @@ export function TavernaPage() {
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full shrink-0 text-sm font-semibold transition-all border cursor-pointer
               ${
                 !filterUserId
-                  ? "bg-[rgba(201,165,90,0.12)] border-[var(--gold)] text-[var(--gold)]"
-                  : "bg-[var(--bg-card)] border-[rgba(201,165,90,0.06)] text-[var(--text-secondary)] hover:border-[rgba(201,165,90,0.2)]"
+                  ? "bg-[rgba(201,165,90,0.12)] border-(--gold) text-(--gold)"
+                  : "bg-(--bg-card) border-[rgba(201,165,90,0.06)] text-(--text-secondary) hover:border-[rgba(201,165,90,0.2)]"
               }`}
           >
             Todos
@@ -222,13 +223,13 @@ export function TavernaPage() {
               className={`flex items-center gap-1.5 pl-1 pr-3 py-1 rounded-full shrink-0 transition-all border cursor-pointer
                 ${
                   filterUserId === p.id
-                    ? "bg-[rgba(201,165,90,0.12)] border-[var(--gold)]"
-                    : "bg-[var(--bg-card)] border-[rgba(201,165,90,0.06)] hover:border-[rgba(201,165,90,0.2)]"
+                    ? "bg-[rgba(201,165,90,0.12)] border-(--gold)"
+                    : "bg-(--bg-card) border-[rgba(201,165,90,0.06)] hover:border-[rgba(201,165,90,0.2)]"
                 }`}
             >
               <Avatar url={p.avatar_url} name={p.display_name} size="sm" />
               <span
-                className={`text-sm font-semibold whitespace-nowrap ${filterUserId === p.id ? "text-[var(--gold)]" : "text-[var(--text-primary)]"}`}
+                className={`text-sm font-semibold whitespace-nowrap ${filterUserId === p.id ? "text-(--gold)" : "text-(--text-primary)"}`}
               >
                 {p.id === user?.id ? "Você" : p.display_name.split(" ")[0]}
               </span>
@@ -237,7 +238,7 @@ export function TavernaPage() {
         </div>
       </section>
 
-      <div className="h-px bg-gradient-to-r from-transparent via-[rgba(201,165,90,0.1)] to-transparent mb-2" />
+      <div className="h-px bg-linear-to-r from-transparent via-[rgba(201,165,90,0.1)] to-transparent mb-2" />
 
       {/* Dice selector */}
       <div className="flex gap-1.5 overflow-x-auto pb-1 mb-3 scrollbar-none">
@@ -245,11 +246,11 @@ export function TavernaPage() {
           <button
             key={type}
             onClick={() => setDiceHandler(type)}
-            className={`flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-lg min-w-[48px] shrink-0 transition-all border cursor-pointer
+            className={`flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-lg min-w-12 shrink-0 transition-all border cursor-pointer
               ${
                 selectedDice === type
-                  ? "bg-[rgba(201,165,90,0.08)] border-[var(--gold)] shadow-[0_0_10px_rgba(201,165,90,0.08)]"
-                  : "bg-[var(--bg-card)] border-[rgba(201,165,90,0.06)] hover:bg-[var(--bg-elevated)] hover:border-[rgba(201,165,90,0.15)]"
+                  ? "bg-[rgba(201,165,90,0.08)] border-(--gold) shadow-[0_0_10px_rgba(201,165,90,0.08)]"
+                  : "bg-(--bg-card) border-[rgba(201,165,90,0.06)] hover:bg-(--bg-elevated) hover:border-[rgba(201,165,90,0.15)]"
               }`}
           >
             <img
@@ -257,7 +258,7 @@ export function TavernaPage() {
               src={DICE_CONFIG[type]?.icon}
             />
             <span
-              className={`text-[0.6rem] font-semibold ${selectedDice === type ? "text-[var(--gold)]" : "text-[var(--text-secondary)]"}`}
+              className={`text-[0.6rem] font-semibold ${selectedDice === type ? "text-(--gold)" : "text-(--text-secondary)"}`}
               style={{ fontFamily: "var(--font-mono)" }}
             >
               {DICE_CONFIG[type].label}
@@ -268,17 +269,17 @@ export function TavernaPage() {
 
       {/* Quantity selector */}
       <div className="flex items-center justify-center gap-3 mb-3">
-        <span className="text-sm text-[var(--text-secondary)]">Qtd:</span>
+        <span className="text-sm text-(--text-secondary)">Qtd:</span>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setQuantity((q) => Math.max(1, q - 1))}
             disabled={quantity <= 1}
-            className="w-8 h-8 rounded-lg bg-[var(--bg-card)] border border-[rgba(201,165,90,0.1)] text-[var(--gold)] font-bold text-lg flex items-center justify-center hover:bg-[var(--bg-elevated)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-8 h-8 rounded-lg bg-(--bg-card) border border-[rgba(201,165,90,0.1)] text-(--gold) font-bold text-lg flex items-center justify-center hover:bg-(--bg-elevated) transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             −
           </button>
           <span
-            className="w-10 text-center text-lg font-bold text-[var(--text-primary)]"
+            className="w-10 text-center text-lg font-bold text-(--text-primary)"
             style={{ fontFamily: "var(--font-mono)" }}
           >
             {quantity}
@@ -286,13 +287,13 @@ export function TavernaPage() {
           <button
             onClick={() => setQuantity((q) => Math.min(10, q + 1))}
             disabled={quantity >= 10}
-            className="w-8 h-8 rounded-lg bg-[var(--bg-card)] border border-[rgba(201,165,90,0.1)] text-[var(--gold)] font-bold text-lg flex items-center justify-center hover:bg-[var(--bg-elevated)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-8 h-8 rounded-lg bg-(--bg-card) border border-[rgba(201,165,90,0.1)] text-(--gold) font-bold text-lg flex items-center justify-center hover:bg-(--bg-elevated) transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             +
           </button>
         </div>
         <span
-          className="text-xs text-[var(--text-muted)]"
+          className="text-xs text-(--text-muted)"
           style={{ fontFamily: "var(--font-mono)" }}
         >
           {quantity}
@@ -308,21 +309,21 @@ export function TavernaPage() {
           className="flex flex-col items-center gap-2.5 bg-transparent border-none cursor-pointer p-3 active:scale-95 transition-transform disabled:cursor-default"
         >
           <div
-            className={`w-28 h-28 flex items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--bg-elevated)] to-[var(--bg-card)] border-2 transition-all relative overflow-hidden
+            className={`w-28 h-28 flex items-center justify-center rounded-2xl bg-linear-to-br from-(--bg-elevated) to-(--bg-card) border-2 transition-all relative overflow-hidden
             ${
               isRolling
-                ? "border-[var(--gold)] shadow-[0_8px_40px_rgba(0,0,0,0.7),0_0_36px_rgba(201,165,90,0.18)]"
-                : "border-[rgba(201,165,90,0.15)] shadow-[0_8px_40px_rgba(0,0,0,0.7)] hover:border-[var(--gold)] hover:shadow-[0_8px_40px_rgba(0,0,0,0.7),0_0_24px_rgba(201,165,90,0.1)]"
+                ? "border-(--gold) shadow-[0_8px_40px_rgba(0,0,0,0.7),0_0_36px_rgba(201,165,90,0.18)]"
+                : "border-[rgba(201,165,90,0.15)] shadow-[0_8px_40px_rgba(0,0,0,0.7)] hover:border-(--gold) hover:shadow-[0_8px_40px_rgba(0,0,0,0.7),0_0_24px_rgba(201,165,90,0.1)]"
             }`}
           >
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(201,165,90,0.05)_0%,transparent_60%)]" />
             {isRolling ? (
               <span
-                className="text-5xl font-black text-[var(--text-primary)] relative z-10"
+                className="text-5xl font-black text-(--text-primary) relative z-10"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 <img
-                  className="w-12 h-12 mb-1 object-contain animate-bounce animate-spin"
+                  className="w-12 h-12 mb-1 object-contain animate-spin"
                   src={DICE_CONFIG[selectedDice]?.icon}
                 />
               </span>
@@ -338,13 +339,13 @@ export function TavernaPage() {
             ) : lastResults.length > 1 ? (
               <div className="flex flex-col items-center relative z-10 anim-bounce">
                 <span
-                  className="text-3xl font-black text-[var(--gold)]"
+                  className="text-3xl font-black text-(--gold)"
                   style={{ fontFamily: "var(--font-display)" }}
                 >
                   {totalSum}
                 </span>
                 <span
-                  className="text-[0.6rem] text-[var(--text-muted)]"
+                  className="text-[0.6rem] text-(--text-muted)"
                   style={{ fontFamily: "var(--font-mono)" }}
                 >
                   total
@@ -352,7 +353,7 @@ export function TavernaPage() {
               </div>
             ) : (
               <span
-                className="text-xl text-[var(--text-muted)] relative z-10 flex flex-col items-center"
+                className="text-xl text-(--text-muted) relative z-10 flex flex-col items-center"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 <img
@@ -366,7 +367,7 @@ export function TavernaPage() {
             )}
           </div>
           {!isRolling && (
-            <span className="text-xs text-[var(--text-muted)] italic">
+            <span className="text-xs text-(--text-muted) italic">
               {lastResults.length > 0
                 ? "Toque para rolar"
                 : `Rolar ${quantity > 1 ? quantity : ""}${DICE_CONFIG[selectedDice].label}`}
@@ -386,7 +387,7 @@ export function TavernaPage() {
                       ? "bg-[rgba(255,215,0,0.08)] border-[rgba(255,215,0,0.2)] crit-hit"
                       : isCriticalFail(r.dice_type, r.result)
                         ? "bg-[rgba(196,64,64,0.08)] border-[rgba(196,64,64,0.2)] crit-fail"
-                        : "bg-[var(--bg-card)] border-[rgba(201,165,90,0.08)] text-[var(--text-primary)]"
+                        : "bg-(--bg-card) border-[rgba(201,165,90,0.08)] text-(--text-primary)"
                   }`}
                 style={{
                   fontFamily: "var(--font-display)",
@@ -404,7 +405,7 @@ export function TavernaPage() {
           !isRolling &&
           isCriticalHit(lastResults[0].dice_type, lastResults[0].result) && (
             <div
-              className="text-base font-bold text-[var(--crit-gold)] anim-bounce"
+              className="text-base font-bold text-(--crit-gold) anim-bounce"
               style={{
                 fontFamily: "var(--font-display)",
                 textShadow: "0 0 18px rgba(255,215,0,0.4)",
@@ -417,7 +418,7 @@ export function TavernaPage() {
           !isRolling &&
           isCriticalFail(lastResults[0].dice_type, lastResults[0].result) && (
             <div
-              className="text-base font-bold text-[var(--crit-fail)] anim-shake"
+              className="text-base font-bold text-(--crit-fail) anim-shake"
               style={{
                 fontFamily: "var(--font-display)",
                 textShadow: "0 0 18px rgba(196,64,64,0.4)",
@@ -432,29 +433,29 @@ export function TavernaPage() {
       <section>
         <div className="flex items-center justify-between mb-2">
           <h3
-            className="text-xs text-[var(--text-muted)] uppercase tracking-widest"
+            className="text-xs text-(--text-muted) uppercase tracking-widest"
             style={{ fontFamily: "var(--font-display)" }}
           >
             Últimas rolagens
             {filterUserId && (
-              <span className="normal-case tracking-normal ml-1 text-[var(--gold-dark)]">
+              <span className="normal-case tracking-normal ml-1 text-(--gold-dark)">
                 (filtrado)
               </span>
             )}
           </h3>
-          {rolls.length > 0 && (
+          {/* {rolls.length > 0 && (
             <button
               onClick={handleCleanup}
               disabled={cleaning}
-              className="text-[0.65rem] text-[var(--text-muted)] hover:text-[var(--red)] transition-colors disabled:opacity-50"
+              className="text-[0.65rem] text-(--text-muted) hover:text-(--red) transition-colors disabled:opacity-50"
             >
               {cleaning ? "Limpando..." : "🗑️ Limpar antigas"}
             </button>
-          )}
+          )} */}
         </div>
 
         {rollGroups.length === 0 ? (
-          <p className="text-center text-[var(--text-muted)] italic py-5 text-sm">
+          <p className="text-center text-(--text-muted) italic py-5 text-sm">
             {filterUserId
               ? "Nenhuma rolagem deste jogador."
               : "Nenhuma rolagem ainda. Seja o primeiro!"}
@@ -484,7 +485,7 @@ export function TavernaPage() {
                             ? "border-[rgba(196,64,64,0.12)] bg-[rgba(196,64,64,0.02)]"
                             : isOwn
                               ? "border-transparent bg-[rgba(201,165,90,0.02)]"
-                              : "border-transparent hover:bg-[var(--bg-card)]"
+                              : "border-transparent hover:bg-(--bg-card)"
                       }`}
                     style={{ animationDelay: `${Math.min(i, 4) * 0.05}s` }}
                   >
@@ -496,11 +497,11 @@ export function TavernaPage() {
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-semibold text-[var(--text-primary)] truncate">
+                        <span className="text-sm font-semibold text-(--text-primary) truncate">
                           {isOwn ? "Você" : name.split(" ")[0]}
                         </span>
                         <span
-                          className="text-[0.6rem] font-semibold text-[var(--text-muted)]"
+                          className="text-[0.6rem] font-semibold text-(--text-muted)"
                           style={{ fontFamily: "var(--font-mono)" }}
                         >
                           {isMulti
@@ -518,10 +519,10 @@ export function TavernaPage() {
                               className={`text-[0.65rem] font-bold px-1.5 py-0.5 rounded
                                 ${
                                   isCriticalHit(r.dice_type, r.result)
-                                    ? "text-[var(--crit-gold)] bg-[rgba(255,215,0,0.08)]"
+                                    ? "text-(--crit-gold) bg-[rgba(255,215,0,0.08)]"
                                     : isCriticalFail(r.dice_type, r.result)
-                                      ? "text-[var(--crit-fail)] bg-[rgba(196,64,64,0.08)]"
-                                      : "text-[var(--text-muted)] bg-[var(--bg-card)]"
+                                      ? "text-(--crit-fail) bg-[rgba(196,64,64,0.08)]"
+                                      : "text-(--text-muted) bg-(--bg-card)"
                                 }`}
                               style={{ fontFamily: "var(--font-mono)" }}
                             >
@@ -531,7 +532,7 @@ export function TavernaPage() {
                         </div>
                       )}
 
-                      <span className="block text-[0.65rem] text-[var(--text-muted)] mt-0.5">
+                      <span className="block text-[0.65rem] text-(--text-muted) mt-0.5">
                         {formatRelativeTime(group.created_at)}
                       </span>
                     </div>
@@ -539,15 +540,15 @@ export function TavernaPage() {
                     {/* Total / result */}
                     <div className="flex flex-col items-end shrink-0">
                       <span
-                        className={`text-xl font-black min-w-[28px] text-right
-                          ${hasCrit ? "crit-hit" : hasFail && !isMulti ? "crit-fail" : "text-[var(--text-primary)]"}`}
+                        className={`text-xl font-black min-w-7 text-right
+                          ${hasCrit ? "crit-hit" : hasFail && !isMulti ? "crit-fail" : "text-(--text-primary)"}`}
                         style={{ fontFamily: "var(--font-display)" }}
                       >
                         {group.total}
                       </span>
                       {isMulti && (
                         <span
-                          className="text-[0.55rem] text-[var(--text-muted)]"
+                          className="text-[0.55rem] text-(--text-muted)"
                           style={{ fontFamily: "var(--font-mono)" }}
                         >
                           total
@@ -562,7 +563,7 @@ export function TavernaPage() {
             {hasMore && (
               <button
                 onClick={showMore}
-                className="w-full mt-3 py-2.5 text-sm font-semibold text-[var(--gold-dark)] hover:text-[var(--gold)] bg-[var(--bg-card)] border border-[rgba(201,165,90,0.08)] hover:border-[rgba(201,165,90,0.2)] rounded-lg transition-all"
+                className="w-full mt-3 py-2.5 text-sm font-semibold text-(--gold-dark) hover:text-(--gold) bg-(--bg-card) border border-[rgba(201,165,90,0.08)] hover:border-[rgba(201,165,90,0.2)] rounded-lg transition-all"
               >
                 Ver mais (
                 {Math.min(rollGroups.length - visibleCount, PAGE_SIZE)}{" "}
@@ -571,7 +572,7 @@ export function TavernaPage() {
             )}
 
             <p
-              className="text-center text-[0.65rem] text-[var(--text-muted)] mt-2"
+              className="text-center text-[0.65rem] text-(--text-muted) mt-2"
               style={{ fontFamily: "var(--font-mono)" }}
             >
               {visibleCount >= rollGroups.length

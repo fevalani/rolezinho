@@ -210,13 +210,13 @@ export function ProfilePage() {
   };
 
   const inputClass =
-    "w-full py-3 px-4 bg-[var(--bg-primary)] border border-[rgba(201,165,90,0.12)] rounded-lg text-[var(--text-primary)] outline-none transition-all focus:border-[var(--gold)] focus:shadow-[0_0_0_3px_rgba(201,165,90,0.08)] placeholder:text-[var(--text-muted)]";
+    "w-full py-3 px-4 bg-[var(--bg-primary)] border border-[rgba(201,165,90,0.12)] rounded-lg text-(--text-primary) outline-none transition-all focus:border-(--gold) focus:shadow-[0_0_0_3px_rgba(201,165,90,0.08)] placeholder:text-(--text-muted)";
   const btnGold =
-    "w-full py-3 px-6 rounded-lg font-semibold text-[var(--bg-abyss)] bg-gradient-to-br from-[var(--gold-dark)] to-[var(--gold)] shadow-[0_2px_8px_rgba(0,0,0,0.5),0_0_12px_rgba(201,165,90,0.1)] hover:from-[var(--gold)] hover:to-[var(--gold-bright)] hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0";
+    "w-full py-3 px-6 rounded-lg font-semibold text-[var(--bg-abyss)] bg-gradient-to-br from-(--gold-dark) to-(--gold) shadow-[0_2px_8px_rgba(0,0,0,0.5),0_0_12px_rgba(201,165,90,0.1)] hover:from-(--gold) hover:to-[var(--gold-bright)] hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0";
   const btnOutline =
-    "w-full py-3 px-6 rounded-lg font-semibold text-[var(--text-primary)] bg-transparent border border-[rgba(201,165,90,0.2)] hover:bg-[var(--bg-elevated)] hover:border-[var(--gold-dark)] transition-all disabled:opacity-50 disabled:cursor-not-allowed";
+    "w-full py-3 px-6 rounded-lg font-semibold text-(--text-primary) bg-transparent border border-[rgba(201,165,90,0.2)] hover:bg-(--bg-elevated) hover:border-(--gold-dark) transition-all disabled:opacity-50 disabled:cursor-not-allowed";
   const msgError =
-    "text-sm text-center py-2 px-3 rounded-lg text-[var(--red)] bg-[rgba(196,64,64,0.08)] border border-[rgba(196,64,64,0.15)]";
+    "text-sm text-center py-2 px-3 rounded-lg text-(--red) bg-[rgba(196,64,64,0.08)] border border-[rgba(196,64,64,0.15)]";
   const msgSuccess =
     "text-sm text-center py-2 px-3 rounded-lg text-[var(--green)] bg-[rgba(58,186,122,0.08)] border border-[rgba(58,186,122,0.15)]";
   const divider =
@@ -229,12 +229,12 @@ export function ProfilePage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
-            className="text-[var(--gold-dark)] hover:text-[var(--gold)] text-sm font-medium transition-colors"
+            className="text-(--gold-dark) hover:text-(--gold) text-sm font-medium transition-colors"
           >
             ← Voltar
           </button>
           <h1
-            className="text-lg text-[var(--gold)] tracking-wide"
+            className="text-lg text-(--gold) tracking-wide"
             style={{ fontFamily: "var(--font-display)" }}
           >
             Meu Perfil
@@ -243,7 +243,7 @@ export function ProfilePage() {
 
         {/* Avatar preview */}
         <div className="flex flex-col items-center gap-3">
-          <div className="w-24 h-24 rounded-full flex items-center justify-center border-2 border-[rgba(201,165,90,0.2)] bg-[var(--bg-card)] overflow-hidden">
+          <div className="w-24 h-24 rounded-full flex items-center justify-center border-2 border-[rgba(201,165,90,0.2)] bg-(--bg-card) overflow-hidden">
             {isImageUrl(avatarPreview) ? (
               <img
                 src={avatarPreview}
@@ -254,7 +254,7 @@ export function ProfilePage() {
               <span className="text-5xl leading-none">{avatarPreview}</span>
             ) : (
               <span
-                className="text-2xl font-bold text-[var(--gold)]"
+                className="text-2xl font-bold text-(--gold)"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 {getInitials(profile?.display_name ?? "?")}
@@ -272,21 +272,21 @@ export function ProfilePage() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="text-xs text-[var(--gold-dark)] hover:text-[var(--gold)] border border-[rgba(201,165,90,0.2)] hover:border-[var(--gold-dark)] rounded-lg px-3 py-1.5 transition-all bg-transparent"
+              className="text-xs text-(--gold-dark) hover:text-(--gold) border border-[rgba(201,165,90,0.2)] hover:border-(--gold-dark) rounded-lg px-3 py-1.5 transition-all bg-transparent"
             >
               📷 Enviar foto
             </button>
             {avatarPreview && (
               <button
                 onClick={handleRemoveAvatar}
-                className="text-xs text-[var(--red)] hover:text-red-400 border border-[rgba(196,64,64,0.2)] hover:border-[rgba(196,64,64,0.4)] rounded-lg px-3 py-1.5 transition-all bg-transparent"
+                className="text-xs text-(--red) hover:text-red-400 border border-[rgba(196,64,64,0.2)] hover:border-[rgba(196,64,64,0.4)] rounded-lg px-3 py-1.5 transition-all bg-transparent"
               >
                 ✕ Remover
               </button>
             )}
           </div>
 
-          <p className="text-xs text-[var(--text-muted)] mt-1">
+          <p className="text-xs text-(--text-muted) mt-1">
             ou escolha um avatar
           </p>
           <div className="grid grid-cols-8 gap-1.5 w-full max-w-xs">
@@ -297,8 +297,8 @@ export function ProfilePage() {
                 className={`aspect-square flex items-center justify-center text-xl rounded-lg transition-all cursor-pointer
                   ${
                     avatarPreview === emoji
-                      ? "bg-[rgba(201,165,90,0.12)] border-2 border-[var(--gold)] shadow-[0_0_8px_rgba(201,165,90,0.2)] scale-110"
-                      : "bg-[var(--bg-card)] border border-[rgba(201,165,90,0.06)] hover:bg-[var(--bg-elevated)] hover:border-[rgba(201,165,90,0.2)] hover:scale-110"
+                      ? "bg-[rgba(201,165,90,0.12)] border-2 border-(--gold) shadow-[0_0_8px_rgba(201,165,90,0.2)] scale-110"
+                      : "bg-(--bg-card) border border-[rgba(201,165,90,0.06)] hover:bg-(--bg-elevated) hover:border-[rgba(201,165,90,0.2)] hover:scale-110"
                   }`}
               >
                 {emoji}
@@ -311,7 +311,7 @@ export function ProfilePage() {
 
         {/* Name */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm text-[var(--text-secondary)] font-semibold">
+          <label className="text-sm text-(--text-secondary) font-semibold">
             Nome de aventureiro
           </label>
           <input
@@ -329,7 +329,7 @@ export function ProfilePage() {
 
         {/* Birthday */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm text-[var(--text-secondary)] font-semibold">
+          <label className="text-sm text-(--text-secondary) font-semibold">
             🎂 Aniversário
           </label>
           <input
@@ -341,14 +341,14 @@ export function ProfilePage() {
             onChange={handleBirthdayChange}
             className={inputClass}
           />
-          <span className="text-[0.7rem] text-[var(--text-muted)] italic">
+          <span className="text-[0.7rem] text-(--text-muted) italic">
             Apenas para cálculo de idade — o ano não é exibido para outros
           </span>
         </div>
 
         {/* Email */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm text-[var(--text-secondary)] font-semibold">
+          <label className="text-sm text-(--text-secondary) font-semibold">
             Email
           </label>
           <input
@@ -357,7 +357,7 @@ export function ProfilePage() {
             disabled
             className={`${inputClass} opacity-50 cursor-not-allowed`}
           />
-          <span className="text-[0.7rem] text-[var(--text-muted)] italic">
+          <span className="text-[0.7rem] text-(--text-muted) italic">
             O email não pode ser alterado
           </span>
         </div>
@@ -374,7 +374,7 @@ export function ProfilePage() {
         {/* Password */}
         <div className="flex flex-col gap-3">
           <h2
-            className="text-xs text-[var(--text-muted)] uppercase tracking-widest font-semibold"
+            className="text-xs text-(--text-muted) uppercase tracking-widest font-semibold"
             style={{ fontFamily: "var(--font-display)" }}
           >
             Alterar senha

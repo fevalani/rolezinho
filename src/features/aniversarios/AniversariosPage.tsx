@@ -147,12 +147,12 @@ export function AniversariosPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
-            className="text-[var(--gold-dark)] hover:text-[var(--gold)] text-sm font-medium transition-colors"
+            className="text-(--gold-dark) hover:text-(--gold) text-sm font-medium transition-colors"
           >
             ← Voltar
           </button>
           <h1
-            className="text-lg text-[var(--gold)] tracking-wide"
+            className="text-lg text-(--gold) tracking-wide"
             style={{ fontFamily: "var(--font-display)" }}
           >
             🎂 Aniversários
@@ -166,15 +166,15 @@ export function AniversariosPage() {
         ) : entries.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-16 text-center">
             <span className="text-5xl">🎂</span>
-            <p className="text-[var(--text-secondary)]">
+            <p className="text-(--text-secondary)">
               Nenhum aniversário cadastrado ainda.
             </p>
-            <p className="text-sm text-[var(--text-muted)]">
+            <p className="text-sm text-(--text-muted)">
               Vá em <strong>Meu Perfil</strong> e adicione seu aniversário!
             </p>
             <button
               onClick={() => navigate("/profile")}
-              className="mt-2 py-2 px-5 rounded-lg text-sm font-semibold text-[var(--bg-abyss)] bg-gradient-to-br from-[var(--gold-dark)] to-[var(--gold)] hover:-translate-y-0.5 transition-all"
+              className="mt-2 py-2 px-5 rounded-lg text-sm font-semibold text-[var(--bg-abyss)] bg-gradient-to-br from-(--gold-dark) to-(--gold) hover:-translate-y-0.5 transition-all"
             >
               Ir para o perfil
             </button>
@@ -187,7 +187,7 @@ export function AniversariosPage() {
                 <div className="px-4 py-3 border-b border-[rgba(201,165,90,0.15)] flex items-center gap-2">
                   <span className="text-xl">🎉</span>
                   <span
-                    className="text-sm font-bold text-[var(--gold)] uppercase tracking-wider"
+                    className="text-sm font-bold text-(--gold) uppercase tracking-wider"
                     style={{ fontFamily: "var(--font-display)" }}
                   >
                     Hoje tem aniversário!
@@ -210,12 +210,12 @@ export function AniversariosPage() {
             {upcoming.length > 0 && (
               <div className="flex flex-col gap-1">
                 <h2
-                  className="text-xs text-[var(--text-muted)] uppercase tracking-widest font-semibold px-1 mb-1"
+                  className="text-xs text-(--text-muted) uppercase tracking-widest font-semibold px-1 mb-1"
                   style={{ fontFamily: "var(--font-display)" }}
                 >
                   Próximos
                 </h2>
-                <div className="rounded-xl overflow-hidden border border-[rgba(201,165,90,0.08)] bg-[var(--bg-card)]">
+                <div className="rounded-xl overflow-hidden border border-[rgba(201,165,90,0.08)] bg-(--bg-card)">
                   {upcoming.map((e, i) => (
                     <div
                       key={e.id}
@@ -237,16 +237,16 @@ export function AniversariosPage() {
               <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-dashed border-[rgba(201,165,90,0.2)] bg-[rgba(201,165,90,0.04)]">
                 <span className="text-2xl">🎈</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-[var(--text-secondary)] font-medium">
+                  <p className="text-sm text-(--text-secondary) font-medium">
                     Seu aniversário não está aqui!
                   </p>
-                  <p className="text-xs text-[var(--text-muted)]">
+                  <p className="text-xs text-(--text-muted)">
                     Adicione no seu perfil para aparecer na lista.
                   </p>
                 </div>
                 <button
                   onClick={() => navigate("/profile")}
-                  className="text-xs font-semibold text-[var(--gold-dark)] hover:text-[var(--gold)] transition-colors shrink-0"
+                  className="text-xs font-semibold text-(--gold-dark) hover:text-(--gold) transition-colors shrink-0"
                 >
                   Adicionar →
                 </button>
@@ -272,7 +272,7 @@ function BirthdayRow({
 }) {
   return (
     <div
-      className={`flex items-center gap-3 px-4 py-3 ${highlight ? "hover:bg-[rgba(201,165,90,0.04)]" : "hover:bg-[var(--bg-elevated)]"} transition-colors`}
+      className={`flex items-center gap-3 px-4 py-3 ${highlight ? "hover:bg-[rgba(201,165,90,0.04)]" : "hover:bg-(--bg-elevated)"} transition-colors`}
     >
       {/* Avatar */}
       <div className="relative shrink-0">
@@ -287,11 +287,11 @@ function BirthdayRow({
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-sm font-semibold text-[var(--text-primary)] truncate">
+          <span className="text-sm font-semibold text-(--text-primary) truncate">
             {entry.display_name}
           </span>
           {isMe && (
-            <span className="text-[0.6rem] px-1.5 py-0.5 rounded bg-[rgba(201,165,90,0.12)] text-[var(--gold-dark)] font-semibold uppercase tracking-wide shrink-0">
+            <span className="text-[0.6rem] px-1.5 py-0.5 rounded bg-[rgba(201,165,90,0.12)] text-(--gold-dark) font-semibold uppercase tracking-wide shrink-0">
               Você
             </span>
           )}
@@ -299,7 +299,7 @@ function BirthdayRow({
             {entry.isToday ? `· ${entry.age} anos hoje! 🎉` : ""}
           </div>
         </div>
-        <span className="text-sm text-[var(--text-muted)]">
+        <span className="text-sm text-(--text-muted)">
           {formatBirthday(entry.birthday)}
           {" · "}
           <span className="font-medium">
@@ -312,10 +312,10 @@ function BirthdayRow({
       <div
         className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${
           entry.isToday
-            ? "bg-[rgba(201,165,90,0.2)] text-[var(--gold)]"
+            ? "bg-[rgba(201,165,90,0.2)] text-(--gold)"
             : entry.daysUntil <= 7
               ? "bg-[rgba(58,186,122,0.12)] text-[var(--green)]"
-              : "bg-[var(--bg-elevated)] text-[var(--text-muted)]"
+              : "bg-(--bg-elevated) text-(--text-muted)"
         }`}
       >
         {daysLabel(entry.daysUntil)}

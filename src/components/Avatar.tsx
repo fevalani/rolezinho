@@ -39,7 +39,7 @@ export function Avatar({
   if (url && isImageUrl(url)) {
     return (
       <div
-        className={`${base} bg-[var(--bg-card)] border border-[rgba(201,165,90,0.12)]`}
+        className={`${base} bg-(--bg-card) border border-[rgba(201,165,90,0.12)]`}
       >
         <img
           src={url}
@@ -54,7 +54,7 @@ export function Avatar({
   if (url && isEmoji(url)) {
     return (
       <div
-        className={`${base} bg-[var(--bg-card)] border border-[rgba(201,165,90,0.12)]`}
+        className={`${base} bg-(--bg-card) border border-[rgba(201,165,90,0.12)]`}
       >
         <span className={`${s.emoji} leading-none`}>{url}</span>
       </div>
@@ -62,7 +62,7 @@ export function Avatar({
   }
 
   return (
-    <div className={`${base} bg-[var(--gold-dark)]`}>
+    <div className={`${base} bg-(--gold-dark)`}>
       <span
         className={`${s.initials} font-bold text-[var(--bg-abyss)]`}
         style={{ fontFamily: "var(--font-display)" }}
