@@ -17,15 +17,7 @@ export interface Profile {
 // Dados — Dice Rolls
 // ═══════════════════════════════════════════
 
-export type DiceType =
-  | "d4"
-  | "d6"
-  | "d8"
-  | "d10"
-  | "d12"
-  | "d20"
-  | "d100"
-  | "d101";
+export type DiceType = "d4" | "d6" | "d8" | "d10" | "d12" | "d20" | "d100";
 
 export interface DiceRoll {
   id: string;
@@ -59,7 +51,6 @@ export const DICE_CONFIG: Record<
   d12: { sides: 12, label: "D12", icon: "/images/D12.png" },
   d20: { sides: 20, label: "D20", icon: "/images/D20.png" },
   d100: { sides: 100, label: "D100", icon: "/images/D100.png" },
-  d101: { sides: 101, label: "D101", icon: "/images/D100.3.png" },
 };
 
 export const DICE_TYPES: DiceType[] = [
@@ -70,7 +61,6 @@ export const DICE_TYPES: DiceType[] = [
   "d12",
   "d20",
   "d100",
-  "d101",
 ];
 
 // ═══════════════════════════════════════════
