@@ -191,6 +191,14 @@ export const APP_FEATURES: Feature[] = [
     description: "Eventos, confirmações e finalizados",
   },
   {
+    id: "cultura",
+    name: "Cultura",
+    icon: "🎬",
+    path: "/cultura",
+    enabled: true,
+    description: "Filmes, séries, livros e álbuns do grupo",
+  },
+  {
     id: "splitwise",
     name: "Racha Conta",
     icon: "💰",

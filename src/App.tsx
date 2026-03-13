@@ -12,6 +12,7 @@ import { RpgTablePage } from "@/features/rpg/RpgTablePage";
 import { RpgSheetPage } from "@/features/rpg/RpgSheetView";
 import { MusicasPage } from "./features/musicas/MusciasPage";
 import { AgendaPage } from "./features/agenda/AgendaPage";
+import { CulturaPage } from "./features/cultura/CulturaPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -59,6 +60,7 @@ function AppRoutes() {
         <Route path="/rpg/ficha/:sheetId" element={<RpgSheetPage />} />
         <Route path="/musicas" element={<MusicasPage />} />
         <Route path="/agenda" element={<AgendaPage />} />
+        <Route path="/cultura" element={<CulturaPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
