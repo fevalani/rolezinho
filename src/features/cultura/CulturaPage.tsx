@@ -145,7 +145,7 @@ function UserFilter({
 }) {
   if (!users.length) return null;
   return (
-    <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-1">
+    <div className="flex gap-2.5 overflow-x-auto scrollbar-none p-2">
       {users.map((u) => {
         const isActive = selected.has(u.id);
         return (
@@ -200,7 +200,9 @@ function PostCard({
   const myRating = post.my_interaction?.global_rating ?? null;
 
   return (
-    <div className="rounded-2xl border border-[rgba(255,255,255,0.05)] bg-[var(--bg-card)] hover:border-[rgba(255,255,255,0.09)] transition-all overflow-hidden">
+    <div
+      className={`${isMe || watched ? "bg-[#1d1d44]" : "bg-[var(--bg-card)]"} rounded-2xl border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.09)] transition-all overflow-hidden`}
+    >
       <div
         role="button"
         tabIndex={0}
