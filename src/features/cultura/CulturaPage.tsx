@@ -258,10 +258,7 @@ function PostCard({
             {post.global_rating !== null && (
               <div className="shrink-0 flex flex-col items-end gap-0.5">
                 <span className="text-base font-bold text-(--gold)">
-                  {post.global_rating.toFixed(1)}
-                </span>
-                <span className="text-[10px] text-(--text-muted)">
-                  {post.global_count}✓
+                  ★ {post.global_rating.toFixed(1)}
                 </span>
               </div>
             )}
@@ -301,6 +298,52 @@ function PostCard({
             <p className="text-sm text-(--text-secondary) italic leading-relaxed">
               "{post.comment}"
             </p>
+          )}
+
+          {/* All individual ratings */}
+          {post.raters.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-[10px] text-(--text-muted) uppercase tracking-widest font-semibold">
+                Votos ({post.raters.length})
+              </p>
+              <div className="flex flex-col gap-1">
+                {post.raters.map((rater) => (
+                  <div
+                    key={rater.user_id}
+                    className="flex items-center gap-2 py-1"
+                  >
+                    <Avatar
+                      url={rater.avatar_url}
+                      name={rater.display_name}
+                      size="xs"
+                    />
+                    <span className="text-xs text-(--text-secondary) flex-1 min-w-0 truncate">
+                      {rater.display_name}
+                      {rater.is_author && (
+                        <span className="text-(--text-muted) opacity-60 ml-1">
+                          (indicou)
+                        </span>
+                      )}
+                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <StarRating value={rater.rating} readonly size="sm" />
+                      <span className="text-xs text-(--gold) font-bold w-6 text-right">
+                        {rater.rating}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {post.raters.length > 1 && (
+                <div className="flex items-center justify-between pt-1 border-t border-[rgba(255,255,255,0.05)]">
+                  <span className="text-xs text-(--text-muted)">Média</span>
+                  <span className="text-sm font-bold text-(--gold)">
+                    {post.global_rating?.toFixed(1)}{" "}
+                    <span className="text-xs font-normal opacity-60">/ 5</span>
+                  </span>
+                </div>
+              )}
+            </div>
           )}
 
           {/* My interactions */}

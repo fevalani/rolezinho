@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rolezinho-v1';
+const CACHE_NAME = 'rolezinho-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -8,40 +8,71 @@ const ASSETS_TO_CACHE = [
   '/icons/icon-512.png',
 ];
 
-// Install — cache shell assets
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
-  );
-  self.skipWaiting();
-});
+// Em desenvolvimento (localhost / 127.0.0.1), o SW se desregistra
+// e limpa todos os caches para não interferir com o Vite dev server.
+const IS_DEV =
+  self.location.hostname === 'localhost' ||
+  self.location.hostname === '127.0.0.1' ||
+  self.location.hostname.startsWith('192.168.');
 
-// Activate — clean old caches
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
-  );
-  self.clients.claim();
-});
+if (IS_DEV) {
+  // Limpa qualquer cache existente e se desregistra imediatamente
+  self.addEventListener('install', () => {
+    caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
+    self.skipWaiting();
+  });
+  self.addEventListener('activate', () => {
+    caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
+    self.clients.claim();
+    // Desregistra o próprio SW em dev — ele não deve existir aqui
+    self.registration.unregister();
+  });
+  // Não intercepta nenhum fetch em dev
+} else {
+  // ── Produção ──────────────────────────────────────────────────
 
-// Fetch — network first, fallback to cache
-self.addEventListener('fetch', (event) => {
-  // Skip non-GET and Supabase API calls
-  if (event.request.method !== 'GET') return;
-  if (event.request.url.includes('supabase.co')) return;
+  // Install — cache shell assets
+  self.addEventListener('install', (event) => {
+    event.waitUntil(
+      caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
+    );
+    self.skipWaiting();
+  });
 
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Cache successful responses
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        }
-        return response;
-      })
-      .catch(() => caches.match(event.request))
-  );
-});
+  // Activate — limpa caches antigos (versões anteriores)
+  self.addEventListener('activate', (event) => {
+    event.waitUntil(
+      caches.keys().then((keys) =>
+        Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+      )
+    );
+    self.clients.claim();
+  });
+
+  // Fetch — network first, fallback to cache
+  self.addEventListener('fetch', (event) => {
+    if (event.request.method !== 'GET') return;
+
+    // Nunca cacheia chamadas de API externas
+    const url = event.request.url;
+    if (
+      url.includes('supabase.co') ||
+      url.includes('api.themoviedb.org') ||
+      url.includes('googleapis.com') ||
+      url.includes('spotify.com') ||
+      url.includes('youtube.com/oembed')
+    ) return;
+
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+  });
+}

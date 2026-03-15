@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { CulturaType, ExternalItem } from "./culturaApi";
+import type { ExternalItem, CulturaType } from "./culturaApi";
 
 // ══════════════════════════════════════════════════════════════
 // Types
@@ -37,12 +37,20 @@ export interface CulturaPost {
     avatar_url: string | null;
   };
   // computed
-  global_rating: number | null; // AVG of all interactions
+  global_rating: number | null; // AVG of all ratings (interactions + author's personal_rating)
   global_count: number; // how many people rated
   my_interaction: {
     global_rating: number | null;
     watched: boolean;
   } | null;
+  raters: {
+    // individual votes, for display when expanded
+    user_id: string;
+    display_name: string;
+    avatar_url: string | null;
+    rating: number;
+    is_author: boolean; // true = this is the post author's personal_rating
+  }[];
 }
 
 export interface WeekGroup {
@@ -113,13 +121,47 @@ async function enrichPosts(
     const itemInteractions = interactions.filter(
       (i) => i.item_id === p.item_id,
     );
-    const ratings = itemInteractions
-      .map((i) => i.global_rating)
-      .filter((r): r is number => r !== null);
-    const global_rating = ratings.length
-      ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) /
-        10
+
+    // Build raters list: interaction votes + author's personal_rating
+    const raters: CulturaPost["raters"] = [];
+
+    // 1. Add author's personal_rating first (if set)
+    const authorPersonalRating = p.personal_rating as number | null;
+    const authorProfile = profilesMap.get(p.user_id as string);
+    if (authorPersonalRating !== null && authorPersonalRating !== undefined) {
+      raters.push({
+        user_id: p.user_id as string,
+        display_name: authorProfile?.display_name ?? "?",
+        avatar_url: authorProfile?.avatar_url ?? null,
+        rating: authorPersonalRating,
+        is_author: true,
+      });
+    }
+
+    // 2. Add interaction votes from other users (or override if author also voted via interaction)
+    for (const inter of itemInteractions) {
+      if (inter.global_rating === null) continue;
+      // Skip if author already added via personal_rating (avoid double counting)
+      if (inter.user_id === p.user_id) continue;
+      const profile = profilesMap.get(inter.user_id);
+      raters.push({
+        user_id: inter.user_id,
+        display_name: profile?.display_name ?? "?",
+        avatar_url: profile?.avatar_url ?? null,
+        rating: inter.global_rating,
+        is_author: false,
+      });
+    }
+
+    // Average across all raters — no rounding, full precision
+    const global_rating = raters.length
+      ? parseFloat(
+          (
+            raters.reduce((sum, r) => sum + r.rating, 0) / raters.length
+          ).toFixed(1),
+        )
       : null;
+
     const myInteraction = currentUserId
       ? (itemInteractions.find((i) => i.user_id === currentUserId) ?? null)
       : null;
@@ -127,19 +169,20 @@ async function enrichPosts(
     return {
       ...(p as unknown as CulturaPost),
       item,
-      profile: profilesMap.get(p.user_id as string) ?? {
+      profile: authorProfile ?? {
         id: p.user_id as string,
         display_name: "?",
         avatar_url: null,
       },
       global_rating,
-      global_count: ratings.length,
+      global_count: raters.length,
       my_interaction: myInteraction
         ? {
             global_rating: myInteraction.global_rating,
             watched: myInteraction.watched,
           }
         : null,
+      raters,
     };
   });
 }
