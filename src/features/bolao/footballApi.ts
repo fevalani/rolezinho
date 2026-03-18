@@ -2,6 +2,8 @@
 // footballApi.ts — football-data.org (primária) + SofaScore (fallback)
 // ══════════════════════════════════════════════════════════════
 
+import { CapacitorHttp, Capacitor } from "@capacitor/core";
+
 export type ChampionshipCode = "BSA" | "WC";
 
 export interface FDMatch {
@@ -44,11 +46,9 @@ export const CHAMPIONSHIPS_CONFIG: Record<
 };
 
 const FD_KEY = import.meta.env.VITE_FOOTBALL_DATA_KEY as string | undefined;
-// Em dev, usa proxy Vite (/fd-api) para evitar CORS.
-// Em produção (Capacitor), chama diretamente — WebKit nativo não bloqueia CORS.
-const FD_BASE = import.meta.env.DEV
-  ? "/fd-api"
-  : "https://api.football-data.org/v4";
+const FD_BASE_NATIVE = "https://api.football-data.org/v4";
+// Dev: proxy Vite. Prod web (Vercel): serverless proxy. Nativo: direto.
+const FD_BASE_WEB = import.meta.env.DEV ? "/fd-api" : "/api/fd-proxy";
 const RAPIDAPI_KEY = import.meta.env.VITE_RAPIDAPI_KEY as string | undefined;
 const SOFA_BASE = "https://sportapi7.p.rapidapi.com";
 const SOFA_HOST = "sportapi7.p.rapidapi.com";
@@ -57,23 +57,58 @@ const SOFA_HOST = "sportapi7.p.rapidapi.com";
 let lastFDCall = 0;
 const FD_MIN_INTERVAL = 6200;
 
-async function fdFetch(path: string): Promise<Response> {
+// Wrapper unificado: usa CapacitorHttp no nativo (bypassa CORS), fetch no web.
+interface SimpleResponse {
+  ok: boolean;
+  status: number;
+  statusText: string;
+  json(): Promise<unknown>;
+}
+
+async function nativeFetch(
+  url: string,
+  headers: Record<string, string>,
+): Promise<SimpleResponse> {
+  if (Capacitor.isNativePlatform()) {
+    const res = await CapacitorHttp.get({ url, headers });
+    return {
+      ok: res.status >= 200 && res.status < 300,
+      status: res.status,
+      statusText: String(res.status),
+      json: async () => res.data,
+    };
+  }
+  const res = await fetch(url, { headers });
+  return {
+    ok: res.ok,
+    status: res.status,
+    statusText: res.statusText,
+    json: () => res.json(),
+  };
+}
+
+async function fdFetch(path: string): Promise<SimpleResponse> {
   const now = Date.now();
   const wait = FD_MIN_INTERVAL - (now - lastFDCall);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   lastFDCall = Date.now();
-  return fetch(`${FD_BASE}${path}`, {
-    headers: { "X-Auth-Token": FD_KEY ?? "" },
-  });
+
+  if (Capacitor.isNativePlatform()) {
+    return nativeFetch(`${FD_BASE_NATIVE}${path}`, { "X-Auth-Token": FD_KEY ?? "" });
+  }
+
+  // Browser: dev usa /fd-api (proxy Vite), prod usa /api/fd-proxy?path=...
+  const url = import.meta.env.DEV
+    ? `${FD_BASE_WEB}${path}`
+    : `${FD_BASE_WEB}?path=${encodeURIComponent(path)}`;
+  return nativeFetch(url, {});
 }
 
-async function sofaFetch(path: string): Promise<Response> {
-  return fetch(`${SOFA_BASE}${path}`, {
-    headers: {
-      "x-rapidapi-key": RAPIDAPI_KEY ?? "",
-      "x-rapidapi-host": SOFA_HOST,
-      "Content-Type": "application/json",
-    },
+async function sofaFetch(path: string): Promise<SimpleResponse> {
+  return nativeFetch(`${SOFA_BASE}${path}`, {
+    "x-rapidapi-key": RAPIDAPI_KEY ?? "",
+    "x-rapidapi-host": SOFA_HOST,
+    "Content-Type": "application/json",
   });
 }
 
@@ -132,7 +167,7 @@ async function fetchMatchesFD(
       console.error(`[FD] ${res.status} ${res.statusText}`);
       return { matches: [], error: `football-data.org: ${detail}` };
     }
-    const data = await res.json();
+    const data = await res.json() as { matches?: FDMatch[] };
     const matches = (data.matches ?? []) as FDMatch[];
     if (matches.length === 0) {
       return { matches: [], error: `Nenhuma partida encontrada para ${cfg.name} ${cfg.season}` };
@@ -152,7 +187,10 @@ async function fetchMatchResultFD(
   try {
     const res = await fdFetch(`/matches/${fdMatchId}`);
     if (!res.ok) return null;
-    const data = await res.json();
+    const data = await res.json() as {
+      score?: { fullTime?: { home?: number | null; away?: number | null } };
+      status?: string;
+    };
     return {
       home: data.score?.fullTime?.home ?? null,
       away: data.score?.fullTime?.away ?? null,
@@ -195,7 +233,7 @@ async function fetchMatchResultSofa(
       `/api/v1/sport/football/scheduled-events/${dateStr}`,
     );
     if (!res.ok) return null;
-    const data = await res.json();
+    const data = await res.json() as { events?: SofaEvent[] };
     const events: SofaEvent[] = data.events ?? [];
 
     const normHome = normalizeTeamName(homeTeam);
