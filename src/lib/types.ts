@@ -199,6 +199,14 @@ export const APP_FEATURES: Feature[] = [
     description: "Filmes, séries, livros e álbuns do grupo",
   },
   {
+    id: "bolao",
+    name: "Bolão",
+    icon: "⚽",
+    path: "/bolao",
+    enabled: true,
+    description: "Bolão para eventos esportivos, com palpites e pontuação",
+  },
+  {
     id: "splitwise",
     name: "Racha Conta",
     icon: "💰",
@@ -221,13 +229,5 @@ export const APP_FEATURES: Feature[] = [
     path: "/rpg",
     enabled: false,
     description: "Mesas de RPG, fichas D&D e sessões ao vivo",
-  },
-  {
-    id: "bolao",
-    name: "Bolão",
-    icon: "⚽",
-    path: "/bolao",
-    enabled: true,
-    description: "Bolão para eventos esportivos, com palpites e pontuação",
   },
 ];
