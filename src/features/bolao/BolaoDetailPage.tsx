@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "@/components/Avatar";
@@ -58,44 +58,31 @@ function PointsBadge({ pts }: { pts: number | null }) {
 
 function MatchCard({
   match,
-  poolId,
-  userId,
-  onPredictionSaved,
+  pending,
+  onPredictionChange,
 }: {
   match: MatchWithPrediction;
-  poolId: string;
-  userId: string;
-  onPredictionSaved: () => void;
+  pending?: { home: number; away: number };
+  onPredictionChange: (matchId: string, home: number, away: number) => void;
 }) {
   const [homeGoals, setHomeGoals] = useState<string>(
-    match.my_prediction !== null
-      ? String(match.my_prediction.home_goals)
-      : "",
+    pending !== undefined
+      ? String(pending.home)
+      : match.my_prediction !== null
+        ? String(match.my_prediction.home_goals)
+        : "",
   );
   const [awayGoals, setAwayGoals] = useState<string>(
-    match.my_prediction !== null
-      ? String(match.my_prediction.away_goals)
-      : "",
+    pending !== undefined
+      ? String(pending.away)
+      : match.my_prediction !== null
+        ? String(match.my_prediction.away_goals)
+        : "",
   );
-  const [saving, setSaving] = useState(false);
-  const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isFinished = match.status === "FINISHED";
   const hasResult =
     match.score_home !== null && match.score_away !== null;
-
-  const savePrediction = useCallback(
-    async (home: string, away: string) => {
-      const h = parseInt(home);
-      const a = parseInt(away);
-      if (isNaN(h) || isNaN(a) || h < 0 || a < 0) return;
-      setSaving(true);
-      await upsertPrediction(poolId, match.id, userId, h, a);
-      setSaving(false);
-      onPredictionSaved();
-    },
-    [poolId, match.id, userId, onPredictionSaved],
-  );
 
   const handleChange = (
     value: string,
@@ -105,11 +92,12 @@ function MatchCard({
   ) => {
     const cleaned = value.replace(/\D/g, "").slice(0, 2);
     setter(cleaned);
-    if (saveTimeout.current) clearTimeout(saveTimeout.current);
     const home = isHome ? cleaned : homeGoals;
     const away = isHome ? awayGoals : cleaned;
-    if (cleaned !== "" && other !== "") {
-      saveTimeout.current = setTimeout(() => savePrediction(home, away), 800);
+    const h = parseInt(isHome ? cleaned : home);
+    const a = parseInt(isHome ? away : cleaned);
+    if (!isNaN(h) && !isNaN(a) && h >= 0 && a >= 0 && other !== "" && cleaned !== "") {
+      onPredictionChange(match.id, h, a);
     }
   };
 
@@ -209,10 +197,9 @@ function MatchCard({
                 }
                 className="w-8 h-8 text-center bg-[var(--bg-card)] border border-[rgba(201,165,90,0.2)] rounded-lg text-sm font-bold text-[var(--text-primary)] focus:outline-none focus:border-[rgba(201,165,90,0.5)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
-              {saving && (
+              {pending !== undefined && (
                 <div
-                  className="spinner shrink-0"
-                  style={{ width: 10, height: 10 }}
+                  className="w-1.5 h-1.5 rounded-full bg-[var(--gold)] shrink-0"
                 />
               )}
             </>
@@ -368,7 +355,13 @@ export function BolaoDetailPage() {
   const [selectedLeaderRoundIdx, setSelectedLeaderRoundIdx] = useState(-1); // -1 = geral
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [leaveLoading, setLeaveLoading] = useState(false);
+  const [pendingPredictions, setPendingPredictions] = useState<
+    Record<string, { home: number; away: number }>
+  >({});
+
+  const isAdmin = user?.email === "valanife@gmail.com";
 
   const loadAll = useCallback(async () => {
     if (!poolId || !user) return;
@@ -402,21 +395,40 @@ export function BolaoDetailPage() {
     };
   }, [poolId, loadAll]);
 
-  // Auto-sync on mount (com cooldown)
+  // Auto-sync on mount — apenas para o admin
   useEffect(() => {
-    if (!poolId) return;
+    if (!poolId || !isAdmin) return;
     syncPoolResults(poolId).then((updated) => {
       if (updated > 0) loadAll();
     });
-  }, [poolId, loadAll]);
+  }, [poolId, isAdmin, loadAll]);
 
   const handleSync = async () => {
     if (!poolId || syncing) return;
     setSyncing(true);
-    // Reset cooldown para forçar sync manual
     const updated = await syncPoolResults(poolId);
     setSyncing(false);
     if (updated > 0) loadAll();
+  };
+
+  const handlePredictionChange = useCallback(
+    (matchId: string, home: number, away: number) => {
+      setPendingPredictions((prev) => ({ ...prev, [matchId]: { home, away } }));
+    },
+    [],
+  );
+
+  const handleSave = async () => {
+    if (!poolId || !user || saving) return;
+    setSaving(true);
+    await Promise.all(
+      Object.entries(pendingPredictions).map(([matchId, { home, away }]) =>
+        upsertPrediction(poolId, matchId, user.id, home, away),
+      ),
+    );
+    setPendingPredictions({});
+    setSaving(false);
+    loadAll();
   };
 
   const handleLeave = async () => {
@@ -480,18 +492,20 @@ export function BolaoDetailPage() {
             {pool.member_count !== 1 ? "s" : ""}
           </p>
         </div>
-        <button
-          onClick={handleSync}
-          disabled={syncing}
-          title="Sincronizar resultados"
-          className="p-2 text-[var(--text-muted)] hover:text-[var(--gold)] transition-colors disabled:opacity-50"
-        >
-          {syncing ? (
-            <span className="spinner" style={{ width: 16, height: 16 }} />
-          ) : (
-            "🔄"
-          )}
-        </button>
+        {isAdmin && (
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            title="Sincronizar resultados"
+            className="p-2 text-[var(--text-muted)] hover:text-[var(--gold)] transition-colors disabled:opacity-50"
+          >
+            {syncing ? (
+              <span className="spinner" style={{ width: 16, height: 16 }} />
+            ) : (
+              "🔄"
+            )}
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -548,9 +562,8 @@ export function BolaoDetailPage() {
                     <MatchCard
                       key={match.id}
                       match={match}
-                      poolId={pool.id}
-                      userId={user!.id}
-                      onPredictionSaved={loadAll}
+                      pending={pendingPredictions[match.id]}
+                      onPredictionChange={handlePredictionChange}
                     />
                   ))}
                 </div>
@@ -673,6 +686,28 @@ export function BolaoDetailPage() {
               Sair do bolão
             </button>
           )}
+        </div>
+      )}
+
+      {/* Botão flutuante de salvar palpites */}
+      {Object.keys(pendingPredictions).length > 0 && (
+        <div className="fixed bottom-[calc(4rem+var(--safe-bottom))] left-0 right-0 px-4 z-50 flex justify-center">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-bold bg-[var(--gold)] text-[#08080f] shadow-lg disabled:opacity-70 transition-all active:scale-95"
+          >
+            {saving ? (
+              <span className="spinner" style={{ width: 14, height: 14 }} />
+            ) : (
+              <>
+                Salvar palpites
+                <span className="bg-[rgba(0,0,0,0.15)] rounded-full px-2 py-0.5 text-[0.65rem]">
+                  {Object.keys(pendingPredictions).length}
+                </span>
+              </>
+            )}
+          </button>
         </div>
       )}
     </div>
