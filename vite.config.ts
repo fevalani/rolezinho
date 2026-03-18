@@ -13,6 +13,13 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    proxy: {
+      "/fd-api": {
+        target: "https://api.football-data.org/v4",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/fd-api/, ""),
+      },
+    },
   },
   test: {
     globals: true,

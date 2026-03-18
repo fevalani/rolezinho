@@ -227,7 +227,7 @@ export const APP_FEATURES: Feature[] = [
     name: "Bolão",
     icon: "⚽",
     path: "/bolao",
-    enabled: false,
+    enabled: true,
     description: "Bolão para eventos esportivos, com palpites e pontuação",
   },
 ];
