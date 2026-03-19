@@ -12,7 +12,6 @@ import {
   placeBet,
   deleteBet,
   claimPayout,
-  generateVerdict,
   subscribeArena,
   type ArenaDuel,
   type ArenaBet,
@@ -22,11 +21,11 @@ import {
 
 // ─── Helpers ─────────────────────────────────────────────────
 
-const SIDE_NAME = (duel: ArenaDuel, side: BetSide) =>
-  side === "A" ? duel.side_a : side === "B" ? duel.side_b : "Empate";
+const OPTION_TEXT = (duel: ArenaDuel, side: BetSide) =>
+  side === "A" ? duel.option_a : side === "B" ? duel.option_b : duel.option_c;
 
-const SIDE_ODDS = (duel: ArenaDuel, side: BetSide) =>
-  side === "A" ? duel.odds_a : side === "draw" ? duel.odds_draw : duel.odds_b;
+const OPTION_ODDS = (duel: ArenaDuel, side: BetSide) =>
+  side === "A" ? duel.odds_a : side === "B" ? duel.odds_b : duel.odds_c;
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   open: { label: "Apostas abertas", color: "text-green-400 bg-[rgba(74,222,128,0.1)] border-[rgba(74,222,128,0.25)]" },
@@ -45,16 +44,13 @@ function OddsDisplay({
   selected?: BetSide | null;
   onSelect?: (side: BetSide) => void;
 }) {
-  const sides: { side: BetSide; label: string; sublabel: string }[] = [
-    { side: "A", label: "1", sublabel: duel.side_a },
-    { side: "draw", label: "X", sublabel: "Empate" },
-    { side: "B", label: "2", sublabel: duel.side_b },
-  ];
+  const sides: BetSide[] = ["A", "B", "C"];
 
   return (
     <div className="grid grid-cols-3 gap-2">
-      {sides.map(({ side, label, sublabel }) => {
-        const odds = SIDE_ODDS(duel, side);
+      {sides.map((side) => {
+        const odds = OPTION_ODDS(duel, side);
+        const text = OPTION_TEXT(duel, side);
         const isSelected = selected === side;
         const isResult = duel.result === side;
         const isWrong = duel.result && !isResult;
@@ -77,7 +73,7 @@ function OddsDisplay({
             }`}
           >
             <span className="text-[0.6rem] text-[var(--text-muted)] font-semibold mb-0.5">
-              {label}
+              {side}
             </span>
             <span
               className={`text-xl font-black tabular-nums ${
@@ -86,8 +82,8 @@ function OddsDisplay({
             >
               {Number(odds).toFixed(2)}
             </span>
-            <span className="text-[0.6rem] text-[var(--text-muted)] text-center leading-tight mt-0.5 truncate w-full">
-              {sublabel}
+            <span className="text-[0.6rem] text-[var(--text-muted)] text-center leading-tight mt-1 w-full line-clamp-2">
+              {text}
             </span>
             {isResult && <span className="text-[0.55rem] text-[var(--gold)] font-bold mt-0.5">RESULTADO</span>}
           </button>
@@ -109,8 +105,7 @@ function BetsList({ bets, duel }: { bets: ArenaBet[]; duel: ArenaDuel }) {
       </p>
       <div className="flex flex-col gap-2">
         {bets.map((bet) => {
-          const sideName = SIDE_NAME(duel, bet.side);
-          const sideLabel = bet.side === "A" ? "1" : bet.side === "draw" ? "X" : "2";
+          const optionText = OPTION_TEXT(duel, bet.side);
           const isWinner = duel.result === bet.side;
           const isLoser = duel.result && duel.result !== bet.side;
 
@@ -134,8 +129,8 @@ function BetsList({ bets, duel }: { bets: ArenaBet[]; duel: ArenaDuel }) {
                 <p className="text-sm font-semibold text-[var(--text-primary)] truncate">
                   {bet.profile?.display_name ?? "—"}
                 </p>
-                <p className="text-xs text-[var(--text-muted)]">
-                  {sideLabel} · {sideName} · {bet.amount} pts
+                <p className="text-xs text-[var(--text-muted)] truncate">
+                  {bet.side} · {optionText} · {bet.amount} pts
                 </p>
               </div>
               <div className="text-right shrink-0">
@@ -171,25 +166,29 @@ export function ArenaDetailPage() {
   const [wallet, setWallet] = useState<ArenaWallet | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Bet form state
+  // Bet form
   const [selectedSide, setSelectedSide] = useState<BetSide | null>(null);
   const [betAmount, setBetAmount] = useState<string>("50");
   const [placingBet, setPlacingBet] = useState(false);
   const [betError, setBetError] = useState<string | null>(null);
 
-  // Creator actions
+  // Creator: fechar apostas
   const [closing, setClosing] = useState(false);
-  const [resolving, setResolving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Justification visible
+  // Creator: inserir veredito
+  const [verdictResult, setVerdictResult] = useState<BetSide | null>(null);
+  const [verdictText, setVerdictText] = useState("");
+  const [submittingVerdict, setSubmittingVerdict] = useState(false);
+
+  // Justification
   const [showJustification, setShowJustification] = useState(false);
 
-  // Claim state
+  // Claim
   const [claiming, setClaiming] = useState(false);
   const [claimed, setClaimed] = useState(false);
 
-  // Delete bet state
+  // Delete bet
   const [deletingBet, setDeletingBet] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -206,9 +205,7 @@ export function ArenaDetailPage() {
     setLoading(false);
   }, [user, duelId]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     const channel = subscribeArena(load);
@@ -221,7 +218,7 @@ export function ArenaDetailPage() {
   const myBet = duel?.my_bet ?? null;
   const amount = Math.max(1, parseInt(betAmount) || 0);
   const potentialPayout = selectedSide
-    ? Math.floor(amount * SIDE_ODDS(duel!, selectedSide))
+    ? Math.floor(amount * OPTION_ODDS(duel!, selectedSide))
     : 0;
   const balance = wallet?.balance ?? 0;
   const canBet = duel?.status === "open" && !myBet && amount >= 1 && amount <= balance && !!selectedSide;
@@ -234,6 +231,8 @@ export function ArenaDetailPage() {
     !claimed
       ? myBet
       : null;
+
+  const canSubmitVerdict = verdictResult !== null && verdictText.trim().length >= 10;
 
   // ── Actions ───────────────────────────────────────────────
 
@@ -281,24 +280,18 @@ export function ArenaDetailPage() {
     load();
   };
 
-  const handleRequestVerdict = async () => {
-    if (!duel) return;
-    setResolving(true);
+  const handleSubmitVerdict = async () => {
+    if (!duel || !verdictResult || !canSubmitVerdict) return;
+    setSubmittingVerdict(true);
     setActionError(null);
-    try {
-      const { result, verdict } = await generateVerdict(
-        duel.side_a,
-        duel.side_b,
-        duel.category,
-        duel.creator_context ?? "",
-      );
-      const { error } = await resolveDuel(duel.id, result, verdict, duel);
-      if (error) { setActionError(error); setResolving(false); return; }
-      load();
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Erro ao conectar com a IA.");
+    const { error } = await resolveDuel(duel.id, verdictResult, verdictText.trim(), duel);
+    if (error) {
+      setActionError(error);
+      setSubmittingVerdict(false);
+      return;
     }
-    setResolving(false);
+    setSubmittingVerdict(false);
+    load();
   };
 
   const handleClaim = async () => {
@@ -328,7 +321,7 @@ export function ArenaDetailPage() {
   if (!duel) {
     return (
       <div className="min-h-screen bg-[var(--bg-abyss)] flex flex-col items-center justify-center gap-3">
-        <p className="text-[var(--text-muted)]">Embate não encontrado.</p>
+        <p className="text-[var(--text-muted)]">Caso não encontrado.</p>
         <button onClick={() => navigate("/arena")} className="text-sm text-[var(--gold)] underline">
           Voltar
         </button>
@@ -337,26 +330,13 @@ export function ArenaDetailPage() {
   }
 
   const status = STATUS_LABELS[duel.status];
-  const resultSideName = duel.result ? SIDE_NAME(duel, duel.result) : null;
+  const resultOptionText = duel.result ? OPTION_TEXT(duel, duel.result) : null;
 
   return (
     <div
       className="min-h-screen bg-[var(--bg-abyss)]"
       style={{ paddingBottom: "calc(2rem + var(--safe-bottom))" }}
     >
-      {/* Resolving overlay */}
-      {resolving && (
-        <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
-          <div className="spinner" style={{ width: 36, height: 36 }} />
-          <p className="text-base font-bold text-[var(--gold)]" style={{ fontFamily: "var(--font-display)" }}>
-            IA analisando o histórico…
-          </p>
-          <p className="text-sm text-[var(--text-muted)] text-center px-8">
-            Pesquisando e gerando o veredito para "{duel.side_a} vs {duel.side_b}"
-          </p>
-        </div>
-      )}
-
       {/* Header */}
       <div className="px-4 pt-5 pb-3 flex items-center gap-3">
         <button
@@ -367,10 +347,10 @@ export function ArenaDetailPage() {
         </button>
         <div className="flex-1 min-w-0">
           <h1
-            className="text-base font-bold text-[var(--text-primary)] truncate"
+            className="text-base font-bold text-[var(--text-primary)] line-clamp-2 leading-snug"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            {duel.title}
+            {duel.scenario}
           </h1>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-[0.6rem] px-2 py-0.5 rounded-full bg-[rgba(201,165,90,0.08)] text-[var(--gold-dark)] border border-[rgba(201,165,90,0.15)] font-semibold uppercase tracking-wide">
@@ -389,7 +369,7 @@ export function ArenaDetailPage() {
       </div>
 
       <div className="px-4 flex flex-col gap-5">
-        {/* Odds */}
+        {/* Odds + opções */}
         <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex flex-col gap-3">
           <OddsDisplay
             duel={duel}
@@ -404,7 +384,7 @@ export function ArenaDetailPage() {
                 onClick={() => setShowJustification((v) => !v)}
                 className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
               >
-                <span>🤖 Análise da IA</span>
+                <span>🤖 Análise das odds</span>
                 <span>{showJustification ? "▲" : "▼"}</span>
               </button>
               {showJustification && (
@@ -415,7 +395,7 @@ export function ArenaDetailPage() {
             </div>
           )}
 
-          {/* Creator context badge */}
+          {/* Creator context */}
           {duel.creator_context && (
             <div className="flex items-start gap-1.5 bg-[rgba(201,165,90,0.05)] border border-[rgba(201,165,90,0.1)] rounded-lg px-3 py-2">
               <span className="text-xs shrink-0">💬</span>
@@ -426,7 +406,7 @@ export function ArenaDetailPage() {
           )}
         </div>
 
-        {/* CLAIM PAYOUT — destaque máximo */}
+        {/* CLAIM PAYOUT */}
         {claimableBet && (
           <div className="bg-gradient-to-r from-[rgba(74,222,128,0.12)] to-[rgba(74,222,128,0.04)] border border-[rgba(74,222,128,0.35)] rounded-xl p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2">
@@ -434,7 +414,7 @@ export function ArenaDetailPage() {
               <div>
                 <p className="text-sm font-bold text-green-400">Você ganhou!</p>
                 <p className="text-xs text-[var(--text-muted)]">
-                  Sua aposta em {SIDE_NAME(duel, claimableBet.side)} deu certo.
+                  Sua aposta em {OPTION_TEXT(duel, claimableBet.side)} deu certo.
                 </p>
               </div>
             </div>
@@ -464,7 +444,7 @@ export function ArenaDetailPage() {
           </div>
         )}
 
-        {/* My existing bet (open or closed, not resolved) */}
+        {/* My existing bet (open or closed) */}
         {myBet && duel.status !== "resolved" && (
           <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex flex-col gap-3">
             <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">
@@ -473,7 +453,7 @@ export function ArenaDetailPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-bold text-[var(--text-primary)]">
-                  {myBet.side === "A" ? "1" : myBet.side === "draw" ? "X" : "2"} · {SIDE_NAME(duel, myBet.side)}
+                  {myBet.side} · {OPTION_TEXT(duel, myBet.side)}
                 </p>
                 <p className="text-xs text-[var(--text-muted)] mt-0.5">
                   {myBet.amount} pts apostados
@@ -518,17 +498,16 @@ export function ArenaDetailPage() {
             </p>
 
             <p className="text-xs text-[var(--text-muted)] -mt-1">
-              Selecione um lado nas odds acima ↑
+              Selecione uma opção nas odds acima ↑
             </p>
 
             {selectedSide && (
               <div className="flex items-center gap-2 p-2.5 bg-[rgba(201,165,90,0.06)] border border-[rgba(201,165,90,0.2)] rounded-xl">
                 <span className="text-xs font-bold text-[var(--gold)]">
-                  {selectedSide === "A" ? "1" : selectedSide === "draw" ? "X" : "2"} ·{" "}
-                  {SIDE_NAME(duel, selectedSide)}
+                  {selectedSide} · {OPTION_TEXT(duel, selectedSide)}
                 </span>
                 <span className="text-xs text-[var(--text-muted)] ml-auto">
-                  {Number(SIDE_ODDS(duel, selectedSide)).toFixed(2)}x
+                  {Number(OPTION_ODDS(duel, selectedSide)).toFixed(2)}x
                 </span>
               </div>
             )}
@@ -538,7 +517,6 @@ export function ArenaDetailPage() {
               <label className="block text-xs text-[var(--text-muted)] mb-1.5 font-medium">
                 Valor a apostar
               </label>
-              {/* Preset buttons */}
               <div className="flex gap-1.5 mb-2">
                 {[10, 50, 100, 200].map((v) => (
                   <button
@@ -562,7 +540,7 @@ export function ArenaDetailPage() {
                   onChange={(e) => setBetAmount(e.target.value)}
                   min={1}
                   max={balance}
-                  className="w-full bg-[var(--bg-elevated)] border border-[rgba(255,255,255,0.08)] rounded-xl px-3 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[rgba(201,165,90,0.4)] pr-12"
+                  className="w-full bg-[var(--bg-elevated)] border border-[rgba(255,255,255,0.08)] rounded-xl px-3 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[rgba(201,165,90,0.4)] pr-12"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-muted)]">
                   pts
@@ -599,7 +577,7 @@ export function ArenaDetailPage() {
                   <span className="spinner" style={{ width: 14, height: 14 }} /> Apostando…
                 </span>
               ) : !selectedSide ? (
-                "Selecione um lado para apostar"
+                "Selecione uma opção para apostar"
               ) : amount > balance ? (
                 "Saldo insuficiente"
               ) : (
@@ -633,13 +611,55 @@ export function ArenaDetailPage() {
             )}
 
             {duel.status === "closed" && (
-              <button
-                onClick={handleRequestVerdict}
-                disabled={resolving}
-                className="w-full py-3 rounded-xl font-semibold text-sm bg-[rgba(201,165,90,0.15)] text-[var(--gold)] border border-[rgba(201,165,90,0.3)] hover:bg-[rgba(201,165,90,0.25)] disabled:opacity-50 transition-all"
-              >
-                ⚖️ Pedir Veredito da IA
-              </button>
+              <div className="flex flex-col gap-3">
+                <p className="text-xs text-[var(--text-muted)]">
+                  Qual opção ocorreu? Escolha o resultado e escreva o veredito.
+                </p>
+
+                {/* Result selector */}
+                <div className="grid grid-cols-3 gap-2">
+                  {(["A", "B", "C"] as BetSide[]).map((side) => (
+                    <button
+                      key={side}
+                      onClick={() => setVerdictResult(side)}
+                      className={`flex flex-col items-center py-2.5 px-2 rounded-xl border transition-all ${
+                        verdictResult === side
+                          ? "bg-[rgba(201,165,90,0.15)] border-[rgba(201,165,90,0.5)] text-[var(--gold)]"
+                          : "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.08)] text-[var(--text-secondary)] hover:border-[rgba(201,165,90,0.25)]"
+                      }`}
+                    >
+                      <span className="text-xs font-bold">{side}</span>
+                      <span className="text-[0.6rem] text-[var(--text-muted)] text-center leading-tight mt-0.5 line-clamp-2 w-full">
+                        {OPTION_TEXT(duel, side)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Verdict text */}
+                <textarea
+                  value={verdictText}
+                  onChange={(e) => setVerdictText(e.target.value)}
+                  placeholder="Explique o que aconteceu e por que este foi o resultado…"
+                  rows={4}
+                  maxLength={1000}
+                  className="w-full bg-[var(--bg-elevated)] border border-[rgba(255,255,255,0.08)] rounded-xl px-3 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[rgba(201,165,90,0.4)] resize-none"
+                />
+
+                <button
+                  onClick={handleSubmitVerdict}
+                  disabled={!canSubmitVerdict || submittingVerdict}
+                  className="w-full py-3 rounded-xl font-semibold text-sm bg-[rgba(201,165,90,0.15)] text-[var(--gold)] border border-[rgba(201,165,90,0.3)] hover:bg-[rgba(201,165,90,0.25)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  {submittingVerdict ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="spinner" style={{ width: 14, height: 14 }} /> Publicando…
+                    </span>
+                  ) : (
+                    "⚖️ Publicar Veredito e Distribuir Prêmios"
+                  )}
+                </button>
+              </div>
             )}
 
             {actionError && (
@@ -650,22 +670,23 @@ export function ArenaDetailPage() {
           </div>
         )}
 
-        {/* Verdict */}
+        {/* Verdict display */}
         {duel.status === "resolved" && duel.verdict && (
           <div className="bg-[var(--bg-card)] border border-[rgba(201,165,90,0.15)] rounded-xl p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2">
               <span className="text-xl">⚖️</span>
               <p className="text-sm font-bold text-[var(--gold)]" style={{ fontFamily: "var(--font-display)" }}>
-                Veredito da IA
+                Veredito do Criador
               </p>
             </div>
 
-            {resultSideName && (
+            {resultOptionText && (
               <div className="text-center py-3 bg-[rgba(201,165,90,0.08)] border border-[rgba(201,165,90,0.2)] rounded-xl">
-                <p className="text-xs text-[var(--text-muted)] mb-1">Resultado</p>
-                <p className="text-lg font-black text-[var(--gold)]">{resultSideName}</p>
-                <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                  {duel.result === "A" ? "1" : duel.result === "draw" ? "X" : "2"} venceu
+                <p className="text-xs text-[var(--text-muted)] mb-1">
+                  Resultado · Opção {duel.result}
+                </p>
+                <p className="text-base font-black text-[var(--gold)] leading-snug px-2">
+                  {resultOptionText}
                 </p>
               </div>
             )}

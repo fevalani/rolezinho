@@ -30,7 +30,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   resolved: { label: "Resolvido", color: "text-[var(--gold)] bg-[rgba(201,165,90,0.1)] border-[rgba(201,165,90,0.25)]" },
 };
 
-const SIDE_LABELS: Record<BetSide, string> = { A: "Lado A", draw: "Empate", B: "Lado B" };
+const OPTION_LABEL: Record<BetSide, string> = { A: "A", B: "B", C: "C" };
 
 // ─── Duel Card ────────────────────────────────────────────────
 
@@ -38,13 +38,19 @@ function DuelCard({ duel, onClick }: { duel: ArenaDuel; onClick: () => void }) {
   const status = STATUS_LABELS[duel.status];
   const myBet = duel.my_bet;
 
-  const resultSide = duel.result
+  const resultOptionText = duel.result
     ? duel.result === "A"
-      ? duel.side_a
+      ? duel.option_a
       : duel.result === "B"
-        ? duel.side_b
-        : "Empate"
+        ? duel.option_b
+        : duel.option_c
     : null;
+
+  const sides: { side: BetSide; text: string; odds: number }[] = [
+    { side: "A", text: duel.option_a, odds: duel.odds_a },
+    { side: "B", text: duel.option_b, odds: duel.odds_b },
+    { side: "C", text: duel.option_c, odds: duel.odds_c },
+  ];
 
   return (
     <button
@@ -61,27 +67,19 @@ function DuelCard({ duel, onClick }: { duel: ArenaDuel; onClick: () => void }) {
         </span>
       </div>
 
-      {/* Versus */}
-      <div className="flex items-center gap-2">
-        <span className="flex-1 text-sm font-bold text-[var(--text-primary)] text-right leading-tight truncate">
-          {duel.side_a}
-        </span>
-        <span className="text-[var(--text-muted)] text-xs font-bold shrink-0">⚔️</span>
-        <span className="flex-1 text-sm font-bold text-[var(--text-primary)] text-left leading-tight truncate">
-          {duel.side_b}
-        </span>
-      </div>
+      {/* Scenario */}
+      <p className="text-sm font-bold text-[var(--text-primary)] leading-snug line-clamp-2">
+        {duel.scenario}
+      </p>
 
-      {/* Odds mini */}
+      {/* Options + Odds */}
       <div className="grid grid-cols-3 gap-1.5 text-center">
-        {(["A", "draw", "B"] as BetSide[]).map((s) => {
-          const odds = s === "A" ? duel.odds_a : s === "draw" ? duel.odds_draw : duel.odds_b;
-          const label = s === "A" ? "1" : s === "draw" ? "X" : "2";
-          const isMyBet = myBet?.side === s;
-          const isResult = duel.result === s;
+        {sides.map(({ side, text, odds }) => {
+          const isMyBet = myBet?.side === side;
+          const isResult = duel.result === side;
           return (
             <div
-              key={s}
+              key={side}
               className={`rounded-lg py-1.5 px-1 border transition-all ${
                 isResult
                   ? "bg-[rgba(201,165,90,0.15)] border-[rgba(201,165,90,0.4)]"
@@ -90,7 +88,7 @@ function DuelCard({ duel, onClick }: { duel: ArenaDuel; onClick: () => void }) {
                     : "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.06)]"
               }`}
             >
-              <p className="text-[0.6rem] text-[var(--text-muted)] font-semibold">{label}</p>
+              <p className="text-[0.6rem] text-[var(--text-muted)] font-semibold">{OPTION_LABEL[side]}</p>
               <p
                 className={`text-sm font-bold ${
                   isResult
@@ -101,6 +99,9 @@ function DuelCard({ duel, onClick }: { duel: ArenaDuel; onClick: () => void }) {
                 }`}
               >
                 {Number(odds).toFixed(2)}
+              </p>
+              <p className="text-[0.55rem] text-[var(--text-muted)] leading-tight truncate px-0.5">
+                {text}
               </p>
             </div>
           );
@@ -114,11 +115,11 @@ function DuelCard({ duel, onClick }: { duel: ArenaDuel; onClick: () => void }) {
         </span>
         {myBet && duel.status !== "resolved" && (
           <span className="text-xs text-green-400 font-semibold">
-            Sua aposta: {SIDE_LABELS[myBet.side]} · {myBet.amount} pts
+            Sua aposta: {OPTION_LABEL[myBet.side]} · {myBet.amount} pts
           </span>
         )}
-        {duel.status === "resolved" && resultSide && (
-          <span className="text-xs text-[var(--gold)] font-bold">🏆 {resultSide}</span>
+        {duel.status === "resolved" && resultOptionText && (
+          <span className="text-xs text-[var(--gold)] font-bold truncate max-w-[55%]">🏆 {resultOptionText}</span>
         )}
       </div>
     </button>
@@ -135,190 +136,300 @@ function CreateDuelModal({
   onCreated: (id: string) => void;
 }) {
   const { user } = useAuth();
-  const [sideA, setSideA] = useState("");
-  const [sideB, setSideB] = useState("");
+  const [scenario, setScenario] = useState("");
+  const [optionA, setOptionA] = useState("");
+  const [optionB, setOptionB] = useState("");
+  const [optionC, setOptionC] = useState("");
   const [category, setCategory] = useState("");
   const [customCategory, setCustomCategory] = useState("");
   const [isCustom, setIsCustom] = useState(false);
   const [context, setContext] = useState("");
-  const [step, setStep] = useState<"form" | "generating">("form");
+
+  // Odds (sempre editáveis)
+  const [oddsA, setOddsA] = useState("");
+  const [oddsB, setOddsB] = useState("");
+  const [oddsC, setOddsC] = useState("");
+  const [oddsJustification, setOddsJustification] = useState("");
+  const [generatingOdds, setGeneratingOdds] = useState(false);
+  const [oddsError, setOddsError] = useState<string | null>(null);
+
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const finalCategory = isCustom ? customCategory.trim() : category;
-  const canSubmit = sideA.trim() && sideB.trim() && finalCategory;
+  const canGenerateOdds = scenario.trim() && optionA.trim() && optionB.trim() && optionC.trim();
+  const canSubmit =
+    canGenerateOdds &&
+    finalCategory &&
+    parseFloat(oddsA) >= 1.01 &&
+    parseFloat(oddsB) >= 1.01 &&
+    parseFloat(oddsC) >= 1.01;
+
+  const handleGenerateOdds = async () => {
+    if (!canGenerateOdds) return;
+    setGeneratingOdds(true);
+    setOddsError(null);
+    try {
+      const result = await generateOdds(
+        scenario.trim(),
+        optionA.trim(),
+        optionB.trim(),
+        optionC.trim(),
+        context.trim(),
+      );
+      setOddsA(String(result.odds_a));
+      setOddsB(String(result.odds_b));
+      setOddsC(String(result.odds_c));
+      setOddsJustification(result.justification);
+    } catch (err) {
+      setOddsError(err instanceof Error ? err.message : "Erro ao gerar odds com a IA.");
+    }
+    setGeneratingOdds(false);
+  };
 
   const handleSubmit = async () => {
     if (!user || !canSubmit) return;
-    setStep("generating");
+    setSubmitting(true);
     setError(null);
 
-    try {
-      const odds = await generateOdds(sideA.trim(), sideB.trim(), finalCategory, context.trim());
-      const { data, error: err } = await createDuel(
-        user.id,
-        sideA.trim(),
-        sideB.trim(),
-        finalCategory,
-        context.trim(),
-        odds,
-      );
-      if (err || !data) {
-        setError(err ?? "Erro ao criar embate");
-        setStep("form");
-        return;
-      }
-      onCreated(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao conectar com a IA. Verifique a chave VITE_GEMINI_KEY.");
-      setStep("form");
+    const odds = {
+      odds_a: parseFloat(oddsA),
+      odds_b: parseFloat(oddsB),
+      odds_c: parseFloat(oddsC),
+      justification: oddsJustification,
+    };
+
+    const { data, error: err } = await createDuel(
+      user.id,
+      scenario.trim(),
+      optionA.trim(),
+      optionB.trim(),
+      optionC.trim(),
+      finalCategory,
+      context.trim(),
+      odds,
+    );
+
+    setSubmitting(false);
+
+    if (err || !data) {
+      setError(err ?? "Erro ao criar caso");
+      return;
     }
+    onCreated(data);
   };
 
   return (
     <>
       <div
         className="fixed inset-0 bg-black/65 backdrop-blur-sm z-[100] animate-[fadeIn_0.2s_ease-out]"
-        onClick={step === "form" ? onClose : undefined}
+        onClick={!submitting && !generatingOdds ? onClose : undefined}
       />
       <div className="fixed bottom-0 left-0 right-0 z-[101] bg-[var(--bg-deep)] rounded-t-2xl p-5 pb-[calc(1.5rem+var(--safe-bottom))] animate-[slideUp_0.3s_ease-out] max-w-lg mx-auto max-h-[92dvh] overflow-y-auto">
 
-        {step === "generating" ? (
-          <div className="flex flex-col items-center justify-center gap-4 py-10">
-            <div className="spinner" style={{ width: 32, height: 32 }} />
-            <p className="text-sm font-semibold text-[var(--gold)]" style={{ fontFamily: "var(--font-display)" }}>
-              IA calculando as odds…
-            </p>
-            <p className="text-xs text-[var(--text-muted)] text-center">
-              Analisando o histórico de "{sideA.trim()}" vs "{sideB.trim()}"
+        <div className="flex items-center justify-between mb-5">
+          <h2
+            className="text-lg font-bold text-[var(--gold)]"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Criar Caso 🍺
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          {/* Cenário */}
+          <div>
+            <label className="block text-xs text-[var(--text-muted)] mb-1.5 font-medium">
+              O caso / situação
+            </label>
+            <textarea
+              value={scenario}
+              onChange={(e) => setScenario(e.target.value)}
+              placeholder="Ex: Quem vai ganhar o Oscar de Melhor Filme em 2026?"
+              maxLength={200}
+              rows={2}
+              className="w-full bg-[var(--bg-elevated)] border border-[rgba(255,255,255,0.08)] rounded-xl px-3 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[rgba(201,165,90,0.4)] resize-none"
+            />
+          </div>
+
+          {/* 3 opções */}
+          <div className="flex flex-col gap-2">
+            <label className="block text-xs text-[var(--text-muted)] font-medium">
+              Possíveis ocorrências
+            </label>
+            {(
+              [
+                { label: "A", value: optionA, set: setOptionA, placeholder: "Ex: Emilia Pérez" },
+                { label: "B", value: optionB, set: setOptionB, placeholder: "Ex: The Brutalist" },
+                { label: "C", value: optionC, set: setOptionC, placeholder: "Ex: Anora" },
+              ] as const
+            ).map(({ label, value, set, placeholder }) => (
+              <div key={label} className="flex items-center gap-2">
+                <span className="w-6 h-6 flex items-center justify-center rounded-full bg-[rgba(201,165,90,0.1)] text-[var(--gold)] text-xs font-bold shrink-0 border border-[rgba(201,165,90,0.2)]">
+                  {label}
+                </span>
+                <input
+                  type="text"
+                  value={value}
+                  onChange={(e) => set(e.target.value)}
+                  placeholder={placeholder}
+                  maxLength={80}
+                  className="flex-1 bg-[var(--bg-elevated)] border border-[rgba(255,255,255,0.08)] rounded-xl px-3 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[rgba(201,165,90,0.4)]"
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* Categoria */}
+          <div>
+            <label className="block text-xs text-[var(--text-muted)] mb-2 font-medium">
+              Categoria
+            </label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {FIXED_CATEGORIES.map((c) => (
+                <button
+                  key={c.label}
+                  onClick={() => { setCategory(c.label); setIsCustom(false); }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                    !isCustom && category === c.label
+                      ? "bg-[rgba(201,165,90,0.15)] border-[rgba(201,165,90,0.4)] text-[var(--gold)]"
+                      : "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.07)] text-[var(--text-secondary)] hover:border-[rgba(255,255,255,0.15)]"
+                  }`}
+                >
+                  {c.emoji} {c.label}
+                </button>
+              ))}
+              <button
+                onClick={() => { setIsCustom(true); setCategory(""); }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                  isCustom
+                    ? "bg-[rgba(201,165,90,0.15)] border-[rgba(201,165,90,0.4)] text-[var(--gold)]"
+                    : "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.07)] text-[var(--text-secondary)] hover:border-[rgba(255,255,255,0.15)]"
+                }`}
+              >
+                ✏️ Outra
+              </button>
+            </div>
+            {isCustom && (
+              <input
+                type="text"
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+                placeholder="Ex: Política, Tecnologia…"
+                maxLength={40}
+                autoFocus
+                className="w-full bg-[var(--bg-elevated)] border border-[rgba(201,165,90,0.4)] rounded-xl px-3 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
+              />
+            )}
+          </div>
+
+          {/* Contexto opcional */}
+          <div>
+            <label className="block text-xs text-[var(--text-muted)] mb-1.5 font-medium">
+              Contexto adicional{" "}
+              <span className="font-normal">(opcional)</span>
+            </label>
+            <textarea
+              value={context}
+              onChange={(e) => setContext(e.target.value)}
+              placeholder="Ex: considere apenas filmes de língua inglesa, sem contar sequências…"
+              maxLength={300}
+              rows={2}
+              className="w-full bg-[var(--bg-elevated)] border border-[rgba(255,255,255,0.08)] rounded-xl px-3 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[rgba(201,165,90,0.4)] resize-none"
+            />
+          </div>
+
+          {/* Odds */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-[var(--text-muted)] font-medium">
+                Odds (decimal europeu)
+              </label>
+              <button
+                onClick={handleGenerateOdds}
+                disabled={!canGenerateOdds || generatingOdds}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-[rgba(201,165,90,0.08)] text-[var(--gold)] border border-[rgba(201,165,90,0.2)] hover:bg-[rgba(201,165,90,0.15)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                {generatingOdds ? (
+                  <>
+                    <span className="spinner" style={{ width: 10, height: 10 }} />
+                    Gerando…
+                  </>
+                ) : (
+                  "🤖 Sugerir com IA"
+                )}
+              </button>
+            </div>
+
+            {oddsError && (
+              <p className="text-xs text-[var(--red)] bg-[rgba(196,64,64,0.1)] border border-[rgba(196,64,64,0.2)] rounded-lg px-3 py-2">
+                {oddsError}
+              </p>
+            )}
+
+            <div className="grid grid-cols-3 gap-2">
+              {(
+                [
+                  { label: "A", value: oddsA, set: setOddsA },
+                  { label: "B", value: oddsB, set: setOddsB },
+                  { label: "C", value: oddsC, set: setOddsC },
+                ] as const
+              ).map(({ label, value, set }) => (
+                <div key={label} className="flex flex-col gap-1">
+                  <span className="text-[0.65rem] text-[var(--text-muted)] font-semibold text-center">
+                    {label}
+                  </span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={value}
+                    onChange={(e) => set(e.target.value)}
+                    placeholder="1.80"
+                    step="0.01"
+                    min="1.01"
+                    className="w-full bg-[var(--bg-elevated)] border border-[rgba(255,255,255,0.08)] rounded-xl px-2 py-2.5 text-sm text-center text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[rgba(201,165,90,0.4)]"
+                  />
+                </div>
+              ))}
+            </div>
+
+            {oddsJustification && (
+              <p className="text-[0.65rem] text-[var(--text-muted)] italic leading-relaxed px-1">
+                🤖 {oddsJustification}
+              </p>
+            )}
+
+            <p className="text-[0.65rem] text-[var(--text-muted)] px-1">
+              Menor odd = mais provável. Você pode editar livremente.
             </p>
           </div>
-        ) : (
-          <>
-            <div className="flex items-center justify-between mb-5">
-              <h2
-                className="text-lg font-bold text-[var(--gold)]"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                Criar Embate ⚔️
-              </h2>
-              <button
-                onClick={onClose}
-                className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-              >
-                ✕
-              </button>
-            </div>
 
-            <div className="flex flex-col gap-4">
-              {/* Versus inputs */}
-              <div className="flex items-center gap-3">
-                <div className="flex-1">
-                  <label className="block text-xs text-[var(--text-muted)] mb-1.5 font-medium">
-                    Lado A
-                  </label>
-                  <input
-                    type="text"
-                    value={sideA}
-                    onChange={(e) => setSideA(e.target.value)}
-                    placeholder="Ex: Pelé"
-                    maxLength={60}
-                    className="w-full bg-[var(--bg-elevated)] border border-[rgba(255,255,255,0.08)] rounded-xl px-3 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[rgba(201,165,90,0.4)]"
-                  />
-                </div>
-                <span className="text-[var(--text-muted)] font-bold mt-5 shrink-0">⚔️</span>
-                <div className="flex-1">
-                  <label className="block text-xs text-[var(--text-muted)] mb-1.5 font-medium">
-                    Lado B
-                  </label>
-                  <input
-                    type="text"
-                    value={sideB}
-                    onChange={(e) => setSideB(e.target.value)}
-                    placeholder="Ex: Mbappe"
-                    maxLength={60}
-                    className="w-full bg-[var(--bg-elevated)] border border-[rgba(255,255,255,0.08)] rounded-xl px-3 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[rgba(201,165,90,0.4)]"
-                  />
-                </div>
-              </div>
+          {error && (
+            <p className="text-xs text-[var(--red)] bg-[rgba(196,64,64,0.1)] border border-[rgba(196,64,64,0.2)] rounded-lg px-3 py-2">
+              {error}
+            </p>
+          )}
 
-              {/* Categoria */}
-              <div>
-                <label className="block text-xs text-[var(--text-muted)] mb-2 font-medium">
-                  Categoria
-                </label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {FIXED_CATEGORIES.map((c) => (
-                    <button
-                      key={c.label}
-                      onClick={() => { setCategory(c.label); setIsCustom(false); }}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-                        !isCustom && category === c.label
-                          ? "bg-[rgba(201,165,90,0.15)] border-[rgba(201,165,90,0.4)] text-[var(--gold)]"
-                          : "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.07)] text-[var(--text-secondary)] hover:border-[rgba(255,255,255,0.15)]"
-                      }`}
-                    >
-                      {c.emoji} {c.label}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => { setIsCustom(true); setCategory(""); }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-                      isCustom
-                        ? "bg-[rgba(201,165,90,0.15)] border-[rgba(201,165,90,0.4)] text-[var(--gold)]"
-                        : "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.07)] text-[var(--text-secondary)] hover:border-[rgba(255,255,255,0.15)]"
-                    }`}
-                  >
-                    ✏️ Outra
-                  </button>
-                </div>
-                {isCustom && (
-                  <input
-                    type="text"
-                    value={customCategory}
-                    onChange={(e) => setCustomCategory(e.target.value)}
-                    placeholder="Ex: Culinária italiana, Anos 90…"
-                    maxLength={40}
-                    autoFocus
-                    className="w-full bg-[var(--bg-elevated)] border border-[rgba(201,165,90,0.4)] rounded-xl px-3 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
-                  />
-                )}
-              </div>
-
-              {/* Contexto para IA */}
-              <div>
-                <label className="block text-xs text-[var(--text-muted)] mb-1.5 font-medium">
-                  Contexto para a IA{" "}
-                  <span className="text-[var(--text-muted)] font-normal">(opcional)</span>
-                </label>
-                <textarea
-                  value={context}
-                  onChange={(e) => setContext(e.target.value)}
-                  placeholder="Ex: quero focar nos anos 90, somente em termos de gols marcados, considerar o prime de cada um…"
-                  maxLength={300}
-                  rows={3}
-                  className="w-full bg-[var(--bg-elevated)] border border-[rgba(255,255,255,0.08)] rounded-xl px-3 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[rgba(201,165,90,0.4)] resize-none"
-                />
-                <p className="text-[0.65rem] text-[var(--text-muted)] mt-1">
-                  Guia a IA para gerar odds e veredito alinhados com sua intenção.
-                </p>
-              </div>
-
-              {error && (
-                <p className="text-xs text-[var(--red)] bg-[rgba(196,64,64,0.1)] border border-[rgba(196,64,64,0.2)] rounded-lg px-3 py-2">
-                  {error}
-                </p>
-              )}
-
-              <button
-                onClick={handleSubmit}
-                disabled={!canSubmit}
-                className="w-full py-3.5 rounded-xl font-semibold text-sm bg-[rgba(201,165,90,0.15)] text-[var(--gold)] border border-[rgba(201,165,90,0.3)] hover:bg-[rgba(201,165,90,0.25)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-              >
-                Criar Embate ⚔️
-              </button>
-            </div>
-          </>
-        )}
+          <button
+            onClick={handleSubmit}
+            disabled={!canSubmit || submitting}
+            className="w-full py-3.5 rounded-xl font-semibold text-sm bg-[rgba(201,165,90,0.15)] text-[var(--gold)] border border-[rgba(201,165,90,0.3)] hover:bg-[rgba(201,165,90,0.25)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            {submitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="spinner" style={{ width: 14, height: 14 }} /> Publicando…
+              </span>
+            ) : (
+              "Publicar Caso 🍺"
+            )}
+          </button>
+        </div>
       </div>
     </>
   );
@@ -367,7 +478,7 @@ export function ArenaPage() {
             Briga de Bar 🍺
           </h1>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            Apostas hipotéticas com veredito da IA
+            Apostas hipotéticas com veredito do criador
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
@@ -382,7 +493,7 @@ export function ArenaPage() {
             onClick={() => setShowCreate(true)}
             className="px-4 py-2 rounded-xl text-xs font-semibold bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] hover:bg-[rgba(201,165,90,0.2)] transition-all"
           >
-            + Criar Embate
+            + Criar Caso
           </button>
         </div>
       </div>
@@ -400,8 +511,8 @@ export function ArenaPage() {
             </p>
             {openDuels.length === 0 ? (
               <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl px-4 py-8 text-center">
-                <p className="text-2xl mb-2">⚔️</p>
-                <p className="text-sm text-[var(--text-muted)]">Nenhum embate em aberto</p>
+                <p className="text-2xl mb-2">🍺</p>
+                <p className="text-sm text-[var(--text-muted)]">Nenhum caso em aberto</p>
                 <button
                   onClick={() => setShowCreate(true)}
                   className="mt-3 text-xs text-[var(--gold)] underline underline-offset-2"

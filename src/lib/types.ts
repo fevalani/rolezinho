@@ -227,7 +227,7 @@ export const APP_FEATURES: Feature[] = [
     name: "Briga de Bar",
     icon: "🍺",
     path: "/arena",
-    enabled: false,
+    enabled: true,
     description: "Apostas hipotéticas com odds e veredito da IA",
   },
   {

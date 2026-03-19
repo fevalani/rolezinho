@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 // ══════════════════════════════════════════════════════════════
 
 export type DuelStatus = "open" | "closed" | "resolved";
-export type BetSide = "A" | "draw" | "B";
+export type BetSide = "A" | "B" | "C";
 
 export interface ArenaWallet {
   user_id: string;
@@ -16,14 +16,15 @@ export interface ArenaWallet {
 export interface ArenaDuel {
   id: string;
   created_by: string;
-  title: string;
-  side_a: string;
-  side_b: string;
+  scenario: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
   category: string;
   creator_context: string | null;
   odds_a: number;
-  odds_draw: number;
   odds_b: number;
+  odds_c: number;
   odds_justification: string | null;
   status: DuelStatus;
   result: BetSide | null;
@@ -73,7 +74,7 @@ async function callGemini(prompt: string): Promise<string> {
 
     if (res.status === 429) {
       lastError = model;
-      continue; // tenta o próximo modelo
+      continue;
     }
 
     if (!res.ok) {
@@ -91,29 +92,35 @@ async function callGemini(prompt: string): Promise<string> {
 
 export interface OddsResult {
   odds_a: number;
-  odds_draw: number;
   odds_b: number;
+  odds_c: number;
   justification: string;
 }
 
 export async function generateOdds(
-  sideA: string,
-  sideB: string,
-  category: string,
+  scenario: string,
+  optionA: string,
+  optionB: string,
+  optionC: string,
   creatorContext: string,
 ): Promise<OddsResult> {
   const prompt = `Você é um especialista em análise probabilística e apostas.
-Analise o embate hipotético: "${sideA}" (Lado A) vs "${sideB}" (Lado B) na categoria "${category}".
-${creatorContext ? `Contexto adicional: "${creatorContext}"` : ""}
+Analise o seguinte caso: "${scenario}"
 
-Gere odds no formato decimal europeu (ex: 1.80, 3.50, 2.10). Menor odd = favorito.
-Considere histórico, relevância, popularidade e resultados conhecidos.
+As possíveis ocorrências são:
+A: "${optionA}"
+B: "${optionB}"
+C: "${optionC}"
+${creatorContext ? `\nContexto adicional: "${creatorContext}"` : ""}
+
+Gere odds no formato decimal europeu (ex: 1.80, 3.50, 2.10). Menor odd = mais provável.
+Considere a probabilidade de cada ocorrência com base no contexto fornecido.
 
 Responda APENAS com JSON válido:
 {
   "odds_a": number,
-  "odds_draw": number,
   "odds_b": number,
+  "odds_c": number,
   "justification": "string em português explicando o raciocínio das odds em 2-3 frases"
 }`;
 
@@ -122,46 +129,12 @@ Responda APENAS com JSON válido:
     const parsed = JSON.parse(raw) as OddsResult;
     return {
       odds_a: Math.max(1.01, Number(parsed.odds_a) || 2.0),
-      odds_draw: Math.max(1.01, Number(parsed.odds_draw) || 3.0),
       odds_b: Math.max(1.01, Number(parsed.odds_b) || 2.0),
+      odds_c: Math.max(1.01, Number(parsed.odds_c) || 3.0),
       justification: parsed.justification ?? "",
     };
   } catch {
-    return { odds_a: 2.0, odds_draw: 3.0, odds_b: 2.0, justification: "" };
-  }
-}
-
-export interface VerdictResult {
-  result: BetSide;
-  verdict: string;
-}
-
-export async function generateVerdict(
-  sideA: string,
-  sideB: string,
-  category: string,
-  creatorContext: string,
-): Promise<VerdictResult> {
-  const prompt = `Você é um juiz especialista, historiador e analista imparcial.
-Analise o embate hipotético: "${sideA}" (Lado A) vs "${sideB}" (Lado B) na categoria "${category}".
-${creatorContext ? `Intenção e contexto do criador: "${creatorContext}"` : ""}
-
-Pesquise mentalmente o histórico, estatísticas, fatos e argumentos de ambos os lados.
-Dê um veredito definitivo e fundamentado.
-
-Responda APENAS com JSON válido:
-{
-  "result": "A" ou "draw" ou "B",
-  "verdict": "narrativa detalhada em português (3-5 parágrafos) com fatos, análise histórica e justificativa clara do resultado"
-}`;
-
-  try {
-    const raw = await callGemini(prompt);
-    const parsed = JSON.parse(raw) as VerdictResult;
-    const result = (["A", "draw", "B"].includes(parsed.result) ? parsed.result : "draw") as BetSide;
-    return { result, verdict: parsed.verdict ?? "" };
-  } catch (err) {
-    throw new Error(err instanceof Error ? err.message : "Erro desconhecido ao gerar veredito");
+    return { odds_a: 2.0, odds_b: 2.0, odds_c: 3.0, justification: "" };
   }
 }
 
@@ -174,7 +147,7 @@ export async function ensureWallet(userId: string): Promise<ArenaWallet> {
     .from("arena_wallets")
     .insert({ user_id: userId, balance: 1000 })
     .select()
-    .maybeSingle(); // ignora duplicate key error
+    .maybeSingle();
 
   const { data } = await supabase
     .from("arena_wallets")
@@ -206,14 +179,15 @@ function mapDuelRow(d: Record<string, unknown>): ArenaDuel {
   return {
     id: d.id as string,
     created_by: d.created_by as string,
-    title: d.title as string,
-    side_a: d.side_a as string,
-    side_b: d.side_b as string,
+    scenario: d.scenario as string,
+    option_a: d.option_a as string,
+    option_b: d.option_b as string,
+    option_c: d.option_c as string,
     category: d.category as string,
     creator_context: d.creator_context as string | null,
     odds_a: Number(d.odds_a),
-    odds_draw: Number(d.odds_draw),
     odds_b: Number(d.odds_b),
+    odds_c: Number(d.odds_c),
     odds_justification: d.odds_justification as string | null,
     status: d.status as DuelStatus,
     result: d.result as BetSide | null,
@@ -271,8 +245,10 @@ export async function fetchDuelById(
 
 export async function createDuel(
   userId: string,
-  sideA: string,
-  sideB: string,
+  scenario: string,
+  optionA: string,
+  optionB: string,
+  optionC: string,
   category: string,
   creatorContext: string,
   odds: OddsResult,
@@ -281,15 +257,16 @@ export async function createDuel(
     .from("arena_duels")
     .insert({
       created_by: userId,
-      title: `${sideA} vs ${sideB}`,
-      side_a: sideA,
-      side_b: sideB,
+      scenario,
+      option_a: optionA,
+      option_b: optionB,
+      option_c: optionC,
       category,
       creator_context: creatorContext || null,
       odds_a: odds.odds_a,
-      odds_draw: odds.odds_draw,
       odds_b: odds.odds_b,
-      odds_justification: odds.justification,
+      odds_c: odds.odds_c,
+      odds_justification: odds.justification || null,
       status: "open",
     })
     .select("id")
@@ -299,9 +276,7 @@ export async function createDuel(
   return { data: (data as { id: string }).id, error: null };
 }
 
-export async function closeDuel(
-  duelId: string,
-): Promise<{ error: string | null }> {
+export async function closeDuel(duelId: string): Promise<{ error: string | null }> {
   const { error } = await supabase
     .from("arena_duels")
     .update({ status: "closed", updated_at: new Date().toISOString() })
@@ -313,22 +288,15 @@ export async function resolveDuel(
   duelId: string,
   result: BetSide,
   verdict: string,
-  odds: Pick<ArenaDuel, "odds_a" | "odds_draw" | "odds_b">,
+  odds: Pick<ArenaDuel, "odds_a" | "odds_b" | "odds_c">,
 ): Promise<{ error: string | null }> {
-  // 1. Atualiza o duelo
   const { error: duelError } = await supabase
     .from("arena_duels")
-    .update({
-      status: "resolved",
-      result,
-      verdict,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ status: "resolved", result, verdict, updated_at: new Date().toISOString() })
     .eq("id", duelId);
 
   if (duelError) return { error: duelError.message };
 
-  // 2. Busca todas as apostas
   const { data: bets } = await supabase
     .from("arena_bets")
     .select("id, side, amount")
@@ -336,11 +304,10 @@ export async function resolveDuel(
 
   if (!bets?.length) return { error: null };
 
-  // 3. Define actual_payout para cada aposta
   const sideOdds: Record<BetSide, number> = {
     A: odds.odds_a,
-    draw: odds.odds_draw,
     B: odds.odds_b,
+    C: odds.odds_c,
   };
 
   for (const bet of bets as { id: string; side: string; amount: number }[]) {
@@ -398,7 +365,7 @@ export async function placeBet(
   });
 
   if (betError) {
-    if (betError.code === "23505") return { error: "Você já apostou neste embate" };
+    if (betError.code === "23505") return { error: "Você já apostou neste caso" };
     return { error: betError.message };
   }
 
@@ -432,7 +399,6 @@ export async function deleteBet(
 
   if (deleteError) return { error: deleteError.message };
 
-  // Estorna o valor na carteira
   const { data: wallet } = await supabase
     .from("arena_wallets")
     .select("balance")
@@ -455,7 +421,6 @@ export async function claimPayout(
   betId: string,
   payout: number,
 ): Promise<{ error: string | null }> {
-  // Marca como resgatado primeiro (idempotente)
   const { error: claimError } = await supabase
     .from("arena_bets")
     .update({ payout_claimed: true })
