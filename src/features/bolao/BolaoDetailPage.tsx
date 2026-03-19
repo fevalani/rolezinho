@@ -356,6 +356,12 @@ export function BolaoDetailPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState("");
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 3000);
+  };
   const [leaveLoading, setLeaveLoading] = useState(false);
   const [pendingPredictions, setPendingPredictions] = useState<
     Record<string, { home: number; away: number }>
@@ -380,6 +386,13 @@ export function BolaoDetailPage() {
     setLeaderboard(lbData);
     setRoundLeaderboards(roundLbData);
     setLoading(false);
+
+    // Abre na rodada atual: primeira com algum jogo não finalizado.
+    // Se todas finalizadas, abre na última rodada.
+    const currentIdx = roundsData.findIndex((r) =>
+      r.matches.some((m) => m.status !== "FINISHED"),
+    );
+    setSelectedRoundIdx(currentIdx >= 0 ? currentIdx : Math.max(0, roundsData.length - 1));
   }, [poolId, user]);
 
   useEffect(() => {
@@ -408,7 +421,12 @@ export function BolaoDetailPage() {
     setSyncing(true);
     const updated = await syncPoolResults(poolId);
     setSyncing(false);
-    if (updated > 0) loadAll();
+    if (updated > 0) {
+      loadAll();
+      showToast(`${updated} partida${updated !== 1 ? "s" : ""} atualizada${updated !== 1 ? "s" : ""} e pontos recalculados ✓`);
+    } else {
+      showToast("Nenhuma partida nova para atualizar");
+    }
   };
 
   const handlePredictionChange = useCallback(
@@ -686,6 +704,19 @@ export function BolaoDetailPage() {
               Sair do bolão
             </button>
           )}
+        </div>
+      )}
+
+      {/* Toast de feedback */}
+      {toast && (
+        <div
+          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm font-medium text-[var(--text-primary)] shadow-[0_4px_20px_rgba(0,0,0,0.5)] pointer-events-none whitespace-nowrap"
+          style={{
+            background: "var(--bg-elevated)",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          {toast}
         </div>
       )}
 

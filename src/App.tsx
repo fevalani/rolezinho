@@ -15,6 +15,8 @@ import { AgendaPage } from "./features/agenda/AgendaPage";
 import { CulturaPage } from "./features/cultura/CulturaPage";
 import { BolaoPage } from "./features/bolao/BolaoPage";
 import { BolaoDetailPage } from "./features/bolao/BolaoDetailPage";
+import { ArenaPage } from "./features/arena/ArenaPage";
+import { ArenaDetailPage } from "./features/arena/ArenaDetailPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -65,6 +67,8 @@ function AppRoutes() {
         <Route path="/cultura" element={<CulturaPage />} />
         <Route path="/bolao" element={<BolaoPage />} />
         <Route path="/bolao/:poolId" element={<BolaoDetailPage />} />
+        <Route path="/arena" element={<ArenaPage />} />
+        <Route path="/arena/:duelId" element={<ArenaDetailPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

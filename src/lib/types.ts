@@ -223,6 +223,14 @@ export const APP_FEATURES: Feature[] = [
     description: "Rolagem de dados de RPG em tempo real",
   },
   {
+    id: "briga-de-bar",
+    name: "Briga de Bar",
+    icon: "🍺",
+    path: "/arena",
+    enabled: false,
+    description: "Apostas hipotéticas com odds e veredito da IA",
+  },
+  {
     id: "ficha",
     name: "RPG",
     icon: "🏰",

@@ -488,21 +488,7 @@ export async function syncPoolResults(poolId: string): Promise<number> {
   if (Date.now() - lastSync < SYNC_COOLDOWN) return 0;
   lastSyncByPool.set(poolId, Date.now());
 
-  // Busca partidas que deveriam ter resultado mas ainda não têm
-  const now = new Date().toISOString();
-  const { data: pendingMatches } = await supabase
-    .from("bolao_matches")
-    .select(
-      "id, fd_match_id, home_team, away_team, utc_date, championship_id, status",
-    )
-    .lt("utc_date", now)
-    .not("status", "eq", "FINISHED")
-    .not("status", "eq", "CANCELLED")
-    .not("status", "eq", "POSTPONED");
-
-  if (!pendingMatches?.length) return 0;
-
-  // Filtra apenas partidas do campeonato deste bolão
+  // Busca o campeonato deste bolão
   const { data: pool } = await supabase
     .from("bolao_pools")
     .select("championship_id")
@@ -511,12 +497,20 @@ export async function syncPoolResults(poolId: string): Promise<number> {
 
   if (!pool) return 0;
 
-  const matches = pendingMatches.filter(
-    (m) => m.championship_id === pool.championship_id,
-  );
-
   let updated = 0;
-  for (const match of matches) {
+  const now = new Date().toISOString();
+
+  // 1. Partidas que ainda não têm status FINISHED — busca resultado na API
+  const { data: pendingMatches } = await supabase
+    .from("bolao_matches")
+    .select("id, fd_match_id, home_team, away_team, utc_date, championship_id, status")
+    .eq("championship_id", pool.championship_id)
+    .lt("utc_date", now)
+    .not("status", "eq", "FINISHED")
+    .not("status", "eq", "CANCELLED")
+    .not("status", "eq", "POSTPONED");
+
+  for (const match of pendingMatches ?? []) {
     const result = await fetchMatchResult(
       match.fd_match_id,
       match.home_team,
@@ -535,12 +529,33 @@ export async function syncPoolResults(poolId: string): Promise<number> {
       })
       .eq("id", match.id);
 
-    // Recalcula pontos dos palpites deste bolão para esta partida
     if (result.home !== null && result.away !== null) {
       await scoreMatchPredictions(match.id, result.home, result.away);
     }
 
     updated++;
+  }
+
+  // 2. Partidas já FINISHED com placar mas palpites sem pontuação — rescore
+  const { data: finishedMatches } = await supabase
+    .from("bolao_matches")
+    .select("id, score_home, score_away")
+    .eq("championship_id", pool.championship_id)
+    .eq("status", "FINISHED")
+    .not("score_home", "is", null)
+    .not("score_away", "is", null);
+
+  for (const match of finishedMatches ?? []) {
+    const { count } = await supabase
+      .from("bolao_predictions")
+      .select("id", { count: "exact", head: true })
+      .eq("match_id", match.id)
+      .is("points_earned", null);
+
+    if ((count ?? 0) > 0) {
+      await scoreMatchPredictions(match.id, match.score_home!, match.score_away!);
+      updated++;
+    }
   }
 
   return updated;
@@ -551,30 +566,14 @@ async function scoreMatchPredictions(
   realHome: number,
   realAway: number,
 ): Promise<void> {
-  const { data: preds } = await supabase
-    .from("bolao_predictions")
-    .select("id, home_goals, away_goals")
-    .eq("match_id", matchId);
+  // Usa RPC com SECURITY DEFINER para bypassing RLS e atualizar pontos de todos os usuários
+  const { error } = await supabase.rpc("score_match_predictions", {
+    p_match_id: matchId,
+    p_real_home: realHome,
+    p_real_away: realAway,
+  });
 
-  if (!preds?.length) return;
-
-  const updates = preds.map((p) => ({
-    id: p.id,
-    points_earned: calculatePoints(
-      p.home_goals,
-      p.away_goals,
-      realHome,
-      realAway,
-    ),
-    updated_at: new Date().toISOString(),
-  }));
-
-  for (const upd of updates) {
-    await supabase
-      .from("bolao_predictions")
-      .update({ points_earned: upd.points_earned, updated_at: upd.updated_at })
-      .eq("id", upd.id);
-  }
+  if (error) console.error("[scoreMatchPredictions]", error);
 }
 
 // ══════════════════════════════════════════════════════════════
