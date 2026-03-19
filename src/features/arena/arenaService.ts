@@ -53,24 +53,40 @@ export interface ArenaBet {
 // ══════════════════════════════════════════════════════════════
 
 const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY as string;
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_KEY}`;
+const GEMINI_MODELS = [
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
+  "gemini-1.5-flash",
+  "gemini-1.5-flash-8b",
+];
 
 async function callGemini(prompt: string): Promise<string> {
-  const res = await fetch(GEMINI_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Gemini API error ${res.status}: ${body}`);
+  let lastError = "";
+
+  for (const model of GEMINI_MODELS) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    });
+
+    if (res.status === 429) {
+      lastError = model;
+      continue; // tenta o próximo modelo
+    }
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Gemini API error ${res.status}: ${body}`);
+    }
+
+    const data = await res.json();
+    const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+    return text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
   }
-  const data = await res.json();
-  const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
-  // Remove markdown code fences caso a API retorne ```json ... ```
-  return text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+
+  throw new Error(`Todos os modelos estão com cota esgotada (último: ${lastError}). Tente novamente em alguns minutos.`);
 }
 
 export interface OddsResult {
