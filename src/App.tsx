@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react";
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
+import { scheduleMusicReminder } from "@/lib/notificationService";
 import { LoginPage } from "@/pages/LoginPage";
 import { HomePage } from "@/pages/HomePage";
 import { ProfilePage } from "@/pages/ProfilePage";
@@ -45,6 +47,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) scheduleMusicReminder();
+  }, [user]);
+
   return (
     <Routes>
       <Route
