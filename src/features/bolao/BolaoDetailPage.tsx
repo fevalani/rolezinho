@@ -10,6 +10,7 @@ import {
   fetchRoundLeaderboards,
   upsertPrediction,
   syncPoolResults,
+  syncMatchSchedules,
   leavePool,
   type BolaoPool,
   type RoundGroup,
@@ -355,6 +356,7 @@ export function BolaoDetailPage() {
   const [selectedLeaderRoundIdx, setSelectedLeaderRoundIdx] = useState(-1); // -1 = geral
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [syncingSchedule, setSyncingSchedule] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
 
@@ -426,6 +428,23 @@ export function BolaoDetailPage() {
       showToast(`${updated} partida${updated !== 1 ? "s" : ""} atualizada${updated !== 1 ? "s" : ""} e pontos recalculados ✓`);
     } else {
       showToast("Nenhuma partida nova para atualizar");
+    }
+  };
+
+  const handleSyncSchedule = async () => {
+    if (!poolId || syncingSchedule) return;
+    setSyncingSchedule(true);
+    const { updated, error } = await syncMatchSchedules(poolId);
+    setSyncingSchedule(false);
+    if (error === "cooldown") {
+      showToast("Aguarde alguns minutos antes de sincronizar novamente");
+    } else if (error) {
+      showToast(`Erro: ${error}`);
+    } else if (updated > 0) {
+      loadAll();
+      showToast(`${updated} horário${updated !== 1 ? "s" : ""} atualizado${updated !== 1 ? "s" : ""} ✓`);
+    } else {
+      showToast("Horários já estão atualizados");
     }
   };
 
@@ -511,18 +530,32 @@ export function BolaoDetailPage() {
           </p>
         </div>
         {isAdmin && (
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            title="Sincronizar resultados"
-            className="p-2 text-[var(--text-muted)] hover:text-[var(--gold)] transition-colors disabled:opacity-50"
-          >
-            {syncing ? (
-              <span className="spinner" style={{ width: 16, height: 16 }} />
-            ) : (
-              "🔄"
-            )}
-          </button>
+          <>
+            <button
+              onClick={handleSyncSchedule}
+              disabled={syncingSchedule}
+              title="Atualizar horários das partidas"
+              className="p-2 text-[var(--text-muted)] hover:text-[var(--gold)] transition-colors disabled:opacity-50"
+            >
+              {syncingSchedule ? (
+                <span className="spinner" style={{ width: 16, height: 16 }} />
+              ) : (
+                "📅"
+              )}
+            </button>
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              title="Sincronizar resultados e pontos"
+              className="p-2 text-[var(--text-muted)] hover:text-[var(--gold)] transition-colors disabled:opacity-50"
+            >
+              {syncing ? (
+                <span className="spinner" style={{ width: 16, height: 16 }} />
+              ) : (
+                "🔄"
+              )}
+            </button>
+          </>
         )}
       </div>
 

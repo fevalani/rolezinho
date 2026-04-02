@@ -483,6 +483,10 @@ export async function upsertPrediction(
 const lastSyncByPool = new Map<string, number>();
 const SYNC_COOLDOWN = 5 * 60 * 1000;
 
+// Throttle separado para sync de horários
+const lastScheduleSyncByPool = new Map<string, number>();
+const SCHEDULE_SYNC_COOLDOWN = 5 * 60 * 1000;
+
 export async function syncPoolResults(poolId: string): Promise<number> {
   const lastSync = lastSyncByPool.get(poolId) ?? 0;
   if (Date.now() - lastSync < SYNC_COOLDOWN) return 0;
@@ -559,6 +563,67 @@ export async function syncPoolResults(poolId: string): Promise<number> {
   }
 
   return updated;
+}
+
+// ══════════════════════════════════════════════════════════════
+// Sincronização de horários das partidas
+// ══════════════════════════════════════════════════════════════
+
+export async function syncMatchSchedules(poolId: string): Promise<{ updated: number; error: string | null }> {
+  const lastSync = lastScheduleSyncByPool.get(poolId) ?? 0;
+  if (Date.now() - lastSync < SCHEDULE_SYNC_COOLDOWN) {
+    return { updated: 0, error: "cooldown" };
+  }
+  lastScheduleSyncByPool.set(poolId, Date.now());
+
+  // Busca o campeonato do bolão
+  const { data: pool } = await supabase
+    .from("bolao_pools")
+    .select("championship_id")
+    .eq("id", poolId)
+    .maybeSingle();
+
+  if (!pool) return { updated: 0, error: "Bolão não encontrado" };
+
+  const { data: championship } = await supabase
+    .from("bolao_championships")
+    .select("*")
+    .eq("id", pool.championship_id)
+    .maybeSingle();
+
+  if (!championship) return { updated: 0, error: "Campeonato não encontrado" };
+
+  const { matches: fdMatches, error: apiError } = await fetchChampionshipMatches(
+    championship.code as ChampionshipCode,
+  );
+  if (apiError || fdMatches.length === 0) {
+    return { updated: 0, error: apiError ?? "Nenhuma partida retornada pela API" };
+  }
+
+  // Compara horários/status antes de sincronizar para saber quantos mudaram
+  const { data: existing } = await supabase
+    .from("bolao_matches")
+    .select("fd_match_id, utc_date, status")
+    .eq("championship_id", pool.championship_id)
+    .not("status", "eq", "FINISHED");
+
+  type ExistingMatch = { fd_match_id: number; utc_date: string; status: string };
+  const existingMap = new Map<number, ExistingMatch>(
+    (existing ?? []).map((m: ExistingMatch) => [m.fd_match_id, m]),
+  );
+
+  await syncMatches(championship as BolaoChampionship, fdMatches);
+
+  let updated = 0;
+  for (const m of fdMatches) {
+    if (m.status === "FINISHED") continue;
+    const prev = existingMap.get(m.id);
+    if (prev && (prev.utc_date !== m.utcDate || prev.status !== m.status)) {
+      updated++;
+    }
+  }
+
+  return { updated, error: null };
 }
 
 async function scoreMatchPredictions(
