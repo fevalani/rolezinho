@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from "react";
 import type { User, Session } from "@supabase/supabase-js";
+import { App } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 
@@ -44,6 +46,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const syncAppVersion = useCallback(async (userId: string) => {
+    try {
+      let version: string;
+      if (Capacitor.isNativePlatform()) {
+        const info = await App.getInfo();
+        version = `${info.version} (${info.build})`;
+      } else {
+        version = `web ${import.meta.env.VITE_APP_VERSION ?? "?"}`;
+      }
+      await supabase
+        .from("profiles")
+        .update({
+          app_version: version,
+          app_last_seen_at: new Date().toISOString(),
+        })
+        .eq("id", userId);
+    } catch {
+      // silently ignore — não bloqueia o fluxo de auth
+    }
+  }, []);
 
   const fetchProfile = useCallback(
     async (userId: string, email: string, meta?: Record<string, unknown>) => {
@@ -88,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(s?.user ?? null);
       if (s?.user) {
         fetchProfile(s.user.id, s.user.email ?? "", s.user.user_metadata);
+        syncAppVersion(s.user.id);
       }
       setLoading(false);
     });
@@ -99,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(s?.user ?? null);
       if (s?.user) {
         fetchProfile(s.user.id, s.user.email ?? "", s.user.user_metadata);
+        syncAppVersion(s.user.id);
       } else {
         setProfile(null);
       }
@@ -106,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, [fetchProfile]);
+  }, [fetchProfile, syncAppVersion]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
