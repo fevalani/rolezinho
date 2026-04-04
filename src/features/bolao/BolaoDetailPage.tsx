@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "@/components/Avatar";
@@ -371,6 +371,22 @@ export function BolaoDetailPage() {
 
   const isAdmin = user?.email === "valanife@gmail.com";
 
+  // Controla visibilidade do botão inline para decidir se mostra o fixo
+  const [isSaveButtonVisible, setIsSaveButtonVisible] = useState(false);
+  const saveObserverRef = useRef<IntersectionObserver | null>(null);
+  const saveButtonRef = useCallback((node: HTMLDivElement | null) => {
+    saveObserverRef.current?.disconnect();
+    saveObserverRef.current = null;
+    if (node) {
+      const observer = new IntersectionObserver(
+        ([entry]) => setIsSaveButtonVisible(entry.isIntersecting),
+        { threshold: 0.5 },
+      );
+      observer.observe(node);
+      saveObserverRef.current = observer;
+    }
+  }, []);
+
   const loadAll = useCallback(async () => {
     if (!poolId || !user) return;
     setLoading(true);
@@ -389,12 +405,35 @@ export function BolaoDetailPage() {
     setRoundLeaderboards(roundLbData);
     setLoading(false);
 
-    // Abre na rodada atual: primeira com algum jogo não finalizado.
-    // Se todas finalizadas, abre na última rodada.
-    const currentIdx = roundsData.findIndex((r) =>
-      r.matches.some((m) => m.status !== "FINISHED"),
-    );
-    setSelectedRoundIdx(currentIdx >= 0 ? currentIdx : Math.max(0, roundsData.length - 1));
+    // Abre na rodada atual baseada no último jogo finalizado.
+    // Ignora jogos adiados (POSTPONED) para o cálculo de "rodada completa".
+    // Se todos os jogos não-adiados da rodada estão finalizados → próxima rodada.
+    // Se ainda há jogos não finalizados na rodada → permanece nela.
+    const currentIdx = (() => {
+      if (roundsData.length === 0) return 0;
+
+      // Última rodada (pelo índice) que contém ao menos um jogo finalizado
+      let lastFinishedRoundIdx = -1;
+      for (let i = 0; i < roundsData.length; i++) {
+        if (roundsData[i].matches.some((m) => m.status === "FINISHED")) {
+          lastFinishedRoundIdx = i;
+        }
+      }
+
+      // Nenhum jogo finalizado ainda → abre na primeira rodada
+      if (lastFinishedRoundIdx === -1) return 0;
+
+      // Verifica se a rodada está completa (excluindo adiados)
+      const round = roundsData[lastFinishedRoundIdx];
+      const nonPostponed = round.matches.filter((m) => m.status !== "POSTPONED");
+      const roundComplete = nonPostponed.every((m) => m.status === "FINISHED");
+
+      if (roundComplete && lastFinishedRoundIdx + 1 < roundsData.length) {
+        return lastFinishedRoundIdx + 1; // Próxima rodada
+      }
+      return lastFinishedRoundIdx;
+    })();
+    setSelectedRoundIdx(currentIdx);
   }, [poolId, user]);
 
   useEffect(() => {
@@ -617,6 +656,28 @@ export function BolaoDetailPage() {
                       onPredictionChange={handlePredictionChange}
                     />
                   ))}
+
+                  {/* Botão inline — aparece após o último jogo */}
+                  {Object.keys(pendingPredictions).length > 0 && (
+                    <div ref={saveButtonRef} className="pt-1 pb-2">
+                      <button
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-sm font-bold bg-[var(--gold)] text-[#08080f] shadow-lg disabled:opacity-70 transition-all active:scale-95"
+                      >
+                        {saving ? (
+                          <span className="spinner" style={{ width: 14, height: 14 }} />
+                        ) : (
+                          <>
+                            Salvar palpites
+                            <span className="bg-[rgba(0,0,0,0.15)] rounded-full px-2 py-0.5 text-[0.65rem]">
+                              {Object.keys(pendingPredictions).length}
+                            </span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </>
@@ -753,8 +814,8 @@ export function BolaoDetailPage() {
         </div>
       )}
 
-      {/* Botão flutuante de salvar palpites */}
-      {Object.keys(pendingPredictions).length > 0 && (
+      {/* Botão fixo — aparece apenas quando o botão inline ainda não está visível */}
+      {Object.keys(pendingPredictions).length > 0 && !isSaveButtonVisible && (
         <div className="fixed bottom-[calc(4rem+var(--safe-bottom))] left-0 right-0 px-4 z-50 flex justify-center">
           <button
             onClick={handleSave}
