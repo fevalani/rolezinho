@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "@/components/Avatar";
+import { scheduleBolaoReminders } from "@/lib/notificationService";
 import {
   fetchPoolById,
   fetchMatchesForPool,
@@ -247,11 +248,19 @@ function RoundSelector({
   selectedIdx: number;
   onSelect: (idx: number) => void;
 }) {
+  const btnRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  useEffect(() => {
+    const el = btnRefs.current[selectedIdx];
+    if (el) el.scrollIntoView({ inline: "center", behavior: "smooth", block: "nearest" });
+  }, [selectedIdx]);
+
   return (
     <div className="flex gap-2 overflow-x-auto pb-1 px-4 scrollbar-none">
       {rounds.map((r, i) => (
         <button
           key={r.label}
+          ref={(el) => { btnRefs.current[i] = el; }}
           onClick={() => onSelect(i)}
           className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
             i === selectedIdx
@@ -456,6 +465,16 @@ export function BolaoDetailPage() {
       if (updated > 0) loadAll();
     });
   }, [poolId, isAdmin, loadAll]);
+
+  // Agenda notificações 1h antes de partidas sem palpite
+  const allMatches = useMemo(
+    () => rounds.flatMap((r) => r.matches),
+    [rounds],
+  );
+  useEffect(() => {
+    if (!poolId || allMatches.length === 0) return;
+    scheduleBolaoReminders(poolId, allMatches);
+  }, [poolId, allMatches]);
 
   const handleSync = async () => {
     if (!poolId || syncing) return;

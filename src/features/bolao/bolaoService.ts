@@ -361,7 +361,7 @@ export async function leavePool(
 function isMatchLocked(utcDate: string, status: string): boolean {
   const openStatuses = ["TIMED", "SCHEDULED"];
   if (!openStatuses.includes(status)) return true;
-  return Date.now() > new Date(utcDate).getTime() - 30 * 60 * 1000;
+  return Date.now() > new Date(utcDate).getTime() - 1 * 60 * 1000;
 }
 
 export async function fetchMatchesForPool(
