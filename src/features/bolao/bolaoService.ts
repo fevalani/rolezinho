@@ -566,6 +566,52 @@ export async function syncPoolResults(poolId: string): Promise<number> {
 }
 
 // ══════════════════════════════════════════════════════════════
+// Repopulação forçada (sem cooldown, para admin)
+// ══════════════════════════════════════════════════════════════
+
+export async function forcePopulateMatches(
+  poolId: string,
+): Promise<{ populated: number; error: string | null }> {
+  const { data: pool } = await supabase
+    .from("bolao_pools")
+    .select("championship_id")
+    .eq("id", poolId)
+    .maybeSingle();
+
+  if (!pool) return { populated: 0, error: "Bolão não encontrado" };
+
+  const { data: championship } = await supabase
+    .from("bolao_championships")
+    .select("*")
+    .eq("id", pool.championship_id)
+    .maybeSingle();
+
+  if (!championship) return { populated: 0, error: "Campeonato não encontrado" };
+
+  const { matches: fdMatches, error: apiError } = await fetchChampionshipMatches(
+    championship.code as ChampionshipCode,
+  );
+
+  // Erro total sem nenhuma partida
+  if (fdMatches.length === 0) {
+    return {
+      populated: 0,
+      error: apiError ?? "Nenhuma partida retornada pela API",
+    };
+  }
+
+  // Salva o que veio (pode ser parcial por rate limit)
+  await syncMatches(championship as BolaoChampionship, fdMatches);
+
+  // Invalida cooldowns para que os outros syncs também reflitam o estado novo
+  lastSyncByPool.delete(poolId);
+  lastScheduleSyncByPool.delete(poolId);
+
+  // Propaga aviso de rate limit (mas populated > 0 pois algo foi salvo)
+  return { populated: fdMatches.length, error: apiError };
+}
+
+// ══════════════════════════════════════════════════════════════
 // Sincronização de horários das partidas
 // ══════════════════════════════════════════════════════════════
 

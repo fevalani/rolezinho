@@ -27,6 +27,7 @@ export const CHAMPIONSHIPS_CONFIG: Record<
     fd_code: string;
     season: string;
     sofa_tournament_id: number;
+    sofa_date_range?: { start: string; end: string };
   }
 > = {
   BSA: {
@@ -41,7 +42,8 @@ export const CHAMPIONSHIPS_CONFIG: Record<
     fd_id: 2000,
     fd_code: "WC",
     season: "2026",
-    sofa_tournament_id: 16,
+    sofa_tournament_id: 3954, // mantido como referência, não utilizado
+    sofa_date_range: { start: "2026-06-11", end: "2026-07-19" },
   },
 };
 
@@ -138,7 +140,9 @@ export function toRoundLabel(
 }
 
 // Ordem dos stages para controle de visibilidade (knockout)
+// WC 2026 tem Round of 32 antes das Oitavas
 export const KNOCKOUT_STAGE_ORDER = [
+  "ROUND_OF_32",
   "ROUND_OF_16",
   "QUARTER_FINALS",
   "SEMI_FINALS",
@@ -264,6 +268,236 @@ async function fetchMatchResultSofa(
   }
 }
 
+// ─── SofaScore: busca completa de torneio ────────────────────
+
+interface SofaTournamentEvent {
+  id: number;
+  homeTeam: { id: number; name: string };
+  awayTeam: { id: number; name: string };
+  startTimestamp: number;
+  status: { type: string; code: number };
+  homeScore?: { current?: number | null };
+  awayScore?: { current?: number | null };
+  roundInfo?: { round?: number; name?: string };
+  tournament?: {
+    name?: string;
+    slug?: string;
+    uniqueTournament?: { id?: number; name?: string; slug?: string };
+  };
+}
+
+const SOFA_KNOCKOUT_STAGE_MAP: Record<string, string> = {
+  "round of 32": "ROUND_OF_32",
+  "round of 16": "ROUND_OF_16",
+  "quarter-final": "QUARTER_FINALS",
+  "semi-final": "SEMI_FINALS",
+  "3rd place": "THIRD_PLACE",
+  "final": "FINAL",
+};
+
+function sofaStatusToFD(type: string): string {
+  switch (type) {
+    case "finished":   return "FINISHED";
+    case "inprogress": return "IN_PLAY";
+    case "postponed":  return "POSTPONED";
+    case "canceled":   return "CANCELLED";
+    default:           return "TIMED";
+  }
+}
+
+function sofaEventToFDMatch(e: SofaTournamentEvent): FDMatch {
+  const utcDate = new Date(e.startTimestamp * 1000).toISOString();
+  const status = sofaStatusToFD(e.status.type);
+  const finished = e.status.type === "finished";
+
+  // Determina stage e matchday a partir de roundInfo
+  const roundName = (e.roundInfo?.name ?? "").toLowerCase();
+  let stage = "GROUP_STAGE";
+  let matchday: number | null = e.roundInfo?.round ?? null;
+
+  for (const [key, val] of Object.entries(SOFA_KNOCKOUT_STAGE_MAP)) {
+    if (roundName.includes(key)) {
+      stage = val;
+      matchday = null;
+      break;
+    }
+  }
+
+  return {
+    id: e.id,
+    homeTeam: { name: e.homeTeam.name, crest: null },
+    awayTeam: { name: e.awayTeam.name, crest: null },
+    utcDate,
+    status,
+    stage,
+    matchday,
+    score: {
+      fullTime: {
+        home: finished ? (e.homeScore?.current ?? null) : null,
+        away: finished ? (e.awayScore?.current ?? null) : null,
+      },
+    },
+  };
+}
+
+// Retorna true se o evento pertence à Copa do Mundo (filtro por nome/slug do torneio)
+function isWorldCupEvent(e: SofaTournamentEvent): boolean {
+  const ut = e.tournament?.uniqueTournament;
+  const combined = [
+    ut?.name ?? "",
+    ut?.slug ?? "",
+    e.tournament?.name ?? "",
+    e.tournament?.slug ?? "",
+  ].join(" ").toLowerCase();
+
+  return (
+    (combined.includes("world cup") ||
+      combined.includes("world championship") ||
+      combined.includes("copa do mundo") ||
+      combined.includes("mondial")) &&
+    // Exclui competições menores (beach soccer, futsal, etc.)
+    !combined.includes("beach") &&
+    !combined.includes("futsal") &&
+    !combined.includes("youth") &&
+    !combined.includes("women")
+  );
+}
+
+// Retorna eventos do dia + status HTTP (para detectar 429)
+async function fetchSofaEventsByDate(
+  dateStr: string,
+): Promise<{ events: SofaTournamentEvent[]; rateLimited: boolean }> {
+  try {
+    const res = await sofaFetch(`/api/v1/sport/football/scheduled-events/${dateStr}`);
+    if (res.status === 429) return { events: [], rateLimited: true };
+    if (!res.ok) return { events: [], rateLimited: false };
+    const data = await res.json() as { events?: SofaTournamentEvent[] };
+    return { events: data.events ?? [], rateLimited: false };
+  } catch {
+    return { events: [], rateLimited: false };
+  }
+}
+
+async function fetchMatchesSofaByDateRange(
+  startDate: string,
+  endDate: string,
+  filter: (e: SofaTournamentEvent) => boolean,
+): Promise<{ matches: FDMatch[]; partialError: string | null }> {
+  if (!RAPIDAPI_KEY) {
+    return { matches: [], partialError: "VITE_RAPIDAPI_KEY não configurada" };
+  }
+
+  // Gera lista de datas no intervalo
+  const dates: string[] = [];
+  const d = new Date(startDate + "T12:00:00Z");
+  const end = new Date(endDate + "T12:00:00Z");
+  while (d <= end) {
+    dates.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+
+  const all: SofaTournamentEvent[] = [];
+  let rateLimitedFrom: string | null = null;
+
+  // Busca sequencial com 1.2s entre chamadas para respeitar rate limit (~50 req/min)
+  for (const dateStr of dates) {
+    const { events, rateLimited } = await fetchSofaEventsByDate(dateStr);
+
+    if (rateLimited) {
+      rateLimitedFrom = dateStr;
+      console.warn(`[SofaScore] Rate limit atingido em ${dateStr}. Partidas parciais: ${all.length}`);
+      break;
+    }
+
+    all.push(...events.filter(filter));
+    await new Promise((r) => setTimeout(r, 1200));
+  }
+
+  // Loga IDs dos torneios encontrados para facilitar futura otimização
+  if (all.length > 0) {
+    const tourInfo = new Map<number, string>();
+    for (const e of all) {
+      const id = e.tournament?.uniqueTournament?.id;
+      const name = e.tournament?.uniqueTournament?.name ?? e.tournament?.name ?? "?";
+      if (id !== undefined) tourInfo.set(id, name);
+    }
+    console.log(`[SofaScore] ${all.length} partidas encontradas.`);
+    for (const [id, name] of tourInfo) {
+      console.log(`  uniqueTournament.id=${id} → "${name}"`);
+    }
+  }
+
+  const seen = new Set<number>();
+  const unique = all.filter((e) => {
+    if (seen.has(e.id)) return false;
+    seen.add(e.id);
+    return true;
+  });
+
+  const partialError = rateLimitedFrom
+    ? `Rate limit atingido (a partir de ${rateLimitedFrom}). ${unique.length} partidas salvas. Aguarde alguns minutos e tente novamente para carregar o restante.`
+    : null;
+
+  return { matches: unique.map(sofaEventToFDMatch), partialError };
+}
+
+async function fetchAllMatchesSofaTournament(
+  code: ChampionshipCode,
+): Promise<{ matches: FDMatch[]; error: string | null }> {
+  if (!RAPIDAPI_KEY) {
+    return { matches: [], error: "VITE_RAPIDAPI_KEY não configurada" };
+  }
+
+  const cfg = CHAMPIONSHIPS_CONFIG[code];
+
+  // Estratégia por intervalo de datas (Copa do Mundo e similares)
+  if (cfg.sofa_date_range) {
+    const { matches, partialError } = await fetchMatchesSofaByDateRange(
+      cfg.sofa_date_range.start,
+      cfg.sofa_date_range.end,
+      isWorldCupEvent,
+    );
+    if (matches.length === 0) {
+      return { matches: [], error: partialError ?? "Nenhuma partida encontrada no período" };
+    }
+    // Retorna o que foi coletado; o erro parcial é propagado para informar o usuário
+    return { matches, error: partialError };
+  }
+
+  // Estratégia por tournament ID direto (Brasileirão e outros)
+  const all: SofaTournamentEvent[] = [];
+  for (const direction of ["last", "next"] as const) {
+    for (let page = 0; page < 10; page++) {
+      try {
+        const res = await sofaFetch(
+          `/api/v1/tournament/${cfg.sofa_tournament_id}/events/${direction}/${page}`,
+        );
+        if (!res.ok) break;
+        const data = await res.json() as { events?: SofaTournamentEvent[] };
+        const events = data.events ?? [];
+        if (events.length === 0) break;
+        all.push(...events);
+      } catch {
+        break;
+      }
+    }
+  }
+
+  if (all.length === 0) {
+    return { matches: [], error: `SofaScore: nenhuma partida encontrada para tournament ${cfg.sofa_tournament_id}` };
+  }
+
+  const seen = new Set<number>();
+  const unique = all.filter((e) => {
+    if (seen.has(e.id)) return false;
+    seen.add(e.id);
+    return true;
+  });
+
+  console.log(`[SofaScore] ${unique.length} partidas carregadas para tournament ${cfg.sofa_tournament_id}`);
+  return { matches: unique.map(sofaEventToFDMatch), error: null };
+}
+
 // ─── API pública ─────────────────────────────────────────────
 
 export async function fetchChampionshipMatches(
@@ -271,8 +505,10 @@ export async function fetchChampionshipMatches(
 ): Promise<{ matches: FDMatch[]; error: string | null }> {
   const result = await fetchMatchesFD(code);
   if (result.matches.length > 0) return result;
-  // SofaScore não tem endpoint simples para listar todas as partidas de um campeonato
-  return result;
+
+  // Fallback: SofaScore para campeonatos não disponíveis no football-data.org
+  console.log(`[SofaScore] FD falhou para ${code}, tentando SofaScore...`);
+  return fetchAllMatchesSofaTournament(code);
 }
 
 export async function fetchMatchResult(

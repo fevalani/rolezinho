@@ -12,6 +12,7 @@ import {
   upsertPrediction,
   syncPoolResults,
   syncMatchSchedules,
+  forcePopulateMatches,
   leavePool,
   type BolaoPool,
   type RoundGroup,
@@ -366,6 +367,7 @@ export function BolaoDetailPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncingSchedule, setSyncingSchedule] = useState(false);
+  const [populating, setPopulating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
 
@@ -489,6 +491,24 @@ export function BolaoDetailPage() {
     }
   };
 
+  const handleForcePopulate = async () => {
+    if (!poolId || populating) return;
+    setPopulating(true);
+    const { populated, error } = await forcePopulateMatches(poolId);
+    setPopulating(false);
+    if (populated > 0) {
+      loadAll();
+      if (error) {
+        // Resultado parcial por rate limit
+        showToast(`${populated} partidas salvas. ${error}`);
+      } else {
+        showToast(`${populated} partida${populated !== 1 ? "s" : ""} carregada${populated !== 1 ? "s" : ""} com sucesso ✓`);
+      }
+    } else {
+      showToast(`Erro: ${error ?? "Nenhuma partida encontrada na API"}`);
+    }
+  };
+
   const handleSyncSchedule = async () => {
     if (!poolId || syncingSchedule) return;
     setSyncingSchedule(true);
@@ -589,6 +609,18 @@ export function BolaoDetailPage() {
         </div>
         {isAdmin && (
           <>
+            <button
+              onClick={handleForcePopulate}
+              disabled={populating}
+              title="Forçar importação de todas as partidas da API"
+              className="p-2 text-[var(--text-muted)] hover:text-[var(--gold)] transition-colors disabled:opacity-50"
+            >
+              {populating ? (
+                <span className="spinner" style={{ width: 16, height: 16 }} />
+              ) : (
+                "⬇️"
+              )}
+            </button>
             <button
               onClick={handleSyncSchedule}
               disabled={syncingSchedule}
