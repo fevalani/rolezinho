@@ -20,6 +20,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/fd-api/, ""),
       },
+      "/sportsdb-api": {
+        target: "https://www.thesportsdb.com/api/v1/json/3",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/sportsdb-api/, ""),
+      },
     },
   },
   test: {

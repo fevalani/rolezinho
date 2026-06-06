@@ -217,6 +217,30 @@ async function syncMatches(
     .upsert(rows, { onConflict: "fd_match_id" });
 
   if (error) console.error("[syncMatches]", error);
+
+  // Remove partidas stale (não retornadas pela API nesta temporada) que não têm palpites
+  const currentFdIds = fdMatches.map((m) => m.id);
+  const { data: stale } = await supabase
+    .from("bolao_matches")
+    .select("id")
+    .eq("championship_id", championship.id)
+    .not("fd_match_id", "in", `(${currentFdIds.join(",")})`);
+
+  if (stale && stale.length > 0) {
+    const staleIds = stale.map((m: { id: string }) => m.id);
+    const { data: predsOnStale } = await supabase
+      .from("bolao_predictions")
+      .select("match_id")
+      .in("match_id", staleIds);
+
+    const idsWithPreds = new Set((predsOnStale ?? []).map((p: { match_id: string }) => p.match_id));
+    const safeToDelete = staleIds.filter((id) => !idsWithPreds.has(id));
+
+    if (safeToDelete.length > 0) {
+      await supabase.from("bolao_matches").delete().in("id", safeToDelete);
+      console.log(`[syncMatches] Removidas ${safeToDelete.length} partidas stale do campeonato ${championship.code}`);
+    }
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -305,15 +329,25 @@ export async function createPool(
   const championship = await ensureChampionship(code);
   if (!championship) return { data: null, error: "Erro ao criar campeonato" };
 
-  // 2. Busca partidas da API e sincroniza
-  const { matches: fdMatches, error: apiError } = await fetchChampionshipMatches(code);
-  if (fdMatches.length === 0) {
-    return {
-      data: null,
-      error: apiError ?? "Nenhuma partida encontrada para este campeonato.",
-    };
+  // 2. Tenta sincronizar partidas via API; se falhar, usa o que já está no banco
+  const { matches: fdMatches } = await fetchChampionshipMatches(code);
+  if (fdMatches.length > 0) {
+    await syncMatches(championship, fdMatches);
+  } else {
+    // API indisponível — verifica se o banco já tem partidas (ex: importadas via SQL)
+    const { count } = await supabase
+      .from("bolao_matches")
+      .select("id", { count: "exact", head: true })
+      .eq("championship_id", championship.id);
+
+    if ((count ?? 0) === 0) {
+      return {
+        data: null,
+        error: "Nenhuma partida encontrada. Importe o calendário via SQL ou tente mais tarde.",
+      };
+    }
+    console.log(`[createPool] API indisponível; usando ${count} partidas já no banco para ${code}`);
   }
-  await syncMatches(championship, fdMatches);
 
   // 3. Cria o bolão + adiciona criador como membro (RPC atômica)
   const { data, error } = await supabase.rpc("create_bolao_pool", {
@@ -431,6 +465,13 @@ export async function fetchMatchesForPool(
       is_visible: true, // calculado abaixo
     });
   }
+
+  // Ordena rodadas pela data mais cedo de cada rodada (garante ordem cronológica correta)
+  groups.sort((a, b) => {
+    const aMin = Math.min(...a.matches.map((m) => new Date(m.utc_date).getTime()));
+    const bMin = Math.min(...b.matches.map((m) => new Date(m.utc_date).getTime()));
+    return aMin - bMin;
+  });
 
   // Determina visibilidade de fases eliminatórias
   for (const group of groups) {
