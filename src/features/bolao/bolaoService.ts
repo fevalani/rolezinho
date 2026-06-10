@@ -195,6 +195,12 @@ async function syncMatches(
 ): Promise<void> {
   if (!fdMatches.length) return;
 
+  // Count before upsert to detect partial API responses (e.g. only round 1 when DB has rounds 1-3)
+  const { count: preCount } = await supabase
+    .from("bolao_matches")
+    .select("id", { count: "exact", head: true })
+    .eq("championship_id", championship.id);
+
   const rows = fdMatches.map((m) => ({
     championship_id: championship.id,
     fd_match_id: m.id,
@@ -217,6 +223,13 @@ async function syncMatches(
     .upsert(rows, { onConflict: "fd_match_id" });
 
   if (error) console.error("[syncMatches]", error);
+
+  // Skip stale deletion when API returned fewer matches than we already have —
+  // prevents partial API responses from wiping manually-inserted rounds
+  if (fdMatches.length < (preCount ?? 0)) {
+    console.log(`[syncMatches] API retornou ${fdMatches.length} < ${preCount} existentes. Stale cleanup ignorado para preservar rodadas inseridas manualmente.`);
+    return;
+  }
 
   // Remove partidas stale (não retornadas pela API nesta temporada) que não têm palpites
   const currentFdIds = fdMatches.map((m) => m.id);
@@ -528,9 +541,9 @@ const SYNC_COOLDOWN = 5 * 60 * 1000;
 const lastScheduleSyncByPool = new Map<string, number>();
 const SCHEDULE_SYNC_COOLDOWN = 5 * 60 * 1000;
 
-export async function syncPoolResults(poolId: string): Promise<number> {
+export async function syncPoolResults(poolId: string, force = false): Promise<number> {
   const lastSync = lastSyncByPool.get(poolId) ?? 0;
-  if (Date.now() - lastSync < SYNC_COOLDOWN) return 0;
+  if (!force && Date.now() - lastSync < SYNC_COOLDOWN) return 0;
   lastSyncByPool.set(poolId, Date.now());
 
   // Busca o campeonato deste bolão
@@ -633,23 +646,75 @@ export async function forcePopulateMatches(
     championship.code as ChampionshipCode,
   );
 
-  // Erro total sem nenhuma partida
-  if (fdMatches.length === 0) {
-    return {
-      populated: 0,
-      error: apiError ?? "Nenhuma partida retornada pela API",
-    };
+  // Sync apenas se a API retornou algo; caso contrário preserva o banco intacto
+  if (fdMatches.length > 0) {
+    await syncMatches(championship as BolaoChampionship, fdMatches);
+    lastSyncByPool.delete(poolId);
+    lastScheduleSyncByPool.delete(poolId);
   }
 
-  // Salva o que veio (pode ser parcial por rate limit)
-  await syncMatches(championship as BolaoChampionship, fdMatches);
+  // Sempre retorna o total do banco — inclui rodadas inseridas manualmente
+  const { count: totalInDb } = await supabase
+    .from("bolao_matches")
+    .select("id", { count: "exact", head: true })
+    .eq("championship_id", championship.id);
 
-  // Invalida cooldowns para que os outros syncs também reflitam o estado novo
-  lastSyncByPool.delete(poolId);
-  lastScheduleSyncByPool.delete(poolId);
+  if ((totalInDb ?? 0) === 0) {
+    return { populated: 0, error: apiError ?? "Nenhuma partida encontrada na API nem no banco" };
+  }
 
-  // Propaga aviso de rate limit (mas populated > 0 pois algo foi salvo)
-  return { populated: fdMatches.length, error: apiError };
+  return { populated: totalInDb!, error: apiError };
+}
+
+// ══════════════════════════════════════════════════════════════
+// Resultado manual (admin)
+// ══════════════════════════════════════════════════════════════
+
+export async function setMatchResultManually(
+  matchId: string,
+  scoreHome: number,
+  scoreAway: number,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("bolao_matches")
+    .update({
+      score_home: scoreHome,
+      score_away: scoreAway,
+      status: "FINISHED",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", matchId);
+
+  if (error) return { error: error.message };
+  await scoreMatchPredictions(matchId, scoreHome, scoreAway);
+  return { error: null };
+}
+
+export async function recalculateAllPoints(
+  poolId: string,
+): Promise<{ updated: number; error: string | null }> {
+  const { data: pool } = await supabase
+    .from("bolao_pools")
+    .select("championship_id")
+    .eq("id", poolId)
+    .maybeSingle();
+
+  if (!pool) return { updated: 0, error: "Bolão não encontrado" };
+
+  const { data: finishedMatches } = await supabase
+    .from("bolao_matches")
+    .select("id, score_home, score_away")
+    .eq("championship_id", pool.championship_id)
+    .eq("status", "FINISHED")
+    .not("score_home", "is", null)
+    .not("score_away", "is", null);
+
+  let updated = 0;
+  for (const match of finishedMatches ?? []) {
+    await scoreMatchPredictions(match.id, match.score_home!, match.score_away!);
+    updated++;
+  }
+  return { updated, error: null };
 }
 
 // ══════════════════════════════════════════════════════════════

@@ -508,6 +508,182 @@ async function fetchAllMatchesSofaTournament(
   return { matches: unique.map(sofaEventToFDMatch), error: null };
 }
 
+// ─── Lance.com.br — scraping SSR (fallback Copa do Mundo) ────
+
+const LANCE_WC_NATIVE = "https://www.lance.com.br/tabela/copa-do-mundo";
+const LANCE_WC_WEB = import.meta.env.DEV ? "/lance-api/tabela/copa-do-mundo" : "/api/lance-proxy";
+
+interface LanceParsedMatch {
+  home: string;
+  away: string;
+  scoreHome: number;
+  scoreAway: number;
+}
+
+let lanceCacheData: LanceParsedMatch[] | null = null;
+let lanceCacheTs = 0;
+const LANCE_CACHE_TTL = 3 * 60 * 1000;
+
+async function fetchLanceHTML(): Promise<string> {
+  if (Capacitor.isNativePlatform()) {
+    const res = await CapacitorHttp.get({
+      url: LANCE_WC_NATIVE,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "pt-BR,pt;q=0.9",
+      },
+    });
+    return typeof res.data === "string" ? res.data : "";
+  }
+  const res = await fetch(LANCE_WC_WEB);
+  return res.text();
+}
+
+// Busca recursiva em JSON de __NEXT_DATA__ por objetos com estrutura de partida
+function extractMatchesFromJson(obj: unknown, depth = 0): LanceParsedMatch[] {
+  if (depth > 12 || obj === null || typeof obj !== "object") return [];
+  const results: LanceParsedMatch[] = [];
+
+  if (Array.isArray(obj)) {
+    for (const item of obj) results.push(...extractMatchesFromJson(item, depth + 1));
+    return results;
+  }
+
+  const o = obj as Record<string, unknown>;
+
+  // Tenta vários schemas de campo que sites brasileiros costumam usar
+  const scoreHome =
+    o.placarMandante ?? o.gols_mandante ?? o.score_home ?? o.scoreHome ??
+    o.placar_mandante ?? o.golsMandante ?? o.home_score;
+  const scoreAway =
+    o.placarVisitante ?? o.gols_visitante ?? o.score_away ?? o.scoreAway ??
+    o.placar_visitante ?? o.golsVisitante ?? o.away_score;
+
+  const rawHome =
+    (o.mandante as Record<string, unknown>)?.nome ??
+    (o.mandante as Record<string, unknown>)?.name ??
+    (o.homeTeam as Record<string, unknown>)?.name ??
+    (o.home as Record<string, unknown>)?.name ??
+    o.mandante ?? o.timeA ?? o.home_team;
+  const rawAway =
+    (o.visitante as Record<string, unknown>)?.nome ??
+    (o.visitante as Record<string, unknown>)?.name ??
+    (o.awayTeam as Record<string, unknown>)?.name ??
+    (o.away as Record<string, unknown>)?.name ??
+    o.visitante ?? o.timeB ?? o.away_team;
+
+  if (
+    typeof scoreHome === "number" && typeof scoreAway === "number" &&
+    scoreHome >= 0 && scoreAway >= 0 &&
+    typeof rawHome === "string" && rawHome.length > 1 &&
+    typeof rawAway === "string" && rawAway.length > 1
+  ) {
+    results.push({ home: rawHome, away: rawAway, scoreHome, scoreAway });
+    return results;
+  }
+
+  for (const val of Object.values(o)) results.push(...extractMatchesFromJson(val, depth + 1));
+  return results;
+}
+
+function parseLanceHTML(html: string): LanceParsedMatch[] {
+  // Estratégia 1: __NEXT_DATA__ (Next.js SSR embute dados da página aqui)
+  const nextDataRx = /<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/;
+  const nextMatch = html.match(nextDataRx);
+  if (nextMatch) {
+    try {
+      const json = JSON.parse(nextMatch[1]);
+      const matches = extractMatchesFromJson(json);
+      if (matches.length > 0) {
+        console.log(`[Lance] ${matches.length} partidas via __NEXT_DATA__`);
+        return matches;
+      }
+    } catch { /* continua */ }
+  }
+
+  // Estratégia 2: qualquer bloco application/ld+json
+  const ldRx = /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g;
+  for (const m of html.matchAll(ldRx)) {
+    try {
+      const json = JSON.parse(m[1]);
+      const matches = extractMatchesFromJson(json);
+      if (matches.length > 0) {
+        console.log(`[Lance] ${matches.length} partidas via ld+json`);
+        return matches;
+      }
+    } catch { /* continua */ }
+  }
+
+  // Estratégia 3: regex no HTML — "Nome do Time  2  x  1  Outro Time"
+  // Captura: texto com inicial maiúscula + espaço + dígito(s) + x/X/× + dígito(s) + espaço + texto
+  const scoreRx =
+    /([A-ZÁÉÍÓÚÀÂÊÔÃÕÇÜ][A-Za-záéíóúàâêôãõçü\s\-']{1,28}?)\s{1,4}(\d{1,2})\s*[xX×]\s*(\d{1,2})\s{1,4}([A-ZÁÉÍÓÚÀÂÊÔÃÕÇÜ][A-Za-záéíóúàâêôãõçü\s\-']{1,28})/g;
+  const regexMatches = [...html.matchAll(scoreRx)];
+  if (regexMatches.length > 0) {
+    // Remove duplicatas pelo par de times
+    const seen = new Set<string>();
+    const parsed: LanceParsedMatch[] = [];
+    for (const m of regexMatches) {
+      const key = `${m[1].trim()}|${m[4].trim()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        parsed.push({
+          home: m[1].trim(),
+          away: m[4].trim(),
+          scoreHome: parseInt(m[2]),
+          scoreAway: parseInt(m[3]),
+        });
+      }
+    }
+    if (parsed.length > 0) {
+      console.log(`[Lance] ${parsed.length} partidas via regex HTML`);
+      return parsed;
+    }
+  }
+
+  console.warn("[Lance] Nenhuma partida extraída do HTML");
+  return [];
+}
+
+async function fetchMatchResultLance(
+  homeTeam: string,
+  awayTeam: string,
+): Promise<{ home: number | null; away: number | null; status: string } | null> {
+  try {
+    if (!lanceCacheData || Date.now() - lanceCacheTs > LANCE_CACHE_TTL) {
+      const html = await fetchLanceHTML();
+      lanceCacheData = parseLanceHTML(html);
+      lanceCacheTs = Date.now();
+    }
+
+    if (!lanceCacheData || lanceCacheData.length === 0) return null;
+
+    const normHome = normalizeTeamName(homeTeam);
+    const normAway = normalizeTeamName(awayTeam);
+
+    const found = lanceCacheData.find((m) => {
+      const mHome = normalizeTeamName(m.home);
+      const mAway = normalizeTeamName(m.away);
+      // Slice de 4 chars para tolerar abreviações (Ivory Coast → ivory, Côte d'Ivoire → cotei)
+      const homeOk =
+        mHome.includes(normHome.slice(0, 4)) || normHome.includes(mHome.slice(0, 4));
+      const awayOk =
+        mAway.includes(normAway.slice(0, 4)) || normAway.includes(mAway.slice(0, 4));
+      return homeOk && awayOk;
+    });
+
+    if (!found) return null;
+
+    console.log(`[Lance] Resultado encontrado: ${found.home} ${found.scoreHome}×${found.scoreAway} ${found.away}`);
+    return { home: found.scoreHome, away: found.scoreAway, status: "FINISHED" };
+  } catch (err) {
+    console.error("[Lance] Erro ao buscar resultado:", err);
+    return null;
+  }
+}
+
 // ─── API pública ─────────────────────────────────────────────
 
 export async function fetchChampionshipMatches(
@@ -533,6 +709,9 @@ export async function fetchMatchResult(
   const sofa = await fetchMatchResultSofa(homeTeam, awayTeam, utcDate);
   if (sofa) return sofa;
 
-  // Fallback final: TheSportsDB (gratuito, sem cota)
-  return fetchMatchResultSportsDB(homeTeam, awayTeam, utcDate);
+  const sportsdb = await fetchMatchResultSportsDB(homeTeam, awayTeam, utcDate);
+  if (sportsdb) return sportsdb;
+
+  // Fallback final: Lance.com.br (scraping SSR — principalmente para Copa do Mundo)
+  return fetchMatchResultLance(homeTeam, awayTeam);
 }

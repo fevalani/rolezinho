@@ -13,6 +13,8 @@ import {
   syncPoolResults,
   syncMatchSchedules,
   forcePopulateMatches,
+  setMatchResultManually,
+  recalculateAllPoints,
   leavePool,
   type BolaoPool,
   type RoundGroup,
@@ -23,7 +25,7 @@ import {
   subscribeBolao,
 } from "./bolaoService";
 
-type Tab = "palpites" | "classificacao" | "info";
+type Tab = "palpites" | "classificacao" | "info" | "admin";
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -63,10 +65,14 @@ function MatchCard({
   match,
   pending,
   onPredictionChange,
+  isAdmin,
+  onAdminEditResult,
 }: {
   match: MatchWithPrediction;
   pending?: { home: number; away: number };
   onPredictionChange: (matchId: string, home: number, away: number) => void;
+  isAdmin?: boolean;
+  onAdminEditResult?: (matchId: string, home: number, away: number) => void;
 }) {
   const [homeGoals, setHomeGoals] = useState<string>(
     pending !== undefined
@@ -83,9 +89,22 @@ function MatchCard({
         : "",
   );
 
+  const [adminEditing, setAdminEditing] = useState(false);
+  const [adminHome, setAdminHome] = useState(String(match.score_home ?? ""));
+  const [adminAway, setAdminAway] = useState(String(match.score_away ?? ""));
+
   const isFinished = match.status === "FINISHED";
   const hasResult =
     match.score_home !== null && match.score_away !== null;
+
+  const handleAdminSave = () => {
+    const h = parseInt(adminHome);
+    const a = parseInt(adminAway);
+    if (!isNaN(h) && !isNaN(a) && h >= 0 && a >= 0) {
+      onAdminEditResult?.(match.id, h, a);
+      setAdminEditing(false);
+    }
+  };
 
   const handleChange = (
     value: string,
@@ -131,6 +150,19 @@ function MatchCard({
           {match.my_prediction?.points_earned !== undefined && (
             <PointsBadge pts={match.my_prediction.points_earned} />
           )}
+          {isAdmin && match.is_locked && !adminEditing && (
+            <button
+              onClick={() => {
+                setAdminHome(String(match.score_home ?? ""));
+                setAdminAway(String(match.score_away ?? ""));
+                setAdminEditing(true);
+              }}
+              className="text-[0.6rem] text-[var(--text-muted)] hover:text-[var(--gold)] px-1 transition-colors"
+              title="Editar resultado"
+            >
+              ✏️
+            </button>
+          )}
         </div>
       </div>
 
@@ -153,7 +185,41 @@ function MatchCard({
 
         {/* Resultado real ou palpite */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {isFinished && hasResult ? (
+          {adminEditing ? (
+            <>
+              <input
+                type="number"
+                min={0}
+                max={99}
+                value={adminHome}
+                onChange={(e) => setAdminHome(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                className="w-8 h-8 text-center bg-[var(--bg-card)] border border-[rgba(201,165,90,0.5)] rounded-lg text-sm font-bold text-[var(--gold)] focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <span className="text-[var(--text-muted)] text-xs">×</span>
+              <input
+                type="number"
+                min={0}
+                max={99}
+                value={adminAway}
+                onChange={(e) => setAdminAway(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                className="w-8 h-8 text-center bg-[var(--bg-card)] border border-[rgba(201,165,90,0.5)] rounded-lg text-sm font-bold text-[var(--gold)] focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <button
+                onClick={handleAdminSave}
+                className="w-6 h-6 flex items-center justify-center rounded-md bg-[rgba(74,222,128,0.15)] text-green-400 text-xs hover:bg-[rgba(74,222,128,0.25)] transition-colors"
+                title="Confirmar resultado"
+              >
+                ✓
+              </button>
+              <button
+                onClick={() => setAdminEditing(false)}
+                className="w-6 h-6 flex items-center justify-center rounded-md bg-[rgba(255,255,255,0.06)] text-[var(--text-muted)] text-xs hover:bg-[rgba(255,255,255,0.1)] transition-colors"
+                title="Cancelar"
+              >
+                ✗
+              </button>
+            </>
+          ) : isFinished && hasResult ? (
             <>
               <span className="w-8 h-8 flex items-center justify-center bg-[rgba(255,255,255,0.06)] rounded-lg text-sm font-bold text-[var(--text-primary)]">
                 {match.score_home}
@@ -368,6 +434,7 @@ export function BolaoDetailPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncingSchedule, setSyncingSchedule] = useState(false);
   const [populating, setPopulating] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
 
@@ -481,13 +548,40 @@ export function BolaoDetailPage() {
   const handleSync = async () => {
     if (!poolId || syncing) return;
     setSyncing(true);
-    const updated = await syncPoolResults(poolId);
+    // Admin sempre força bypass do cooldown ao clicar manualmente
+    const updated = await syncPoolResults(poolId, isAdmin);
     setSyncing(false);
     if (updated > 0) {
       loadAll();
       showToast(`${updated} partida${updated !== 1 ? "s" : ""} atualizada${updated !== 1 ? "s" : ""} e pontos recalculados ✓`);
     } else {
       showToast("Nenhuma partida nova para atualizar");
+    }
+  };
+
+  const handleAdminEditResult = async (matchId: string, home: number, away: number) => {
+    if (!poolId) return;
+    const { error } = await setMatchResultManually(matchId, home, away);
+    if (error) {
+      showToast(`Erro: ${error}`);
+    } else {
+      loadAll();
+      showToast(`Resultado salvo e pontos recalculados ✓`);
+    }
+  };
+
+  const handleRecalculate = async () => {
+    if (!poolId || recalculating) return;
+    setRecalculating(true);
+    const { updated, error } = await recalculateAllPoints(poolId);
+    setRecalculating(false);
+    if (error) {
+      showToast(`Erro: ${error}`);
+    } else if (updated > 0) {
+      loadAll();
+      showToast(`Pontos recalculados para ${updated} partida${updated !== 1 ? "s" : ""} ✓`);
+    } else {
+      showToast("Nenhuma partida finalizada para recalcular");
     }
   };
 
@@ -499,13 +593,12 @@ export function BolaoDetailPage() {
     if (populated > 0) {
       loadAll();
       if (error) {
-        // Resultado parcial por rate limit
-        showToast(`${populated} partidas salvas. ${error}`);
+        showToast(`API indisponível — usando ${populated} partida${populated !== 1 ? "s" : ""} do banco ✓`);
       } else {
-        showToast(`${populated} partida${populated !== 1 ? "s" : ""} carregada${populated !== 1 ? "s" : ""} com sucesso ✓`);
+        showToast(`${populated} partida${populated !== 1 ? "s" : ""} disponíve${populated !== 1 ? "is" : "l"} ✓`);
       }
     } else {
-      showToast(`Erro: ${error ?? "Nenhuma partida encontrada na API"}`);
+      showToast(`Erro: ${error ?? "Nenhuma partida encontrada na API nem no banco"}`);
     }
   };
 
@@ -607,46 +700,6 @@ export function BolaoDetailPage() {
             {pool.member_count !== 1 ? "s" : ""}
           </p>
         </div>
-        {isAdmin && (
-          <>
-            <button
-              onClick={handleForcePopulate}
-              disabled={populating}
-              title="Forçar importação de todas as partidas da API"
-              className="p-2 text-[var(--text-muted)] hover:text-[var(--gold)] transition-colors disabled:opacity-50"
-            >
-              {populating ? (
-                <span className="spinner" style={{ width: 16, height: 16 }} />
-              ) : (
-                "⬇️"
-              )}
-            </button>
-            <button
-              onClick={handleSyncSchedule}
-              disabled={syncingSchedule}
-              title="Atualizar horários das partidas"
-              className="p-2 text-[var(--text-muted)] hover:text-[var(--gold)] transition-colors disabled:opacity-50"
-            >
-              {syncingSchedule ? (
-                <span className="spinner" style={{ width: 16, height: 16 }} />
-              ) : (
-                "📅"
-              )}
-            </button>
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              title="Sincronizar resultados e pontos"
-              className="p-2 text-[var(--text-muted)] hover:text-[var(--gold)] transition-colors disabled:opacity-50"
-            >
-              {syncing ? (
-                <span className="spinner" style={{ width: 16, height: 16 }} />
-              ) : (
-                "🔄"
-              )}
-            </button>
-          </>
-        )}
       </div>
 
       {/* Tabs */}
@@ -656,6 +709,7 @@ export function BolaoDetailPage() {
             ["palpites", "Palpites"],
             ["classificacao", "Classificação"],
             ["info", "Info"],
+            ...(isAdmin ? [["admin", "Admin"]] : []),
           ] as [Tab, string][]
         ).map(([tab, label]) => (
           <button
@@ -705,6 +759,8 @@ export function BolaoDetailPage() {
                       match={match}
                       pending={pendingPredictions[match.id]}
                       onPredictionChange={handlePredictionChange}
+                      isAdmin={isAdmin}
+                      onAdminEditResult={handleAdminEditResult}
                     />
                   ))}
 
@@ -849,6 +905,85 @@ export function BolaoDetailPage() {
               Sair do bolão
             </button>
           )}
+        </div>
+      )}
+
+      {/* ── Admin ── */}
+      {activeTab === "admin" && isAdmin && (
+        <div className="px-4 mt-3 flex flex-col gap-4">
+          {/* Partidas */}
+          <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex flex-col gap-1">
+            <p className="text-xs text-[var(--text-muted)] font-medium uppercase tracking-wide mb-2">
+              Partidas
+            </p>
+
+            <button
+              onClick={handleForcePopulate}
+              disabled={populating}
+              className="flex items-center gap-3 px-3 py-3 rounded-xl border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.02)] transition-all disabled:opacity-50 text-left"
+            >
+              <span className="text-lg shrink-0">
+                {populating ? <span className="spinner" style={{ width: 18, height: 18 }} /> : "⬇️"}
+              </span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-medium text-[var(--text-primary)]">Importar da API</span>
+                <span className="text-xs text-[var(--text-muted)]">Busca todas as partidas do campeonato e preserva rodadas já inseridas</span>
+              </div>
+            </button>
+
+            <button
+              onClick={handleSyncSchedule}
+              disabled={syncingSchedule}
+              className="flex items-center gap-3 px-3 py-3 rounded-xl border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.02)] transition-all disabled:opacity-50 text-left"
+            >
+              <span className="text-lg shrink-0">
+                {syncingSchedule ? <span className="spinner" style={{ width: 18, height: 18 }} /> : "📅"}
+              </span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-medium text-[var(--text-primary)]">Atualizar horários</span>
+                <span className="text-xs text-[var(--text-muted)]">Atualiza datas e status das partidas ainda não finalizadas</span>
+              </div>
+            </button>
+          </div>
+
+          {/* Pontuação */}
+          <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex flex-col gap-1">
+            <p className="text-xs text-[var(--text-muted)] font-medium uppercase tracking-wide mb-2">
+              Pontuação
+            </p>
+
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="flex items-center gap-3 px-3 py-3 rounded-xl border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.02)] transition-all disabled:opacity-50 text-left"
+            >
+              <span className="text-lg shrink-0">
+                {syncing ? <span className="spinner" style={{ width: 18, height: 18 }} /> : "🔄"}
+              </span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-medium text-[var(--text-primary)]">Sincronizar resultados</span>
+                <span className="text-xs text-[var(--text-muted)]">Busca resultados finais via API e calcula pontos automaticamente</span>
+              </div>
+            </button>
+
+            <button
+              onClick={handleRecalculate}
+              disabled={recalculating}
+              className="flex items-center gap-3 px-3 py-3 rounded-xl border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.02)] transition-all disabled:opacity-50 text-left"
+            >
+              <span className="text-lg shrink-0">
+                {recalculating ? <span className="spinner" style={{ width: 18, height: 18 }} /> : "♻️"}
+              </span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-medium text-[var(--text-primary)]">Recalcular pontos</span>
+                <span className="text-xs text-[var(--text-muted)]">Força recálculo de pontos para todas as partidas com resultado registrado</span>
+              </div>
+            </button>
+          </div>
+
+          <p className="text-[0.65rem] text-[var(--text-muted)] text-center px-2">
+            Para editar o resultado de um jogo manualmente, acesse a aba Palpites e toque em ✏️ no card da partida.
+          </p>
         </div>
       )}
 

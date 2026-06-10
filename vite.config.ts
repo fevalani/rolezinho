@@ -25,6 +25,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/sportsdb-api/, ""),
       },
+      "/lance-api": {
+        target: "https://www.lance.com.br",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/lance-api/, ""),
+      },
     },
   },
   test: {
