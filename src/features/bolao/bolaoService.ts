@@ -15,6 +15,44 @@ import {
 
 export type { ChampionshipCode };
 
+// ── Modelos de pontuação ─────────────────────────────────────
+export type ScoringModel = "classic" | "extended" | "simplified";
+
+export const SCORING_MODELS: Record<
+  ScoringModel,
+  { label: string; rules: [string, string, string][] }
+> = {
+  classic: {
+    label: "Clássico",
+    rules: [
+      ["🎯", "15 pts", "Placar exato"],
+      ["✅", "10 pts", "Gols do vencedor ou empate (gols diferentes)"],
+      ["🔸", "5 pts", "Gols do perdedor"],
+      ["📌", "3 pts", "Vencedor certo, sem gols"],
+      ["❌", "0 pts", "Erro total"],
+    ],
+  },
+  extended: {
+    label: "Extendido",
+    rules: [
+      ["🎯", "15 pts", "Placar exato"],
+      ["✅", "10 pts", "Vencedor + Gols do vencedor"],
+      ["🔸", "8 pts", "Vencedor + Gols do perdedor"],
+      ["📌", "5 pts", "Vencedor ou empate sem gols"],
+      ["❌", "0 pts", "Erro total"],
+    ],
+  },
+  simplified: {
+    label: "Simplificado",
+    rules: [
+      ["🎯", "15 pts", "Placar exato"],
+      ["✅", "10 pts", "Vencedor + Gols do vencedor ou perdedor"],
+      ["📌", "5 pts", "Vencedor ou empate sem gols"],
+      ["❌", "0 pts", "Erro total"],
+    ],
+  },
+};
+
 export interface BolaoChampionship {
   id: string;
   code: ChampionshipCode;
@@ -56,6 +94,7 @@ export interface BolaoPool {
   championship: BolaoChampionship;
   member_count: number;
   is_member: boolean;
+  scoring_model: ScoringModel;
 }
 
 export interface BolaoPoolMember {
@@ -109,6 +148,21 @@ export interface RoundLeaderboard {
   entries: LeaderboardEntry[];
 }
 
+export interface UserPredictionDetail {
+  match_id: string;
+  home_team: string;
+  away_team: string;
+  home_crest: string | null;
+  away_crest: string | null;
+  round_label: string;
+  utc_date: string;
+  score_home: number | null;
+  score_away: number | null;
+  pred_home: number;
+  pred_away: number;
+  points_earned: number | null;
+}
+
 // ══════════════════════════════════════════════════════════════
 // Pontuação
 // ══════════════════════════════════════════════════════════════
@@ -118,6 +172,7 @@ export function calculatePoints(
   predAway: number,
   realHome: number,
   realAway: number,
+  model: ScoringModel = "classic",
 ): number {
   if (predHome === realHome && predAway === realAway) return 15;
 
@@ -126,26 +181,30 @@ export function calculatePoints(
   const predResult =
     predHome > predAway ? "home" : predHome < predAway ? "away" : "draw";
 
-  // Empate certo, gols diferentes
-  if (realResult === "draw" && predResult === "draw") return 10;
+  if (realResult !== predResult) return 0;
 
-  // Vencedor correto
-  if (realResult !== "draw" && realResult === predResult) {
-    const winnerGoalsCorrect =
-      realResult === "home"
-        ? predHome === realHome
-        : predAway === realAway;
-    const loserGoalsCorrect =
-      realResult === "home"
-        ? predAway === realAway
-        : predHome === realHome;
+  if (realResult === "draw") {
+    return model === "classic" ? 10 : 5;
+  }
 
+  const winnerGoalsCorrect =
+    realResult === "home" ? predHome === realHome : predAway === realAway;
+  const loserGoalsCorrect =
+    realResult === "home" ? predAway === realAway : predHome === realHome;
+
+  if (model === "classic") {
     if (winnerGoalsCorrect) return 10;
     if (loserGoalsCorrect) return 5;
     return 3;
   }
-
-  return 0;
+  if (model === "extended") {
+    if (winnerGoalsCorrect) return 10;
+    if (loserGoalsCorrect) return 8;
+    return 5;
+  }
+  // simplified
+  if (winnerGoalsCorrect || loserGoalsCorrect) return 10;
+  return 5;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -283,6 +342,7 @@ export async function fetchAllPools(userId: string): Promise<BolaoPool[]> {
       championship: p.bolao_championships as BolaoChampionship,
       member_count: members.length,
       is_member: members.some((m) => m.user_id === userId),
+      scoring_model: (p.scoring_model ?? "classic") as ScoringModel,
     };
   });
 }
@@ -310,6 +370,7 @@ export async function fetchPoolById(
     championship: data.bolao_championships as BolaoChampionship,
     member_count: members.length,
     is_member: members.some((m) => m.user_id === userId),
+    scoring_model: (data.scoring_model ?? "classic") as ScoringModel,
   };
 }
 
@@ -337,6 +398,7 @@ export async function createPool(
   userId: string,
   name: string,
   code: ChampionshipCode,
+  scoringModel: ScoringModel = "classic",
 ): Promise<{ data: string | null; error: string | null }> {
   // 1. Garante que o campeonato existe no banco
   const championship = await ensureChampionship(code);
@@ -367,6 +429,7 @@ export async function createPool(
     p_name: name,
     p_championship_id: championship.id,
     p_user_id: userId,
+    p_scoring_model: scoringModel,
   });
 
   if (error) return { data: null, error: error.message };
@@ -711,7 +774,7 @@ export async function recalculateAllPoints(
 
   let updated = 0;
   for (const match of finishedMatches ?? []) {
-    await scoreMatchPredictions(match.id, match.score_home!, match.score_away!);
+    await scoreMatchPredictions(match.id, match.score_home!, match.score_away!, poolId);
     updated++;
   }
   return { updated, error: null };
@@ -778,16 +841,36 @@ export async function syncMatchSchedules(poolId: string): Promise<{ updated: num
   return { updated, error: null };
 }
 
+export async function updatePoolScoringModel(
+  poolId: string,
+  model: ScoringModel,
+): Promise<{ error: string | null }> {
+  const { error: modelErr } = await supabase.rpc("update_pool_scoring_model", {
+    p_pool_id: poolId,
+    p_scoring_model: model,
+  });
+  if (modelErr) return { error: modelErr.message };
+
+  const { error: resetErr } = await supabase.rpc("reset_pool_scores", {
+    p_pool_id: poolId,
+  });
+  if (resetErr) return { error: resetErr.message };
+
+  const { error: calcErr } = await recalculateAllPoints(poolId);
+  return { error: calcErr };
+}
+
 async function scoreMatchPredictions(
   matchId: string,
   realHome: number,
   realAway: number,
+  poolId?: string,
 ): Promise<void> {
-  // Usa RPC com SECURITY DEFINER para bypassing RLS e atualizar pontos de todos os usuários
   const { error } = await supabase.rpc("score_match_predictions", {
     p_match_id: matchId,
     p_real_home: realHome,
     p_real_away: realAway,
+    p_pool_id: poolId ?? null,
   });
 
   if (error) console.error("[scoreMatchPredictions]", error);
@@ -897,6 +980,48 @@ export async function fetchRoundLeaderboards(
 
     return { round_label: round, entries };
   });
+}
+
+export async function fetchAllUserPredictions(
+  poolId: string,
+): Promise<Map<string, UserPredictionDetail[]>> {
+  const { data } = await supabase
+    .from("bolao_predictions")
+    .select(
+      "user_id, match_id, home_goals, away_goals, points_earned, bolao_matches(home_team, away_team, home_crest, away_crest, round_label, utc_date, score_home, score_away)",
+    )
+    .eq("pool_id", poolId);
+
+  const result = new Map<string, UserPredictionDetail[]>();
+  for (const p of (data ?? []) as any[]) {
+    const m = p.bolao_matches;
+    if (!m) continue;
+    const detail: UserPredictionDetail = {
+      match_id: p.match_id,
+      home_team: m.home_team,
+      away_team: m.away_team,
+      home_crest: m.home_crest ?? null,
+      away_crest: m.away_crest ?? null,
+      round_label: m.round_label,
+      utc_date: m.utc_date,
+      score_home: m.score_home ?? null,
+      score_away: m.score_away ?? null,
+      pred_home: p.home_goals,
+      pred_away: p.away_goals,
+      points_earned: p.points_earned ?? null,
+    };
+    if (!result.has(p.user_id)) result.set(p.user_id, []);
+    result.get(p.user_id)!.push(detail);
+  }
+
+  for (const [, preds] of result) {
+    preds.sort(
+      (a, b) =>
+        new Date(a.utc_date).getTime() - new Date(b.utc_date).getTime(),
+    );
+  }
+
+  return result;
 }
 
 // ══════════════════════════════════════════════════════════════

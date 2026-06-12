@@ -5,8 +5,10 @@ import {
   fetchAllPools,
   createPool,
   joinPool,
+  SCORING_MODELS,
   type BolaoPool,
   type ChampionshipCode,
+  type ScoringModel,
 } from "./bolaoService";
 
 // ─── Pool Card ────────────────────────────────────────────────
@@ -73,6 +75,7 @@ function CreatePoolModal({
   const { user } = useAuth();
   const [name, setName] = useState("");
   const [selectedCode, setSelectedCode] = useState<ChampionshipCode>("BSA");
+  const [selectedModel, setSelectedModel] = useState<ScoringModel>("classic");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const championships = [
@@ -88,6 +91,7 @@ function CreatePoolModal({
       user.id,
       name.trim(),
       selectedCode,
+      selectedModel,
     );
     setLoading(false);
     if (err) {
@@ -150,6 +154,34 @@ function CreatePoolModal({
                   }`}
                 >
                   {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-[var(--text-muted)] mb-2 font-medium">
+              Modelo de pontuação
+            </label>
+            <div className="flex flex-col gap-2">
+              {(Object.keys(SCORING_MODELS) as ScoringModel[]).map((model) => (
+                <button
+                  key={model}
+                  onClick={() => setSelectedModel(model)}
+                  className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${
+                    selectedModel === model
+                      ? "bg-[rgba(201,165,90,0.12)] border-[rgba(201,165,90,0.35)] text-[var(--gold)]"
+                      : "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.07)] text-[var(--text-primary)] hover:border-[rgba(255,255,255,0.15)]"
+                  }`}
+                >
+                  <span className="text-sm font-medium">{SCORING_MODELS[model].label}</span>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                    {SCORING_MODELS[model].rules.map(([icon, pts]) => (
+                      <span key={pts} className="text-[0.6rem] text-[var(--text-muted)]">
+                        {icon} {pts}
+                      </span>
+                    ))}
+                  </div>
                 </button>
               ))}
             </div>
@@ -304,32 +336,6 @@ export function BolaoPage() {
         </div>
       )}
 
-      {/* Regras de pontuação */}
-      <div className="mx-4 mt-6 bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4">
-        <p
-          className="text-xs font-semibold text-[var(--gold)] mb-3"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          Pontuação
-        </p>
-        <div className="flex flex-col gap-1.5">
-          {[
-            ["🎯", "15 pts", "Placar exato"],
-            ["✅", "10 pts", "Gols do vencedor ou empate (gols diferentes)"],
-            ["🔸", "5 pts", "Gols do perdedor"],
-            ["📌", "3 pts", "Vencedor certo, sem gols"],
-            ["❌", "0 pts", "Erro total"],
-          ].map(([icon, pts, desc]) => (
-            <div key={pts} className="flex items-center gap-2 text-xs">
-              <span>{icon}</span>
-              <span className="font-bold text-[var(--text-primary)] w-12 shrink-0">
-                {pts}
-              </span>
-              <span className="text-[var(--text-muted)]">{desc}</span>
-            </div>
-          ))}
-        </div>
-      </div>
 
       {showCreate && (
         <CreatePoolModal

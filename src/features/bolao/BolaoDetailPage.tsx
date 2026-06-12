@@ -9,19 +9,24 @@ import {
   fetchPoolMembers,
   fetchLeaderboard,
   fetchRoundLeaderboards,
+  fetchAllUserPredictions,
   upsertPrediction,
   syncPoolResults,
   syncMatchSchedules,
   forcePopulateMatches,
   setMatchResultManually,
   recalculateAllPoints,
+  updatePoolScoringModel,
   leavePool,
+  SCORING_MODELS,
+  type ScoringModel,
   type BolaoPool,
   type RoundGroup,
   type MatchWithPrediction,
   type BolaoPoolMember,
   type LeaderboardEntry,
   type RoundLeaderboard,
+  type UserPredictionDetail,
   subscribeBolao,
 } from "./bolaoService";
 
@@ -347,11 +352,14 @@ function RoundSelector({
 function LeaderboardTable({
   entries,
   currentUserId,
+  userPredictions,
 }: {
   entries: LeaderboardEntry[];
   currentUserId: string;
+  userPredictions: Map<string, UserPredictionDetail[]>;
 }) {
   const medals = ["🥇", "🥈", "🥉"];
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
 
   if (entries.length === 0) {
     return (
@@ -361,54 +369,163 @@ function LeaderboardTable({
     );
   }
 
+  const toggle = (userId: string) =>
+    setExpandedUserId((prev) => (prev === userId ? null : userId));
+
   return (
     <div className="flex flex-col gap-2">
-      {entries.map((entry, i) => (
-        <div
-          key={entry.user_id}
-          className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${
-            entry.user_id === currentUserId
-              ? "bg-[rgba(201,165,90,0.07)] border-[rgba(201,165,90,0.2)]"
-              : "bg-[var(--bg-card)] border-[rgba(255,255,255,0.04)]"
-          }`}
-        >
-          <span className="w-6 text-center text-base shrink-0">
-            {i < 3 ? medals[i] : `${i + 1}º`}
-          </span>
+      {entries.map((entry, i) => {
+        const isExpanded = expandedUserId === entry.user_id;
+        const isCurrentUser = entry.user_id === currentUserId;
+        const preds = (userPredictions.get(entry.user_id) ?? []).filter(
+          (p) => p.score_home !== null && p.score_away !== null,
+        );
 
-          <Avatar
-            url={entry.avatar_url}
-            name={entry.display_name}
-            size="sm"
-          />
+        const byRound = new Map<string, UserPredictionDetail[]>();
+        for (const p of preds) {
+          if (!byRound.has(p.round_label)) byRound.set(p.round_label, []);
+          byRound.get(p.round_label)!.push(p);
+        }
 
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-[var(--text-primary)] truncate">
-              {entry.display_name}
-              {entry.user_id === currentUserId && (
-                <span className="ml-1.5 text-[0.6rem] text-[var(--text-muted)]">
-                  (você)
+        return (
+          <div key={entry.user_id} className="flex flex-col">
+            <button
+              onClick={() => toggle(entry.user_id)}
+              className={`flex items-center gap-3 px-4 py-3 border transition-all text-left w-full ${
+                isExpanded ? "rounded-t-xl" : "rounded-xl"
+              } ${
+                isCurrentUser
+                  ? "bg-[rgba(201,165,90,0.07)] border-[rgba(201,165,90,0.2)]"
+                  : "bg-[var(--bg-card)] border-[rgba(255,255,255,0.04)]"
+              }`}
+            >
+              <span className="w-6 text-center text-base shrink-0">
+                {i < 3 ? medals[i] : `${i + 1}º`}
+              </span>
+
+              <Avatar
+                url={entry.avatar_url}
+                name={entry.display_name}
+                size="sm"
+              />
+
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[var(--text-primary)] truncate">
+                  {entry.display_name}
+                  {isCurrentUser && (
+                    <span className="ml-1.5 text-[0.6rem] text-[var(--text-muted)]">
+                      (você)
+                    </span>
+                  )}
+                </p>
+                <p className="text-[0.65rem] text-[var(--text-muted)]">
+                  {entry.predictions_made} palpites
+                  {entry.exact_scores > 0 && (
+                    <span className="ml-1.5 text-[var(--gold)]">
+                      · {entry.exact_scores} cravada{entry.exact_scores !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                </p>
+              </div>
+
+              <span className="text-base font-bold text-[var(--gold)] shrink-0">
+                {entry.total_points}
+                <span className="text-[0.6rem] text-[var(--text-muted)] font-normal ml-0.5">
+                  pts
                 </span>
-              )}
-            </p>
-            <p className="text-[0.65rem] text-[var(--text-muted)]">
-              {entry.predictions_made} palpites
-              {entry.exact_scores > 0 && (
-                <span className="ml-1.5 text-[var(--gold)]">
-                  · {entry.exact_scores} cravada{entry.exact_scores !== 1 ? "s" : ""}
-                </span>
-              )}
-            </p>
+              </span>
+
+              <span
+                className={`text-[var(--text-muted)] text-xs shrink-0 transition-transform duration-200 ${
+                  isExpanded ? "rotate-180" : ""
+                }`}
+              >
+                ▾
+              </span>
+            </button>
+
+            {isExpanded && (
+              <div
+                className={`rounded-b-xl border border-t-0 overflow-hidden ${
+                  isCurrentUser
+                    ? "border-[rgba(201,165,90,0.2)]"
+                    : "border-[rgba(255,255,255,0.04)]"
+                }`}
+              >
+                {preds.length === 0 ? (
+                  <div className="px-4 py-3 text-xs text-[var(--text-muted)]">
+                    Nenhum palpite registrado
+                  </div>
+                ) : (
+                  <div className="flex flex-col">
+                    {[...byRound.entries()].map(([roundLabel, roundPreds]) => (
+                      <div key={roundLabel}>
+                        <div className="px-4 py-1.5 text-[0.6rem] font-semibold text-[var(--text-muted)] uppercase tracking-wider bg-[rgba(255,255,255,0.02)]">
+                          {roundLabel}
+                        </div>
+                        {roundPreds.map((pred) => {
+                          const hasResult =
+                            pred.score_home !== null && pred.score_away !== null;
+                          return (
+                            <div
+                              key={pred.match_id}
+                              className="flex items-center gap-2 px-4 py-2 border-t border-[rgba(255,255,255,0.03)]"
+                            >
+                              <div className="flex-1 flex items-center gap-1 min-w-0">
+                                {pred.home_crest && (
+                                  <img
+                                    src={pred.home_crest}
+                                    alt=""
+                                    className="w-3.5 h-3.5 object-contain shrink-0"
+                                    onError={(e) =>
+                                      (e.currentTarget.style.display = "none")
+                                    }
+                                  />
+                                )}
+                                <span className="text-[0.65rem] text-[var(--text-primary)] truncate">
+                                  {pred.home_team}
+                                </span>
+                                <span className="text-[0.55rem] text-[var(--text-muted)] shrink-0 mx-0.5">
+                                  ×
+                                </span>
+                                <span className="text-[0.65rem] text-[var(--text-primary)] truncate">
+                                  {pred.away_team}
+                                </span>
+                                {pred.away_crest && (
+                                  <img
+                                    src={pred.away_crest}
+                                    alt=""
+                                    className="w-3.5 h-3.5 object-contain shrink-0"
+                                    onError={(e) =>
+                                      (e.currentTarget.style.display = "none")
+                                    }
+                                  />
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="text-[0.65rem] font-medium text-[var(--text-primary)]">
+                                  {pred.pred_home}–{pred.pred_away}
+                                </span>
+                                {hasResult && (
+                                  <span className="text-[0.6rem] text-[var(--text-muted)]">
+                                    ({pred.score_home}–{pred.score_away})
+                                  </span>
+                                )}
+                                <PointsBadge pts={pred.points_earned} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-
-          <span className="text-base font-bold text-[var(--gold)] shrink-0">
-            {entry.total_points}
-            <span className="text-[0.6rem] text-[var(--text-muted)] font-normal ml-0.5">
-              pts
-            </span>
-          </span>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -427,6 +544,9 @@ export function BolaoDetailPage() {
   const [roundLeaderboards, setRoundLeaderboards] = useState<
     RoundLeaderboard[]
   >([]);
+  const [allUserPredictions, setAllUserPredictions] = useState<
+    Map<string, UserPredictionDetail[]>
+  >(new Map());
   const [activeTab, setActiveTab] = useState<Tab>("palpites");
   const [selectedRoundIdx, setSelectedRoundIdx] = useState(0);
   const [selectedLeaderRoundIdx, setSelectedLeaderRoundIdx] = useState(-1); // -1 = geral
@@ -437,6 +557,8 @@ export function BolaoDetailPage() {
   const [recalculating, setRecalculating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
+  const [adminScoringModel, setAdminScoringModel] = useState<ScoringModel>("classic");
+  const [changingModel, setChangingModel] = useState(false);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -468,19 +590,22 @@ export function BolaoDetailPage() {
   const loadAll = useCallback(async () => {
     if (!poolId || !user) return;
     setLoading(true);
-    const [poolData, roundsData, membersData, lbData, roundLbData] =
+    const [poolData, roundsData, membersData, lbData, roundLbData, allPredsData] =
       await Promise.all([
         fetchPoolById(poolId, user.id),
         fetchMatchesForPool(poolId, user.id),
         fetchPoolMembers(poolId),
         fetchLeaderboard(poolId),
         fetchRoundLeaderboards(poolId),
+        fetchAllUserPredictions(poolId),
       ]);
     setPool(poolData);
     setRounds(roundsData);
     setMembers(membersData);
     setLeaderboard(lbData);
     setRoundLeaderboards(roundLbData);
+    setAllUserPredictions(allPredsData);
+    if (poolData) setAdminScoringModel(poolData.scoring_model);
     setLoading(false);
 
     // Abre na rodada atual baseada no último jogo finalizado.
@@ -616,6 +741,19 @@ export function BolaoDetailPage() {
       showToast(`${updated} horário${updated !== 1 ? "s" : ""} atualizado${updated !== 1 ? "s" : ""} ✓`);
     } else {
       showToast("Horários já estão atualizados");
+    }
+  };
+
+  const handleModelChange = async () => {
+    if (!poolId || changingModel) return;
+    setChangingModel(true);
+    const { error } = await updatePoolScoringModel(poolId, adminScoringModel);
+    setChangingModel(false);
+    if (error) {
+      showToast(`Erro: ${error}`);
+    } else {
+      loadAll();
+      showToast(`Modelo alterado para ${SCORING_MODELS[adminScoringModel].label} e pontos recalculados ✓`);
     }
   };
 
@@ -824,8 +962,10 @@ export function BolaoDetailPage() {
 
           <div className="px-4">
             <LeaderboardTable
+              key={selectedLeaderRoundIdx}
               entries={currentLeaderboard}
               currentUserId={user!.id}
+              userPredictions={allUserPredictions}
             />
           </div>
         </div>
@@ -858,6 +998,24 @@ export function BolaoDetailPage() {
                   {pool.member_count}
                 </span>
               </div>
+            </div>
+          </div>
+
+          {/* Pontuação */}
+          <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex flex-col gap-2">
+            <p className="text-xs text-[var(--text-muted)] font-medium uppercase tracking-wide">
+              Pontuação — {SCORING_MODELS[pool.scoring_model].label}
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {SCORING_MODELS[pool.scoring_model].rules.map(([icon, pts, desc]) => (
+                <div key={pts} className="flex items-center gap-2 text-xs">
+                  <span>{icon}</span>
+                  <span className="font-bold text-[var(--text-primary)] w-12 shrink-0">
+                    {pts}
+                  </span>
+                  <span className="text-[var(--text-muted)]">{desc}</span>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -978,6 +1136,69 @@ export function BolaoDetailPage() {
                 <span className="text-sm font-medium text-[var(--text-primary)]">Recalcular pontos</span>
                 <span className="text-xs text-[var(--text-muted)]">Força recálculo de pontos para todas as partidas com resultado registrado</span>
               </div>
+            </button>
+          </div>
+
+          {/* Modelo de pontuação */}
+          <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex flex-col gap-3">
+            <div>
+              <p className="text-xs text-[var(--text-muted)] font-medium uppercase tracking-wide">
+                Modelo de Pontuação
+              </p>
+              <p className="text-[0.65rem] text-[var(--text-muted)] mt-0.5">
+                Atual:{" "}
+                <span className="text-[var(--gold)]">
+                  {pool && SCORING_MODELS[pool.scoring_model].label}
+                </span>
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              {(Object.keys(SCORING_MODELS) as ScoringModel[]).map((model) => (
+                <button
+                  key={model}
+                  onClick={() => setAdminScoringModel(model)}
+                  className={`w-full text-left px-3 py-3 rounded-xl border transition-all ${
+                    adminScoringModel === model
+                      ? "bg-[rgba(201,165,90,0.08)] border-[rgba(201,165,90,0.35)]"
+                      : "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
+                  }`}
+                >
+                  <p className={`text-sm font-semibold mb-1 ${adminScoringModel === model ? "text-[var(--gold)]" : "text-[var(--text-primary)]"}`}>
+                    {SCORING_MODELS[model].label}
+                  </p>
+                  <div className="flex flex-col gap-0.5">
+                    {SCORING_MODELS[model].rules.map(([icon, pts, desc]) => (
+                      <span key={pts} className="text-[0.6rem] text-[var(--text-muted)] flex gap-1.5">
+                        <span>{icon}</span>
+                        <span className="font-bold w-10 shrink-0">{pts}</span>
+                        <span>{desc}</span>
+                      </span>
+                    ))}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {adminScoringModel !== pool?.scoring_model && (
+              <p className="text-[0.65rem] text-orange-400 bg-[rgba(251,146,60,0.08)] border border-[rgba(251,146,60,0.2)] rounded-lg px-3 py-2">
+                Ao salvar, todas as pontuações serão zeradas e recalculadas com o novo modelo.
+              </p>
+            )}
+
+            <button
+              onClick={handleModelChange}
+              disabled={changingModel || adminScoringModel === pool?.scoring_model}
+              className="w-full py-3 rounded-xl font-semibold text-sm bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] hover:bg-[rgba(201,165,90,0.2)] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+            >
+              {changingModel ? (
+                <>
+                  <span className="spinner" style={{ width: 14, height: 14 }} />
+                  Recalculando…
+                </>
+              ) : (
+                "Salvar modelo"
+              )}
             </button>
           </div>
 
