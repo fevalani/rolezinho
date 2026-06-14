@@ -19,7 +19,12 @@ import {
   updatePoolScoringModel,
   leavePool,
   SCORING_MODELS,
+  getScoringDisplay,
+  CUSTOM_SCORING_CATEGORIES,
+  DEFAULT_CUSTOM_CONFIG,
   type ScoringModel,
+  type PresetScoringModel,
+  type CustomScoringConfig,
   type BolaoPool,
   type RoundGroup,
   type MatchWithPrediction,
@@ -558,6 +563,8 @@ export function BolaoDetailPage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
   const [adminScoringModel, setAdminScoringModel] = useState<ScoringModel>("classic");
+  const [adminCustomConfig, setAdminCustomConfig] =
+    useState<CustomScoringConfig>(DEFAULT_CUSTOM_CONFIG);
   const [changingModel, setChangingModel] = useState(false);
 
   const showToast = (msg: string) => {
@@ -605,7 +612,10 @@ export function BolaoDetailPage() {
     setLeaderboard(lbData);
     setRoundLeaderboards(roundLbData);
     setAllUserPredictions(allPredsData);
-    if (poolData) setAdminScoringModel(poolData.scoring_model);
+    if (poolData) {
+      setAdminScoringModel(poolData.scoring_model);
+      setAdminCustomConfig(poolData.scoring_config ?? DEFAULT_CUSTOM_CONFIG);
+    }
     setLoading(false);
 
     // Abre na rodada atual baseada no último jogo finalizado.
@@ -747,14 +757,36 @@ export function BolaoDetailPage() {
   const handleModelChange = async () => {
     if (!poolId || changingModel) return;
     setChangingModel(true);
-    const { error } = await updatePoolScoringModel(poolId, adminScoringModel);
+    const { error } = await updatePoolScoringModel(
+      poolId,
+      adminScoringModel,
+      adminScoringModel === "custom" ? adminCustomConfig : null,
+    );
     setChangingModel(false);
     if (error) {
       showToast(`Erro: ${error}`);
     } else {
       loadAll();
-      showToast(`Modelo alterado para ${SCORING_MODELS[adminScoringModel].label} e pontos recalculados ✓`);
+      const label = getScoringDisplay(adminScoringModel, adminCustomConfig).label;
+      showToast(`Modelo alterado para ${label} e pontos recalculados ✓`);
     }
+  };
+
+  // Há alterações pendentes no modelo de pontuação?
+  const modelDirty = (() => {
+    if (!pool) return false;
+    if (adminScoringModel !== pool.scoring_model) return true;
+    if (adminScoringModel === "custom") {
+      const saved = pool.scoring_config ?? DEFAULT_CUSTOM_CONFIG;
+      return CUSTOM_SCORING_CATEGORIES.some(
+        (c) => saved[c.key] !== adminCustomConfig[c.key],
+      );
+    }
+    return false;
+  })();
+
+  const handleCustomConfigChange = (key: keyof CustomScoringConfig, value: number) => {
+    setAdminCustomConfig((prev) => ({ ...prev, [key]: value }));
   };
 
   const handlePredictionChange = useCallback(
@@ -1004,10 +1036,10 @@ export function BolaoDetailPage() {
           {/* Pontuação */}
           <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex flex-col gap-2">
             <p className="text-xs text-[var(--text-muted)] font-medium uppercase tracking-wide">
-              Pontuação — {SCORING_MODELS[pool.scoring_model].label}
+              Pontuação — {getScoringDisplay(pool.scoring_model, pool.scoring_config).label}
             </p>
             <div className="flex flex-col gap-1.5">
-              {SCORING_MODELS[pool.scoring_model].rules.map(([icon, pts, desc]) => (
+              {getScoringDisplay(pool.scoring_model, pool.scoring_config).rules.map(([icon, pts, desc]) => (
                 <div key={pts} className="flex items-center gap-2 text-xs">
                   <span>{icon}</span>
                   <span className="font-bold text-[var(--text-primary)] w-12 shrink-0">
@@ -1148,13 +1180,13 @@ export function BolaoDetailPage() {
               <p className="text-[0.65rem] text-[var(--text-muted)] mt-0.5">
                 Atual:{" "}
                 <span className="text-[var(--gold)]">
-                  {pool && SCORING_MODELS[pool.scoring_model].label}
+                  {pool && getScoringDisplay(pool.scoring_model, pool.scoring_config).label}
                 </span>
               </p>
             </div>
 
             <div className="flex flex-col gap-2">
-              {(Object.keys(SCORING_MODELS) as ScoringModel[]).map((model) => (
+              {(Object.keys(SCORING_MODELS) as PresetScoringModel[]).map((model) => (
                 <button
                   key={model}
                   onClick={() => setAdminScoringModel(model)}
@@ -1178,9 +1210,50 @@ export function BolaoDetailPage() {
                   </div>
                 </button>
               ))}
+
+              {/* Modelo personalizado */}
+              <button
+                onClick={() => setAdminScoringModel("custom")}
+                className={`w-full text-left px-3 py-3 rounded-xl border transition-all ${
+                  adminScoringModel === "custom"
+                    ? "bg-[rgba(201,165,90,0.08)] border-[rgba(201,165,90,0.35)]"
+                    : "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
+                }`}
+              >
+                <p className={`text-sm font-semibold mb-1 ${adminScoringModel === "custom" ? "text-[var(--gold)]" : "text-[var(--text-primary)]"}`}>
+                  Personalizado
+                </p>
+                <p className="text-[0.6rem] text-[var(--text-muted)]">
+                  Defina manualmente os pontos de cada tipo de acerto.
+                </p>
+              </button>
             </div>
 
-            {adminScoringModel !== pool?.scoring_model && (
+            {/* Editor de pontos do modelo personalizado */}
+            {adminScoringModel === "custom" && (
+              <div className="flex flex-col gap-1.5 bg-[var(--bg-elevated)] border border-[rgba(201,165,90,0.2)] rounded-xl p-3">
+                {CUSTOM_SCORING_CATEGORIES.map((cat) => (
+                  <div key={cat.key} className="flex items-center gap-2">
+                    <span className="text-sm shrink-0">{cat.icon}</span>
+                    <span className="flex-1 text-xs text-[var(--text-primary)]">{cat.label}</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={adminCustomConfig[cat.key]}
+                      onChange={(e) =>
+                        handleCustomConfigChange(
+                          cat.key,
+                          e.target.value === "" ? 0 : parseInt(e.target.value, 10) || 0,
+                        )
+                      }
+                      className="w-16 shrink-0 text-center text-sm font-bold text-[var(--gold)] bg-[var(--bg-card)] border border-[rgba(255,255,255,0.08)] rounded-lg px-2 py-1.5 focus:outline-none focus:border-[rgba(201,165,90,0.5)]"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {modelDirty && (
               <p className="text-[0.65rem] text-orange-400 bg-[rgba(251,146,60,0.08)] border border-[rgba(251,146,60,0.2)] rounded-lg px-3 py-2">
                 Ao salvar, todas as pontuações serão zeradas e recalculadas com o novo modelo.
               </p>
@@ -1188,7 +1261,7 @@ export function BolaoDetailPage() {
 
             <button
               onClick={handleModelChange}
-              disabled={changingModel || adminScoringModel === pool?.scoring_model}
+              disabled={changingModel || !modelDirty}
               className="w-full py-3 rounded-xl font-semibold text-sm bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] hover:bg-[rgba(201,165,90,0.2)] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
             >
               {changingModel ? (

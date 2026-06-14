@@ -8,7 +8,7 @@ import {
   SCORING_MODELS,
   type BolaoPool,
   type ChampionshipCode,
-  type ScoringModel,
+  type PresetScoringModel,
 } from "./bolaoService";
 
 // ─── Pool Card ────────────────────────────────────────────────
@@ -75,7 +75,7 @@ function CreatePoolModal({
   const { user } = useAuth();
   const [name, setName] = useState("");
   const [selectedCode, setSelectedCode] = useState<ChampionshipCode>("BSA");
-  const [selectedModel, setSelectedModel] = useState<ScoringModel>("classic");
+  const [selectedModel, setSelectedModel] = useState<PresetScoringModel>("classic");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const championships = [
@@ -164,7 +164,7 @@ function CreatePoolModal({
               Modelo de pontuação
             </label>
             <div className="flex flex-col gap-2">
-              {(Object.keys(SCORING_MODELS) as ScoringModel[]).map((model) => (
+              {(Object.keys(SCORING_MODELS) as PresetScoringModel[]).map((model) => (
                 <button
                   key={model}
                   onClick={() => setSelectedModel(model)}

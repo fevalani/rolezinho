@@ -16,10 +16,48 @@ import {
 export type { ChampionshipCode };
 
 // ── Modelos de pontuação ─────────────────────────────────────
-export type ScoringModel = "classic" | "extended" | "simplified";
+export type PresetScoringModel = "classic" | "extended" | "simplified";
+export type ScoringModel = PresetScoringModel | "custom";
+
+// Configuração de pontos do modelo personalizado.
+// Cada chave corresponde a uma categoria de acerto.
+export interface CustomScoringConfig {
+  exact: number; // Placar exato
+  winner_goals: number; // Vencedor + Gols do Vencedor
+  loser_goals: number; // Vencedor + Gols do Perdedor
+  winner_saldo: number; // Vencedor + Saldo de gols
+  winner: number; // Vencedor
+  draw: number; // Empate
+  wrong: number; // Erro
+}
+
+export const DEFAULT_CUSTOM_CONFIG: CustomScoringConfig = {
+  exact: 15,
+  winner_goals: 10,
+  loser_goals: 5,
+  winner_saldo: 4,
+  winner: 3,
+  draw: 10,
+  wrong: 0,
+};
+
+// Metadados das categorias do modelo personalizado (ordem = precedência de acerto).
+export const CUSTOM_SCORING_CATEGORIES: {
+  key: keyof CustomScoringConfig;
+  icon: string;
+  label: string;
+}[] = [
+  { key: "exact", icon: "🎯", label: "Placar exato" },
+  { key: "winner_goals", icon: "✅", label: "Vencedor + Gols do Vencedor" },
+  { key: "loser_goals", icon: "🔸", label: "Vencedor + Gols do Perdedor" },
+  { key: "winner_saldo", icon: "➗", label: "Vencedor + Saldo de gols" },
+  { key: "winner", icon: "📌", label: "Vencedor" },
+  { key: "draw", icon: "🤝", label: "Empate" },
+  { key: "wrong", icon: "❌", label: "Erro" },
+];
 
 export const SCORING_MODELS: Record<
-  ScoringModel,
+  PresetScoringModel,
   { label: string; rules: [string, string, string][] }
 > = {
   classic: {
@@ -52,6 +90,23 @@ export const SCORING_MODELS: Record<
     ],
   },
 };
+
+// Retorna label + regras para exibição, suportando o modelo personalizado.
+export function getScoringDisplay(
+  model: ScoringModel,
+  config?: CustomScoringConfig | null,
+): { label: string; rules: [string, string, string][] } {
+  if (model === "custom") {
+    const cfg = config ?? DEFAULT_CUSTOM_CONFIG;
+    return {
+      label: "Personalizado",
+      rules: CUSTOM_SCORING_CATEGORIES.map(
+        (c) => [c.icon, `${cfg[c.key]} pts`, c.label] as [string, string, string],
+      ),
+    };
+  }
+  return SCORING_MODELS[model];
+}
 
 export interface BolaoChampionship {
   id: string;
@@ -95,6 +150,7 @@ export interface BolaoPool {
   member_count: number;
   is_member: boolean;
   scoring_model: ScoringModel;
+  scoring_config: CustomScoringConfig | null;
 }
 
 export interface BolaoPoolMember {
@@ -173,7 +229,13 @@ export function calculatePoints(
   realHome: number,
   realAway: number,
   model: ScoringModel = "classic",
+  config?: CustomScoringConfig | null,
 ): number {
+  if (model === "custom") {
+    const cfg = config ?? DEFAULT_CUSTOM_CONFIG;
+    return calculateCustomPoints(predHome, predAway, realHome, realAway, cfg);
+  }
+
   if (predHome === realHome && predAway === realAway) return 15;
 
   const realResult =
@@ -205,6 +267,36 @@ export function calculatePoints(
   // simplified
   if (winnerGoalsCorrect || loserGoalsCorrect) return 10;
   return 5;
+}
+
+// Pontuação do modelo personalizado — precedência segue CUSTOM_SCORING_CATEGORIES.
+function calculateCustomPoints(
+  predHome: number,
+  predAway: number,
+  realHome: number,
+  realAway: number,
+  cfg: CustomScoringConfig,
+): number {
+  if (predHome === realHome && predAway === realAway) return cfg.exact;
+
+  const realResult =
+    realHome > realAway ? "home" : realHome < realAway ? "away" : "draw";
+  const predResult =
+    predHome > predAway ? "home" : predHome < predAway ? "away" : "draw";
+
+  if (realResult !== predResult) return cfg.wrong;
+  if (realResult === "draw") return cfg.draw;
+
+  const winnerGoalsCorrect =
+    realResult === "home" ? predHome === realHome : predAway === realAway;
+  const loserGoalsCorrect =
+    realResult === "home" ? predAway === realAway : predHome === realHome;
+  const saldoCorrect = predHome - predAway === realHome - realAway;
+
+  if (winnerGoalsCorrect) return cfg.winner_goals;
+  if (loserGoalsCorrect) return cfg.loser_goals;
+  if (saldoCorrect) return cfg.winner_saldo;
+  return cfg.winner;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -343,6 +435,7 @@ export async function fetchAllPools(userId: string): Promise<BolaoPool[]> {
       member_count: members.length,
       is_member: members.some((m) => m.user_id === userId),
       scoring_model: (p.scoring_model ?? "classic") as ScoringModel,
+      scoring_config: (p.scoring_config ?? null) as CustomScoringConfig | null,
     };
   });
 }
@@ -371,6 +464,7 @@ export async function fetchPoolById(
     member_count: members.length,
     is_member: members.some((m) => m.user_id === userId),
     scoring_model: (data.scoring_model ?? "classic") as ScoringModel,
+    scoring_config: (data.scoring_config ?? null) as CustomScoringConfig | null,
   };
 }
 
@@ -399,6 +493,7 @@ export async function createPool(
   name: string,
   code: ChampionshipCode,
   scoringModel: ScoringModel = "classic",
+  scoringConfig: CustomScoringConfig | null = null,
 ): Promise<{ data: string | null; error: string | null }> {
   // 1. Garante que o campeonato existe no banco
   const championship = await ensureChampionship(code);
@@ -430,6 +525,7 @@ export async function createPool(
     p_championship_id: championship.id,
     p_user_id: userId,
     p_scoring_model: scoringModel,
+    p_scoring_config: scoringModel === "custom" ? scoringConfig : null,
   });
 
   if (error) return { data: null, error: error.message };
@@ -844,10 +940,12 @@ export async function syncMatchSchedules(poolId: string): Promise<{ updated: num
 export async function updatePoolScoringModel(
   poolId: string,
   model: ScoringModel,
+  config: CustomScoringConfig | null = null,
 ): Promise<{ error: string | null }> {
   const { error: modelErr } = await supabase.rpc("update_pool_scoring_model", {
     p_pool_id: poolId,
     p_scoring_model: model,
+    p_scoring_config: model === "custom" ? config : null,
   });
   if (modelErr) return { error: modelErr.message };
 
