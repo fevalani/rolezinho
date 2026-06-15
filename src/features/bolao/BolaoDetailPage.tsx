@@ -364,7 +364,9 @@ function LeaderboardTable({
   userPredictions: Map<string, UserPredictionDetail[]>;
 }) {
   const medals = ["🥇", "🥈", "🥉"];
+  const PREDS_PAGE_SIZE = 5;
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  const [visiblePredsCount, setVisiblePredsCount] = useState(PREDS_PAGE_SIZE);
 
   if (entries.length === 0) {
     return (
@@ -375,19 +377,32 @@ function LeaderboardTable({
   }
 
   const toggle = (userId: string) =>
-    setExpandedUserId((prev) => (prev === userId ? null : userId));
+    setExpandedUserId((prev) => {
+      const next = prev === userId ? null : userId;
+      setVisiblePredsCount(PREDS_PAGE_SIZE);
+      return next;
+    });
 
   return (
     <div className="flex flex-col gap-2">
       {entries.map((entry, i) => {
         const isExpanded = expandedUserId === entry.user_id;
         const isCurrentUser = entry.user_id === currentUserId;
-        const preds = (userPredictions.get(entry.user_id) ?? []).filter(
-          (p) => p.score_home !== null && p.score_away !== null,
-        );
+        const preds = (userPredictions.get(entry.user_id) ?? [])
+          .filter((p) => p.score_home !== null && p.score_away !== null)
+          .sort(
+            (a, b) =>
+              new Date(b.utc_date).getTime() - new Date(a.utc_date).getTime(),
+          );
+
+        const visiblePreds = isExpanded
+          ? preds.slice(0, visiblePredsCount)
+          : preds;
+        const hasMorePreds = preds.length > visiblePredsCount;
+        const remainingPreds = preds.length - visiblePredsCount;
 
         const byRound = new Map<string, UserPredictionDetail[]>();
-        for (const p of preds) {
+        for (const p of visiblePreds) {
           if (!byRound.has(p.round_label)) byRound.set(p.round_label, []);
           byRound.get(p.round_label)!.push(p);
         }
@@ -524,6 +539,20 @@ function LeaderboardTable({
                         })}
                       </div>
                     ))}
+                    {hasMorePreds && (
+                      <button
+                        onClick={() =>
+                          setVisiblePredsCount((c) => c + PREDS_PAGE_SIZE)
+                        }
+                        className="px-4 py-2.5 text-[0.7rem] font-semibold text-[var(--gold)] border-t border-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.02)] transition-colors text-center"
+                      >
+                        Ver mais{" "}
+                        {Math.min(remainingPreds, PREDS_PAGE_SIZE)} palpite
+                        {Math.min(remainingPreds, PREDS_PAGE_SIZE) !== 1
+                          ? "s"
+                          : ""}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
