@@ -43,11 +43,11 @@ VALUES
 ((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900011, 'Ivory Coast',            'Ecuador',                 'Rodada 1', 1, 'GROUP_STAGE', '2026-06-14T23:00:00Z', 'TIMED'),
 ((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900012, 'Sweden',                 'Tunisia',                 'Rodada 1', 1, 'GROUP_STAGE', '2026-06-15T02:00:00Z', 'TIMED'),
 -- Jun 15
-((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900013, 'Spain',                  'Cape Verde',              'Rodada 1', 1, 'GROUP_STAGE', '2026-06-15T17:00:00Z', 'TIMED'),
-((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900014, 'Belgium',                'Egypt',                   'Rodada 1', 1, 'GROUP_STAGE', '2026-06-15T22:00:00Z', 'TIMED'),
+((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900013, 'Spain',                  'Cape Verde',              'Rodada 1', 1, 'GROUP_STAGE', '2026-06-15T16:00:00Z', 'TIMED'),
+((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900014, 'Belgium',                'Egypt',                   'Rodada 1', 1, 'GROUP_STAGE', '2026-06-15T19:00:00Z', 'TIMED'),
 ((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900015, 'Saudi Arabia',           'Uruguay',                 'Rodada 1', 1, 'GROUP_STAGE', '2026-06-15T22:00:00Z', 'TIMED'),
 -- Jun 16
-((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900016, 'Iran',                   'New Zealand',             'Rodada 1', 1, 'GROUP_STAGE', '2026-06-16T04:00:00Z', 'TIMED'),
+((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900016, 'Iran',                   'New Zealand',             'Rodada 1', 1, 'GROUP_STAGE', '2026-06-16T01:00:00Z', 'TIMED'),
 ((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900017, 'France',                 'Senegal',                 'Rodada 1', 1, 'GROUP_STAGE', '2026-06-16T19:00:00Z', 'TIMED'),
 ((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900018, 'Iraq',                   'Norway',                  'Rodada 1', 1, 'GROUP_STAGE', '2026-06-16T22:00:00Z', 'TIMED'),
 ((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900019, 'Argentina',              'Algeria',                 'Rodada 1', 1, 'GROUP_STAGE', '2026-06-17T01:00:00Z', 'TIMED'),
@@ -65,13 +65,13 @@ VALUES
 ((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900025, 'Czechia',                'South Africa',            'Rodada 2', 2, 'GROUP_STAGE', '2026-06-18T16:00:00Z', 'TIMED'),
 ((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900026, 'Switzerland',            'Bosnia and Herzegovina',  'Rodada 2', 2, 'GROUP_STAGE', '2026-06-18T19:00:00Z', 'TIMED'),
 ((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900027, 'Canada',                 'Qatar',                   'Rodada 2', 2, 'GROUP_STAGE', '2026-06-18T22:00:00Z', 'TIMED'),
-((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900028, 'Mexico',                 'South Korea',             'Rodada 2', 2, 'GROUP_STAGE', '2026-06-19T03:00:00Z', 'TIMED'),
+((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900028, 'Mexico',                 'South Korea',             'Rodada 2', 2, 'GROUP_STAGE', '2026-06-19T01:00:00Z', 'TIMED'),
 -- Jun 19
 ((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900029, 'United States',          'Australia',               'Rodada 2', 2, 'GROUP_STAGE', '2026-06-19T19:00:00Z', 'TIMED'),
 ((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900030, 'Scotland',               'Morocco',                 'Rodada 2', 2, 'GROUP_STAGE', '2026-06-19T22:00:00Z', 'TIMED'),
-((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900031, 'Brazil',                 'Haiti',                   'Rodada 2', 2, 'GROUP_STAGE', '2026-06-20T01:00:00Z', 'TIMED'),
+((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900031, 'Brazil',                 'Haiti',                   'Rodada 2', 2, 'GROUP_STAGE', '2026-06-20T00:30:00Z', 'TIMED'),
 -- Jun 20
-((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900032, 'Türkiye',                'Paraguay',                'Rodada 2', 2, 'GROUP_STAGE', '2026-06-20T04:00:00Z', 'TIMED'),
+((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900032, 'Türkiye',                'Paraguay',                'Rodada 2', 2, 'GROUP_STAGE', '2026-06-20T03:00:00Z', 'TIMED'),
 ((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900033, 'Netherlands',            'Sweden',                  'Rodada 2', 2, 'GROUP_STAGE', '2026-06-20T17:00:00Z', 'TIMED'),
 ((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900034, 'Germany',                'Ivory Coast',             'Rodada 2', 2, 'GROUP_STAGE', '2026-06-20T20:00:00Z', 'TIMED'),
 ((SELECT id FROM public.bolao_championships WHERE code='WC'), 9900035, 'Ecuador',                'Curaçao',                 'Rodada 2', 2, 'GROUP_STAGE', '2026-06-21T00:00:00Z', 'TIMED'),

@@ -978,6 +978,27 @@ async function scoreMatchPredictions(
 // Leaderboard
 // ══════════════════════════════════════════════════════════════
 
+// "Cravada" = placar exato. Conta comparando o palpite ao resultado real,
+// independente do modelo de pontuação (o valor de pontos da cravada é
+// dinâmico por bolão, então não dá para assumir points_earned === 15).
+interface LeaderboardPredRow {
+  user_id: string;
+  points_earned: number;
+  home_goals: number;
+  away_goals: number;
+  bolao_matches: { score_home: number | null; score_away: number | null } | null;
+}
+
+function isExactScore(p: {
+  home_goals: number;
+  away_goals: number;
+  bolao_matches: { score_home: number | null; score_away: number | null } | null;
+}): boolean {
+  const m = p.bolao_matches;
+  if (!m || m.score_home === null || m.score_away === null) return false;
+  return p.home_goals === m.score_home && p.away_goals === m.score_away;
+}
+
 export async function fetchLeaderboard(
   poolId: string,
 ): Promise<LeaderboardEntry[]> {
@@ -988,7 +1009,7 @@ export async function fetchLeaderboard(
       .eq("pool_id", poolId),
     supabase
       .from("bolao_predictions")
-      .select("user_id, points_earned")
+      .select("user_id, points_earned, home_goals, away_goals, bolao_matches(score_home, score_away)")
       .eq("pool_id", poolId)
       .not("points_earned", "is", null),
   ]);
@@ -998,16 +1019,13 @@ export async function fetchLeaderboard(
     profiles: { id: string; display_name: string; avatar_url: string | null };
   };
   const members = (membersRes.data ?? []) as unknown as MemberRow[];
-  const preds = (predsRes.data ?? []) as {
-    user_id: string;
-    points_earned: number;
-  }[];
+  const preds = (predsRes.data ?? []) as unknown as LeaderboardPredRow[];
 
   return members
     .map((m) => {
       const userPreds = preds.filter((p) => p.user_id === m.user_id);
       const total = userPreds.reduce((s, p) => s + (p.points_earned ?? 0), 0);
-      const exact = userPreds.filter((p) => p.points_earned === 15).length;
+      const exact = userPreds.filter(isExactScore).length;
       return {
         user_id: m.user_id,
         display_name: m.profiles?.display_name ?? "?",
@@ -1030,7 +1048,7 @@ export async function fetchRoundLeaderboards(
       .eq("pool_id", poolId),
     supabase
       .from("bolao_predictions")
-      .select("user_id, points_earned, bolao_matches(round_label)")
+      .select("user_id, points_earned, home_goals, away_goals, bolao_matches(round_label, score_home, score_away)")
       .eq("pool_id", poolId)
       .not("points_earned", "is", null),
   ]);
@@ -1042,7 +1060,9 @@ export async function fetchRoundLeaderboards(
   type PredRow = {
     user_id: string;
     points_earned: number;
-    bolao_matches: { round_label: string } | null;
+    home_goals: number;
+    away_goals: number;
+    bolao_matches: { round_label: string; score_home: number | null; score_away: number | null } | null;
   };
 
   const members = (membersRes.data ?? []) as unknown as MemberRow2[];
@@ -1071,7 +1091,7 @@ export async function fetchRoundLeaderboards(
           avatar_url: m.profiles?.avatar_url ?? null,
           total_points: total,
           predictions_made: userPreds.length,
-          exact_scores: userPreds.filter((p) => p.points_earned === 15).length,
+          exact_scores: userPreds.filter(isExactScore).length,
         };
       })
       .sort((a, b) => b.total_points - a.total_points);
