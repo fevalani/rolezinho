@@ -19,6 +19,7 @@ import { BolaoPage } from "./features/bolao/BolaoPage";
 import { BolaoDetailPage } from "./features/bolao/BolaoDetailPage";
 import { ArenaPage } from "./features/arena/ArenaPage";
 import { ArenaDetailPage } from "./features/arena/ArenaDetailPage";
+import { LetrecoPage } from "./features/letreco/LetrecoPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -77,6 +78,7 @@ function AppRoutes() {
         <Route path="/bolao/:poolId" element={<BolaoDetailPage />} />
         <Route path="/arena" element={<ArenaPage />} />
         <Route path="/arena/:duelId" element={<ArenaDetailPage />} />
+        <Route path="/letreco" element={<LetrecoPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

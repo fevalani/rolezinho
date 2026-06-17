@@ -231,6 +231,14 @@ export const APP_FEATURES: Feature[] = [
     description: "Apostas hipotéticas com odds e veredito da IA",
   },
   {
+    id: "letreco",
+    name: "Letreco",
+    icon: "🟩",
+    path: "/letreco",
+    enabled: true,
+    description: "A palavra do dia da turma — 5 tentativas, mais pontos quem acerta antes",
+  },
+  {
     id: "ficha",
     name: "RPG",
     icon: "🏰",
