@@ -2,7 +2,10 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "@/components/Avatar";
-import { scheduleBolaoReminders } from "@/lib/notificationService";
+import {
+  scheduleBolaoReminders,
+  scheduleBolaoTestNotifications,
+} from "@/lib/notificationService";
 import { readCache, writeCache } from "@/lib/localCache";
 import {
   fetchBolaoSnapshot,
@@ -849,8 +852,14 @@ export function BolaoDetailPage() {
   );
   useEffect(() => {
     if (!poolId || allMatches.length === 0) return;
-    scheduleBolaoReminders(poolId, allMatches);
-  }, [poolId, allMatches]);
+    // Admin (valanife@gmail.com): modo TESTE — notificação interativa a cada
+    // minuto para os próximos jogos. Demais usuários: lembrete normal de 1h.
+    if (isAdmin) {
+      scheduleBolaoTestNotifications(poolId, allMatches);
+    } else {
+      scheduleBolaoReminders(poolId, allMatches);
+    }
+  }, [poolId, allMatches, isAdmin]);
 
   const handleSync = async () => {
     if (!poolId || syncing) return;
