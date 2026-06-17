@@ -419,7 +419,7 @@ body::before {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding-top: var(--safe-top);
+  /* O <header> já aplica var(--safe-top); não duplicar aqui (gerava espaço extra no Android) */
   padding-bottom: var(--safe-bottom);
 }
 .container {

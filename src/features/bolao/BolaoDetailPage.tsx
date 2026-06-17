@@ -3,13 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import { scheduleBolaoReminders } from "@/lib/notificationService";
+import { readCache, writeCache } from "@/lib/localCache";
 import {
-  fetchPoolById,
-  fetchMatchesForPool,
-  fetchPoolMembers,
-  fetchLeaderboard,
-  fetchRoundLeaderboards,
-  fetchAllUserPredictions,
+  fetchBolaoSnapshot,
+  snapshotSignature,
+  withRecomputedLocks,
   upsertPrediction,
   syncPoolResults,
   syncMatchSchedules,
@@ -17,13 +15,17 @@ import {
   setMatchResultManually,
   recalculateAllPoints,
   updatePoolScoringModel,
+  updatePoolVariationMode,
+  computePositionVariations,
   leavePool,
   SCORING_MODELS,
+  VARIATION_MODES,
   getScoringDisplay,
   CUSTOM_SCORING_CATEGORIES,
   DEFAULT_CUSTOM_CONFIG,
   type ScoringModel,
   type PresetScoringModel,
+  type VariationMode,
   type CustomScoringConfig,
   type BolaoPool,
   type RoundGroup,
@@ -32,6 +34,7 @@ import {
   type LeaderboardEntry,
   type RoundLeaderboard,
   type UserPredictionDetail,
+  type BolaoSnapshot,
   subscribeBolao,
 } from "./bolaoService";
 
@@ -104,8 +107,7 @@ function MatchCard({
   const [adminAway, setAdminAway] = useState(String(match.score_away ?? ""));
 
   const isFinished = match.status === "FINISHED";
-  const hasResult =
-    match.score_home !== null && match.score_away !== null;
+  const hasResult = match.score_home !== null && match.score_away !== null;
 
   const handleAdminSave = () => {
     const h = parseInt(adminHome);
@@ -128,7 +130,14 @@ function MatchCard({
     const away = isHome ? awayGoals : cleaned;
     const h = parseInt(isHome ? cleaned : home);
     const a = parseInt(isHome ? away : cleaned);
-    if (!isNaN(h) && !isNaN(a) && h >= 0 && a >= 0 && other !== "" && cleaned !== "") {
+    if (
+      !isNaN(h) &&
+      !isNaN(a) &&
+      h >= 0 &&
+      a >= 0 &&
+      other !== "" &&
+      cleaned !== ""
+    ) {
       onPredictionChange(match.id, h, a);
     }
   };
@@ -202,7 +211,9 @@ function MatchCard({
                 min={0}
                 max={99}
                 value={adminHome}
-                onChange={(e) => setAdminHome(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                onChange={(e) =>
+                  setAdminHome(e.target.value.replace(/\D/g, "").slice(0, 2))
+                }
                 className="w-8 h-8 text-center bg-[var(--bg-card)] border border-[rgba(201,165,90,0.5)] rounded-lg text-sm font-bold text-[var(--gold)] focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
               <span className="text-[var(--text-muted)] text-xs">×</span>
@@ -211,7 +222,9 @@ function MatchCard({
                 min={0}
                 max={99}
                 value={adminAway}
-                onChange={(e) => setAdminAway(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                onChange={(e) =>
+                  setAdminAway(e.target.value.replace(/\D/g, "").slice(0, 2))
+                }
                 className="w-8 h-8 text-center bg-[var(--bg-card)] border border-[rgba(201,165,90,0.5)] rounded-lg text-sm font-bold text-[var(--gold)] focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
               <button
@@ -277,9 +290,7 @@ function MatchCard({
                 className="w-8 h-8 text-center bg-[var(--bg-card)] border border-[rgba(201,165,90,0.2)] rounded-lg text-sm font-bold text-[var(--text-primary)] focus:outline-none focus:border-[rgba(201,165,90,0.5)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
               {pending !== undefined && (
-                <div
-                  className="w-1.5 h-1.5 rounded-full bg-[var(--gold)] shrink-0"
-                />
+                <div className="w-1.5 h-1.5 rounded-full bg-[var(--gold)] shrink-0" />
               )}
             </>
           )}
@@ -329,7 +340,12 @@ function RoundSelector({
 
   useEffect(() => {
     const el = btnRefs.current[selectedIdx];
-    if (el) el.scrollIntoView({ inline: "center", behavior: "smooth", block: "nearest" });
+    if (el)
+      el.scrollIntoView({
+        inline: "center",
+        behavior: "smooth",
+        block: "nearest",
+      });
   }, [selectedIdx]);
 
   return (
@@ -337,7 +353,9 @@ function RoundSelector({
       {rounds.map((r, i) => (
         <button
           key={r.label}
-          ref={(el) => { btnRefs.current[i] = el; }}
+          ref={(el) => {
+            btnRefs.current[i] = el;
+          }}
           onClick={() => onSelect(i)}
           className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
             i === selectedIdx
@@ -352,16 +370,38 @@ function RoundSelector({
   );
 }
 
+// ─── Variação de posição ──────────────────────────────────────
+
+function VariationArrow({ delta }: { delta: number | undefined }) {
+  if (!delta) return null;
+  const up = delta > 0;
+  return (
+    <span
+      className={`flex items-center justify-center gap-px text-[0.55rem] font-bold leading-none ${
+        up ? "text-green-400" : "text-red-400"
+      }`}
+      title={`${up ? "Subiu" : "Desceu"} ${Math.abs(delta)} posiç${
+        Math.abs(delta) !== 1 ? "ões" : "ão"
+      }`}
+    >
+      {up ? "▲" : "▼"}
+      {Math.abs(delta)}
+    </span>
+  );
+}
+
 // ─── Leaderboard ──────────────────────────────────────────────
 
 function LeaderboardTable({
   entries,
   currentUserId,
   userPredictions,
+  variations,
 }: {
   entries: LeaderboardEntry[];
   currentUserId: string;
   userPredictions: Map<string, UserPredictionDetail[]>;
+  variations?: Map<string, number>;
 }) {
   const medals = ["🥇", "🥈", "🥉"];
   const PREDS_PAGE_SIZE = 5;
@@ -419,8 +459,11 @@ function LeaderboardTable({
                   : "bg-[var(--bg-card)] border-[rgba(255,255,255,0.04)]"
               }`}
             >
-              <span className="w-6 text-center text-base shrink-0">
-                {i < 3 ? medals[i] : `${i + 1}º`}
+              <span className="w-6 flex gap-2 items-center justify-center shrink-0">
+                <VariationArrow delta={variations?.get(entry.user_id)} />
+                <span className="text-base leading-none">
+                  {i < 3 ? medals[i] : `${i + 1}º`}
+                </span>
               </span>
 
               <Avatar
@@ -442,7 +485,8 @@ function LeaderboardTable({
                   {entry.predictions_made} palpites
                   {entry.exact_scores > 0 && (
                     <span className="ml-1.5 text-[var(--gold)]">
-                      · {entry.exact_scores} cravada{entry.exact_scores !== 1 ? "s" : ""}
+                      · {entry.exact_scores} cravada
+                      {entry.exact_scores !== 1 ? "s" : ""}
                     </span>
                   )}
                 </p>
@@ -485,7 +529,8 @@ function LeaderboardTable({
                         </div>
                         {roundPreds.map((pred) => {
                           const hasResult =
-                            pred.score_home !== null && pred.score_away !== null;
+                            pred.score_home !== null &&
+                            pred.score_away !== null;
                           return (
                             <div
                               key={pred.match_id}
@@ -546,8 +591,8 @@ function LeaderboardTable({
                         }
                         className="px-4 py-2.5 text-[0.7rem] font-semibold text-[var(--gold)] border-t border-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.02)] transition-colors text-center"
                       >
-                        Ver mais{" "}
-                        {Math.min(remainingPreds, PREDS_PAGE_SIZE)} palpite
+                        Ver mais {Math.min(remainingPreds, PREDS_PAGE_SIZE)}{" "}
+                        palpite
                         {Math.min(remainingPreds, PREDS_PAGE_SIZE) !== 1
                           ? "s"
                           : ""}
@@ -584,17 +629,22 @@ export function BolaoDetailPage() {
   const [activeTab, setActiveTab] = useState<Tab>("palpites");
   const [selectedRoundIdx, setSelectedRoundIdx] = useState(0);
   const [selectedLeaderRoundIdx, setSelectedLeaderRoundIdx] = useState(-1); // -1 = geral
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // true só enquanto não há nada para exibir
+  const [revalidating, setRevalidating] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncingSchedule, setSyncingSchedule] = useState(false);
   const [populating, setPopulating] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
-  const [adminScoringModel, setAdminScoringModel] = useState<ScoringModel>("classic");
+  const [adminScoringModel, setAdminScoringModel] =
+    useState<ScoringModel>("classic");
   const [adminCustomConfig, setAdminCustomConfig] =
     useState<CustomScoringConfig>(DEFAULT_CUSTOM_CONFIG);
   const [changingModel, setChangingModel] = useState(false);
+  const [adminVariationMode, setAdminVariationMode] =
+    useState<VariationMode>("off");
+  const [changingVariation, setChangingVariation] = useState(false);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -606,6 +656,21 @@ export function BolaoDetailPage() {
   >({});
 
   const isAdmin = user?.email === "valanife@gmail.com";
+
+  // ── Cache + revalidação (stale-while-revalidate) ──
+  const cacheKey = poolId && user ? `bolao:${poolId}:${user.id}` : null;
+  const sigRef = useRef<string>("");
+  const userPickedRoundRef = useRef(false); // true após o usuário escolher uma rodada manualmente
+
+  // Pull-to-refresh: puxar a tela para baixo a partir do topo dispara a
+  // revalidação (gesto padrão do Android).
+  const PULL_THRESHOLD = 70; // distância mínima (px) para disparar a atualização
+  const PULL_MAX = 110; // distância máxima do indicador (efeito de resistência)
+  const [pullDistance, setPullDistance] = useState(0);
+  const [pulling, setPulling] = useState(false);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+  const pullStartY = useRef<number | null>(null);
+  const pullDistRef = useRef(0);
 
   // Controla visibilidade do botão inline para decidir se mostra o fixo
   const [isSaveButtonVisible, setIsSaveButtonVisible] = useState(false);
@@ -623,86 +688,164 @@ export function BolaoDetailPage() {
     }
   }, []);
 
-  const loadAll = useCallback(async () => {
-    if (!poolId || !user) return;
-    setLoading(true);
-    const [poolData, roundsData, membersData, lbData, roundLbData, allPredsData] =
-      await Promise.all([
-        fetchPoolById(poolId, user.id),
-        fetchMatchesForPool(poolId, user.id),
-        fetchPoolMembers(poolId),
-        fetchLeaderboard(poolId),
-        fetchRoundLeaderboards(poolId),
-        fetchAllUserPredictions(poolId),
-      ]);
-    setPool(poolData);
-    setRounds(roundsData);
-    setMembers(membersData);
-    setLeaderboard(lbData);
-    setRoundLeaderboards(roundLbData);
-    setAllUserPredictions(allPredsData);
-    if (poolData) {
-      setAdminScoringModel(poolData.scoring_model);
-      setAdminCustomConfig(poolData.scoring_config ?? DEFAULT_CUSTOM_CONFIG);
+  // Calcula a rodada a abrir com base no último jogo finalizado.
+  // Ignora jogos adiados (POSTPONED) para o cálculo de "rodada completa".
+  // Se todos os jogos não-adiados da rodada estão finalizados → próxima rodada.
+  // Se ainda há jogos não finalizados na rodada → permanece nela.
+  const computeCurrentRoundIdx = useCallback((roundsData: RoundGroup[]) => {
+    if (roundsData.length === 0) return 0;
+
+    let lastFinishedRoundIdx = -1;
+    for (let i = 0; i < roundsData.length; i++) {
+      if (roundsData[i].matches.some((m) => m.status === "FINISHED")) {
+        lastFinishedRoundIdx = i;
+      }
     }
-    setLoading(false);
+    if (lastFinishedRoundIdx === -1) return 0;
 
-    // Abre na rodada atual baseada no último jogo finalizado.
-    // Ignora jogos adiados (POSTPONED) para o cálculo de "rodada completa".
-    // Se todos os jogos não-adiados da rodada estão finalizados → próxima rodada.
-    // Se ainda há jogos não finalizados na rodada → permanece nela.
-    const currentIdx = (() => {
-      if (roundsData.length === 0) return 0;
+    const round = roundsData[lastFinishedRoundIdx];
+    const nonPostponed = round.matches.filter((m) => m.status !== "POSTPONED");
+    const roundComplete = nonPostponed.every((m) => m.status === "FINISHED");
 
-      // Última rodada (pelo índice) que contém ao menos um jogo finalizado
-      let lastFinishedRoundIdx = -1;
-      for (let i = 0; i < roundsData.length; i++) {
-        if (roundsData[i].matches.some((m) => m.status === "FINISHED")) {
-          lastFinishedRoundIdx = i;
-        }
+    if (roundComplete && lastFinishedRoundIdx + 1 < roundsData.length) {
+      return lastFinishedRoundIdx + 1;
+    }
+    return lastFinishedRoundIdx;
+  }, []);
+
+  // Aplica um snapshot ao estado da tela. Recalcula is_locked (o cache pode
+  // estar defasado) e só auto-seleciona a rodada enquanto o usuário não escolheu.
+  const applySnapshot = useCallback(
+    (snap: BolaoSnapshot, autoSelectRound: boolean) => {
+      const rounds = withRecomputedLocks(snap.rounds);
+      setPool(snap.pool);
+      setRounds(rounds);
+      setMembers(snap.members);
+      setLeaderboard(snap.leaderboard);
+      setRoundLeaderboards(snap.roundLeaderboards);
+      setAllUserPredictions(new Map(snap.userPredictions));
+      if (snap.pool) {
+        setAdminScoringModel(snap.pool.scoring_model);
+        setAdminCustomConfig(snap.pool.scoring_config ?? DEFAULT_CUSTOM_CONFIG);
+        setAdminVariationMode(snap.pool.variation_mode);
       }
-
-      // Nenhum jogo finalizado ainda → abre na primeira rodada
-      if (lastFinishedRoundIdx === -1) return 0;
-
-      // Verifica se a rodada está completa (excluindo adiados)
-      const round = roundsData[lastFinishedRoundIdx];
-      const nonPostponed = round.matches.filter((m) => m.status !== "POSTPONED");
-      const roundComplete = nonPostponed.every((m) => m.status === "FINISHED");
-
-      if (roundComplete && lastFinishedRoundIdx + 1 < roundsData.length) {
-        return lastFinishedRoundIdx + 1; // Próxima rodada
+      if (autoSelectRound && !userPickedRoundRef.current) {
+        setSelectedRoundIdx(computeCurrentRoundIdx(rounds));
       }
-      return lastFinishedRoundIdx;
-    })();
-    setSelectedRoundIdx(currentIdx);
-  }, [poolId, user]);
+      setLoading(false);
+    },
+    [computeCurrentRoundIdx],
+  );
 
+  // Revalida contra o banco; só re-renderiza/regrava cache se algo mudou.
+  const revalidate = useCallback(async () => {
+    if (!poolId || !user) return;
+    setRevalidating(true);
+    try {
+      const fresh = await fetchBolaoSnapshot(poolId, user.id);
+      const sig = snapshotSignature(fresh);
+      if (sig !== sigRef.current) {
+        sigRef.current = sig;
+        applySnapshot(fresh, true);
+        if (cacheKey) writeCache(cacheKey, fresh);
+      } else {
+        setLoading(false);
+      }
+    } finally {
+      setRevalidating(false);
+    }
+  }, [poolId, user, applySnapshot, cacheKey]);
+
+  // Hidratação síncrona do cache no mount + primeira revalidação.
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    if (!cacheKey) return;
+    const cached = readCache<BolaoSnapshot>(cacheKey);
+    if (cached) {
+      sigRef.current = snapshotSignature(cached);
+      applySnapshot(cached, true);
+    }
+    revalidate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cacheKey]);
 
-  // Realtime
+  // Realtime → revalida (só atualiza a UI se o dado realmente mudou)
   useEffect(() => {
     if (!poolId) return;
-    const channel = subscribeBolao(poolId, loadAll);
+    const channel = subscribeBolao(poolId, revalidate);
     return () => {
       channel.unsubscribe();
     };
-  }, [poolId, loadAll]);
+  }, [poolId, revalidate]);
+
+  // Pull-to-refresh: puxar para baixo a partir do topo da página revalida.
+  // Enquanto o dedo arrasta, mostra um indicador que cresce com resistência;
+  // ao soltar acima do limiar, dispara a revalidação.
+  useEffect(() => {
+    const setDist = (d: number) => {
+      pullDistRef.current = d;
+      setPullDistance(d);
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      // Só inicia o gesto se a página estiver no topo e não houver refresh ativo
+      pullStartY.current =
+        window.scrollY <= 0 && !pullRefreshing ? e.touches[0].clientY : null;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (pullStartY.current === null) return;
+      const delta = e.touches[0].clientY - pullStartY.current;
+      if (delta > 0 && window.scrollY <= 0) {
+        setPulling(true);
+        // resistência: a distância exibida é metade do arrasto, limitada
+        setDist(Math.min(delta * 0.5, PULL_MAX));
+      } else {
+        setPulling(false);
+        setDist(0);
+      }
+    };
+
+    const onTouchEnd = () => {
+      if (pullStartY.current !== null && pullDistRef.current >= PULL_THRESHOLD) {
+        setPullRefreshing(true);
+        revalidate().finally(() => setPullRefreshing(false));
+      }
+      pullStartY.current = null;
+      setPulling(false);
+      setDist(0);
+    };
+
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("touchend", onTouchEnd);
+    return () => {
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [revalidate, pullRefreshing]);
 
   // Auto-sync on mount — apenas para o admin
   useEffect(() => {
     if (!poolId || !isAdmin) return;
     syncPoolResults(poolId).then((updated) => {
-      if (updated > 0) loadAll();
+      if (updated > 0) revalidate();
     });
-  }, [poolId, isAdmin, loadAll]);
+  }, [poolId, isAdmin, revalidate]);
 
   // Agenda notificações 1h antes de partidas sem palpite
-  const allMatches = useMemo(
-    () => rounds.flatMap((r) => r.matches),
-    [rounds],
+  const allMatches = useMemo(() => rounds.flatMap((r) => r.matches), [rounds]);
+
+  // Variação de posição na classificação geral (só quando habilitada no bolão)
+  const positionVariations = useMemo(
+    () =>
+      computePositionVariations(
+        leaderboard,
+        allUserPredictions,
+        allMatches,
+        pool?.variation_mode ?? "off",
+      ),
+    [leaderboard, allUserPredictions, allMatches, pool?.variation_mode],
   );
   useEffect(() => {
     if (!poolId || allMatches.length === 0) return;
@@ -716,20 +859,26 @@ export function BolaoDetailPage() {
     const updated = await syncPoolResults(poolId, isAdmin);
     setSyncing(false);
     if (updated > 0) {
-      loadAll();
-      showToast(`${updated} partida${updated !== 1 ? "s" : ""} atualizada${updated !== 1 ? "s" : ""} e pontos recalculados ✓`);
+      revalidate();
+      showToast(
+        `${updated} partida${updated !== 1 ? "s" : ""} atualizada${updated !== 1 ? "s" : ""} e pontos recalculados ✓`,
+      );
     } else {
       showToast("Nenhuma partida nova para atualizar");
     }
   };
 
-  const handleAdminEditResult = async (matchId: string, home: number, away: number) => {
+  const handleAdminEditResult = async (
+    matchId: string,
+    home: number,
+    away: number,
+  ) => {
     if (!poolId) return;
     const { error } = await setMatchResultManually(matchId, home, away);
     if (error) {
       showToast(`Erro: ${error}`);
     } else {
-      loadAll();
+      revalidate();
       showToast(`Resultado salvo e pontos recalculados ✓`);
     }
   };
@@ -742,8 +891,10 @@ export function BolaoDetailPage() {
     if (error) {
       showToast(`Erro: ${error}`);
     } else if (updated > 0) {
-      loadAll();
-      showToast(`Pontos recalculados para ${updated} partida${updated !== 1 ? "s" : ""} ✓`);
+      revalidate();
+      showToast(
+        `Pontos recalculados para ${updated} partida${updated !== 1 ? "s" : ""} ✓`,
+      );
     } else {
       showToast("Nenhuma partida finalizada para recalcular");
     }
@@ -755,14 +906,20 @@ export function BolaoDetailPage() {
     const { populated, error } = await forcePopulateMatches(poolId);
     setPopulating(false);
     if (populated > 0) {
-      loadAll();
+      revalidate();
       if (error) {
-        showToast(`API indisponível — usando ${populated} partida${populated !== 1 ? "s" : ""} do banco ✓`);
+        showToast(
+          `API indisponível — usando ${populated} partida${populated !== 1 ? "s" : ""} do banco ✓`,
+        );
       } else {
-        showToast(`${populated} partida${populated !== 1 ? "s" : ""} disponíve${populated !== 1 ? "is" : "l"} ✓`);
+        showToast(
+          `${populated} partida${populated !== 1 ? "s" : ""} disponíve${populated !== 1 ? "is" : "l"} ✓`,
+        );
       }
     } else {
-      showToast(`Erro: ${error ?? "Nenhuma partida encontrada na API nem no banco"}`);
+      showToast(
+        `Erro: ${error ?? "Nenhuma partida encontrada na API nem no banco"}`,
+      );
     }
   };
 
@@ -776,8 +933,10 @@ export function BolaoDetailPage() {
     } else if (error) {
       showToast(`Erro: ${error}`);
     } else if (updated > 0) {
-      loadAll();
-      showToast(`${updated} horário${updated !== 1 ? "s" : ""} atualizado${updated !== 1 ? "s" : ""} ✓`);
+      revalidate();
+      showToast(
+        `${updated} horário${updated !== 1 ? "s" : ""} atualizado${updated !== 1 ? "s" : ""} ✓`,
+      );
     } else {
       showToast("Horários já estão atualizados");
     }
@@ -795,9 +954,27 @@ export function BolaoDetailPage() {
     if (error) {
       showToast(`Erro: ${error}`);
     } else {
-      loadAll();
-      const label = getScoringDisplay(adminScoringModel, adminCustomConfig).label;
+      revalidate();
+      const label = getScoringDisplay(
+        adminScoringModel,
+        adminCustomConfig,
+      ).label;
       showToast(`Modelo alterado para ${label} e pontos recalculados ✓`);
+    }
+  };
+
+  const handleVariationModeChange = async () => {
+    if (!poolId || changingVariation) return;
+    setChangingVariation(true);
+    const { error } = await updatePoolVariationMode(poolId, adminVariationMode);
+    setChangingVariation(false);
+    if (error) {
+      showToast(`Erro: ${error}`);
+    } else {
+      revalidate();
+      showToast(
+        `Variação de posição: ${VARIATION_MODES[adminVariationMode]} ✓`,
+      );
     }
   };
 
@@ -814,7 +991,10 @@ export function BolaoDetailPage() {
     return false;
   })();
 
-  const handleCustomConfigChange = (key: keyof CustomScoringConfig, value: number) => {
+  const handleCustomConfigChange = (
+    key: keyof CustomScoringConfig,
+    value: number,
+  ) => {
     setAdminCustomConfig((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -835,7 +1015,7 @@ export function BolaoDetailPage() {
     );
     setPendingPredictions({});
     setSaving(false);
-    loadAll();
+    revalidate();
   };
 
   const handleLeave = async () => {
@@ -879,6 +1059,33 @@ export function BolaoDetailPage() {
       className="min-h-screen bg-[var(--bg-abyss)] flex flex-col"
       style={{ paddingBottom: "calc(1.5rem + var(--safe-bottom))" }}
     >
+      {/* Indicador de pull-to-refresh */}
+      {(pullDistance > 0 || pullRefreshing) && (
+        <div
+          className="fixed top-0 left-0 right-0 z-[60] flex justify-center pointer-events-none"
+          style={{
+            transform: `translateY(${pullRefreshing ? 12 : Math.max(0, pullDistance - 28)}px)`,
+            opacity: pullRefreshing
+              ? 1
+              : Math.min(pullDistance / PULL_THRESHOLD, 1),
+            transition: pulling ? "none" : "transform 0.25s, opacity 0.25s",
+          }}
+        >
+          <div className="w-9 h-9 rounded-full bg-[var(--bg-elevated)] border border-[rgba(255,255,255,0.08)] shadow-[0_4px_16px_rgba(0,0,0,0.4)] flex items-center justify-center">
+            {pullRefreshing || pullDistance >= PULL_THRESHOLD ? (
+              <span className="spinner" style={{ width: 16, height: 16 }} />
+            ) : (
+              <span
+                className="text-[var(--text-muted)] text-sm leading-none"
+                style={{ transform: `rotate(${pullDistance * 2.4}deg)` }}
+              >
+                ↓
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="px-4 pt-5 pb-3 flex items-center gap-3">
         <button
@@ -899,6 +1106,13 @@ export function BolaoDetailPage() {
             {pool.member_count !== 1 ? "s" : ""}
           </p>
         </div>
+        {revalidating && (
+          <span
+            className="spinner shrink-0"
+            style={{ width: 14, height: 14 }}
+            title="Atualizando…"
+          />
+        )}
       </div>
 
       {/* Tabs */}
@@ -937,7 +1151,10 @@ export function BolaoDetailPage() {
               <RoundSelector
                 rounds={rounds}
                 selectedIdx={selectedRoundIdx}
-                onSelect={setSelectedRoundIdx}
+                onSelect={(idx) => {
+                  userPickedRoundRef.current = true;
+                  setSelectedRoundIdx(idx);
+                }}
               />
 
               {currentRound && !currentRound.is_visible ? (
@@ -972,7 +1189,10 @@ export function BolaoDetailPage() {
                         className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-sm font-bold bg-[var(--gold)] text-[#08080f] shadow-lg disabled:opacity-70 transition-all active:scale-95"
                       >
                         {saving ? (
-                          <span className="spinner" style={{ width: 14, height: 14 }} />
+                          <span
+                            className="spinner"
+                            style={{ width: 14, height: 14 }}
+                          />
                         ) : (
                           <>
                             Salvar palpites
@@ -1027,6 +1247,9 @@ export function BolaoDetailPage() {
               entries={currentLeaderboard}
               currentUserId={user!.id}
               userPredictions={allUserPredictions}
+              variations={
+                selectedLeaderRoundIdx === -1 ? positionVariations : undefined
+              }
             />
           </div>
         </div>
@@ -1065,10 +1288,14 @@ export function BolaoDetailPage() {
           {/* Pontuação */}
           <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex flex-col gap-2">
             <p className="text-xs text-[var(--text-muted)] font-medium uppercase tracking-wide">
-              Pontuação — {getScoringDisplay(pool.scoring_model, pool.scoring_config).label}
+              Pontuação —{" "}
+              {getScoringDisplay(pool.scoring_model, pool.scoring_config).label}
             </p>
             <div className="flex flex-col gap-1.5">
-              {getScoringDisplay(pool.scoring_model, pool.scoring_config).rules.map(([icon, pts, desc]) => (
+              {getScoringDisplay(
+                pool.scoring_model,
+                pool.scoring_config,
+              ).rules.map(([icon, pts, desc]) => (
                 <div key={pts} className="flex items-center gap-2 text-xs">
                   <span>{icon}</span>
                   <span className="font-bold text-[var(--text-primary)] w-12 shrink-0">
@@ -1142,11 +1369,20 @@ export function BolaoDetailPage() {
               className="flex items-center gap-3 px-3 py-3 rounded-xl border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.02)] transition-all disabled:opacity-50 text-left"
             >
               <span className="text-lg shrink-0">
-                {populating ? <span className="spinner" style={{ width: 18, height: 18 }} /> : "⬇️"}
+                {populating ? (
+                  <span className="spinner" style={{ width: 18, height: 18 }} />
+                ) : (
+                  "⬇️"
+                )}
               </span>
               <div className="flex flex-col min-w-0">
-                <span className="text-sm font-medium text-[var(--text-primary)]">Importar da API</span>
-                <span className="text-xs text-[var(--text-muted)]">Busca todas as partidas do campeonato e preserva rodadas já inseridas</span>
+                <span className="text-sm font-medium text-[var(--text-primary)]">
+                  Importar da API
+                </span>
+                <span className="text-xs text-[var(--text-muted)]">
+                  Busca todas as partidas do campeonato e preserva rodadas já
+                  inseridas
+                </span>
               </div>
             </button>
 
@@ -1156,11 +1392,19 @@ export function BolaoDetailPage() {
               className="flex items-center gap-3 px-3 py-3 rounded-xl border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.02)] transition-all disabled:opacity-50 text-left"
             >
               <span className="text-lg shrink-0">
-                {syncingSchedule ? <span className="spinner" style={{ width: 18, height: 18 }} /> : "📅"}
+                {syncingSchedule ? (
+                  <span className="spinner" style={{ width: 18, height: 18 }} />
+                ) : (
+                  "📅"
+                )}
               </span>
               <div className="flex flex-col min-w-0">
-                <span className="text-sm font-medium text-[var(--text-primary)]">Atualizar horários</span>
-                <span className="text-xs text-[var(--text-muted)]">Atualiza datas e status das partidas ainda não finalizadas</span>
+                <span className="text-sm font-medium text-[var(--text-primary)]">
+                  Atualizar horários
+                </span>
+                <span className="text-xs text-[var(--text-muted)]">
+                  Atualiza datas e status das partidas ainda não finalizadas
+                </span>
               </div>
             </button>
           </div>
@@ -1177,11 +1421,20 @@ export function BolaoDetailPage() {
               className="flex items-center gap-3 px-3 py-3 rounded-xl border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.02)] transition-all disabled:opacity-50 text-left"
             >
               <span className="text-lg shrink-0">
-                {syncing ? <span className="spinner" style={{ width: 18, height: 18 }} /> : "🔄"}
+                {syncing ? (
+                  <span className="spinner" style={{ width: 18, height: 18 }} />
+                ) : (
+                  "🔄"
+                )}
               </span>
               <div className="flex flex-col min-w-0">
-                <span className="text-sm font-medium text-[var(--text-primary)]">Sincronizar resultados</span>
-                <span className="text-xs text-[var(--text-muted)]">Busca resultados finais via API e calcula pontos automaticamente</span>
+                <span className="text-sm font-medium text-[var(--text-primary)]">
+                  Sincronizar resultados
+                </span>
+                <span className="text-xs text-[var(--text-muted)]">
+                  Busca resultados finais via API e calcula pontos
+                  automaticamente
+                </span>
               </div>
             </button>
 
@@ -1191,11 +1444,20 @@ export function BolaoDetailPage() {
               className="flex items-center gap-3 px-3 py-3 rounded-xl border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.02)] transition-all disabled:opacity-50 text-left"
             >
               <span className="text-lg shrink-0">
-                {recalculating ? <span className="spinner" style={{ width: 18, height: 18 }} /> : "♻️"}
+                {recalculating ? (
+                  <span className="spinner" style={{ width: 18, height: 18 }} />
+                ) : (
+                  "♻️"
+                )}
               </span>
               <div className="flex flex-col min-w-0">
-                <span className="text-sm font-medium text-[var(--text-primary)]">Recalcular pontos</span>
-                <span className="text-xs text-[var(--text-muted)]">Força recálculo de pontos para todas as partidas com resultado registrado</span>
+                <span className="text-sm font-medium text-[var(--text-primary)]">
+                  Recalcular pontos
+                </span>
+                <span className="text-xs text-[var(--text-muted)]">
+                  Força recálculo de pontos para todas as partidas com resultado
+                  registrado
+                </span>
               </div>
             </button>
           </div>
@@ -1209,36 +1471,45 @@ export function BolaoDetailPage() {
               <p className="text-[0.65rem] text-[var(--text-muted)] mt-0.5">
                 Atual:{" "}
                 <span className="text-[var(--gold)]">
-                  {pool && getScoringDisplay(pool.scoring_model, pool.scoring_config).label}
+                  {pool &&
+                    getScoringDisplay(pool.scoring_model, pool.scoring_config)
+                      .label}
                 </span>
               </p>
             </div>
 
             <div className="flex flex-col gap-2">
-              {(Object.keys(SCORING_MODELS) as PresetScoringModel[]).map((model) => (
-                <button
-                  key={model}
-                  onClick={() => setAdminScoringModel(model)}
-                  className={`w-full text-left px-3 py-3 rounded-xl border transition-all ${
-                    adminScoringModel === model
-                      ? "bg-[rgba(201,165,90,0.08)] border-[rgba(201,165,90,0.35)]"
-                      : "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
-                  }`}
-                >
-                  <p className={`text-sm font-semibold mb-1 ${adminScoringModel === model ? "text-[var(--gold)]" : "text-[var(--text-primary)]"}`}>
-                    {SCORING_MODELS[model].label}
-                  </p>
-                  <div className="flex flex-col gap-0.5">
-                    {SCORING_MODELS[model].rules.map(([icon, pts, desc]) => (
-                      <span key={pts} className="text-[0.6rem] text-[var(--text-muted)] flex gap-1.5">
-                        <span>{icon}</span>
-                        <span className="font-bold w-10 shrink-0">{pts}</span>
-                        <span>{desc}</span>
-                      </span>
-                    ))}
-                  </div>
-                </button>
-              ))}
+              {(Object.keys(SCORING_MODELS) as PresetScoringModel[]).map(
+                (model) => (
+                  <button
+                    key={model}
+                    onClick={() => setAdminScoringModel(model)}
+                    className={`w-full text-left px-3 py-3 rounded-xl border transition-all ${
+                      adminScoringModel === model
+                        ? "bg-[rgba(201,165,90,0.08)] border-[rgba(201,165,90,0.35)]"
+                        : "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
+                    }`}
+                  >
+                    <p
+                      className={`text-sm font-semibold mb-1 ${adminScoringModel === model ? "text-[var(--gold)]" : "text-[var(--text-primary)]"}`}
+                    >
+                      {SCORING_MODELS[model].label}
+                    </p>
+                    <div className="flex flex-col gap-0.5">
+                      {SCORING_MODELS[model].rules.map(([icon, pts, desc]) => (
+                        <span
+                          key={pts}
+                          className="text-[0.6rem] text-[var(--text-muted)] flex gap-1.5"
+                        >
+                          <span>{icon}</span>
+                          <span className="font-bold w-10 shrink-0">{pts}</span>
+                          <span>{desc}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </button>
+                ),
+              )}
 
               {/* Modelo personalizado */}
               <button
@@ -1249,7 +1520,9 @@ export function BolaoDetailPage() {
                     : "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
                 }`}
               >
-                <p className={`text-sm font-semibold mb-1 ${adminScoringModel === "custom" ? "text-[var(--gold)]" : "text-[var(--text-primary)]"}`}>
+                <p
+                  className={`text-sm font-semibold mb-1 ${adminScoringModel === "custom" ? "text-[var(--gold)]" : "text-[var(--text-primary)]"}`}
+                >
                   Personalizado
                 </p>
                 <p className="text-[0.6rem] text-[var(--text-muted)]">
@@ -1264,7 +1537,9 @@ export function BolaoDetailPage() {
                 {CUSTOM_SCORING_CATEGORIES.map((cat) => (
                   <div key={cat.key} className="flex items-center gap-2">
                     <span className="text-sm shrink-0">{cat.icon}</span>
-                    <span className="flex-1 text-xs text-[var(--text-primary)]">{cat.label}</span>
+                    <span className="flex-1 text-xs text-[var(--text-primary)]">
+                      {cat.label}
+                    </span>
                     <input
                       type="number"
                       inputMode="numeric"
@@ -1272,7 +1547,9 @@ export function BolaoDetailPage() {
                       onChange={(e) =>
                         handleCustomConfigChange(
                           cat.key,
-                          e.target.value === "" ? 0 : parseInt(e.target.value, 10) || 0,
+                          e.target.value === ""
+                            ? 0
+                            : parseInt(e.target.value, 10) || 0,
                         )
                       }
                       className="w-16 shrink-0 text-center text-sm font-bold text-[var(--gold)] bg-[var(--bg-card)] border border-[rgba(255,255,255,0.08)] rounded-lg px-2 py-1.5 focus:outline-none focus:border-[rgba(201,165,90,0.5)]"
@@ -1284,7 +1561,8 @@ export function BolaoDetailPage() {
 
             {modelDirty && (
               <p className="text-[0.65rem] text-orange-400 bg-[rgba(251,146,60,0.08)] border border-[rgba(251,146,60,0.2)] rounded-lg px-3 py-2">
-                Ao salvar, todas as pontuações serão zeradas e recalculadas com o novo modelo.
+                Ao salvar, todas as pontuações serão zeradas e recalculadas com
+                o novo modelo.
               </p>
             )}
 
@@ -1304,8 +1582,64 @@ export function BolaoDetailPage() {
             </button>
           </div>
 
+          {/* Variação de posição */}
+          <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex flex-col gap-3">
+            <div>
+              <p className="text-xs text-[var(--text-muted)] font-medium uppercase tracking-wide">
+                Variação de Posição
+              </p>
+              <p className="text-[0.65rem] text-[var(--text-muted)] mt-0.5">
+                Exibe uma seta na classificação geral indicando quantas posições
+                cada participante subiu ou desceu.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              {(Object.keys(VARIATION_MODES) as VariationMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setAdminVariationMode(mode)}
+                  className={`w-full text-left px-3 py-3 rounded-xl border transition-all ${
+                    adminVariationMode === mode
+                      ? "bg-[rgba(201,165,90,0.08)] border-[rgba(201,165,90,0.35)]"
+                      : "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
+                  }`}
+                >
+                  <p
+                    className={`text-sm font-semibold ${adminVariationMode === mode ? "text-[var(--gold)]" : "text-[var(--text-primary)]"}`}
+                  >
+                    {VARIATION_MODES[mode]}
+                  </p>
+                  <p className="text-[0.6rem] text-[var(--text-muted)] mt-0.5">
+                    {mode === "off"
+                      ? "Nenhuma seta é exibida."
+                      : mode === "round"
+                        ? "Compara com a classificação antes da última rodada."
+                        : "Compara com a classificação antes da última partida."}
+                  </p>
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={handleVariationModeChange}
+              disabled={
+                changingVariation ||
+                adminVariationMode === (pool?.variation_mode ?? "off")
+              }
+              className="w-full py-3 rounded-xl font-semibold text-sm bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] hover:bg-[rgba(201,165,90,0.2)] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+            >
+              {changingVariation ? (
+                <span className="spinner" style={{ width: 14, height: 14 }} />
+              ) : (
+                "Salvar variação"
+              )}
+            </button>
+          </div>
+
           <p className="text-[0.65rem] text-[var(--text-muted)] text-center px-2">
-            Para editar o resultado de um jogo manualmente, acesse a aba Palpites e toque em ✏️ no card da partida.
+            Para editar o resultado de um jogo manualmente, acesse a aba
+            Palpites e toque em ✏️ no card da partida.
           </p>
         </div>
       )}

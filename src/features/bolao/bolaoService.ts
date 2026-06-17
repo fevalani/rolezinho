@@ -19,6 +19,18 @@ export type { ChampionshipCode };
 export type PresetScoringModel = "classic" | "extended" | "simplified";
 export type ScoringModel = PresetScoringModel | "custom";
 
+// ── Variação de posição na classificação ─────────────────────
+// "off"   = desativado (nenhuma seta)
+// "round" = compara com a classificação antes da última rodada
+// "match" = compara com a classificação antes da última partida
+export type VariationMode = "off" | "round" | "match";
+
+export const VARIATION_MODES: Record<VariationMode, string> = {
+  off: "Desativado",
+  round: "Por rodada",
+  match: "Por partida",
+};
+
 // Configuração de pontos do modelo personalizado.
 // Cada chave corresponde a uma categoria de acerto.
 export interface CustomScoringConfig {
@@ -151,6 +163,7 @@ export interface BolaoPool {
   is_member: boolean;
   scoring_model: ScoringModel;
   scoring_config: CustomScoringConfig | null;
+  variation_mode: VariationMode;
 }
 
 export interface BolaoPoolMember {
@@ -436,6 +449,7 @@ export async function fetchAllPools(userId: string): Promise<BolaoPool[]> {
       is_member: members.some((m) => m.user_id === userId),
       scoring_model: (p.scoring_model ?? "classic") as ScoringModel,
       scoring_config: (p.scoring_config ?? null) as CustomScoringConfig | null,
+      variation_mode: (p.variation_mode ?? "off") as VariationMode,
     };
   });
 }
@@ -465,6 +479,7 @@ export async function fetchPoolById(
     is_member: members.some((m) => m.user_id === userId),
     scoring_model: (data.scoring_model ?? "classic") as ScoringModel,
     scoring_config: (data.scoring_config ?? null) as CustomScoringConfig | null,
+    variation_mode: (data.variation_mode ?? "off") as VariationMode,
   };
 }
 
@@ -564,7 +579,7 @@ export async function leavePool(
 // Partidas + Palpites
 // ══════════════════════════════════════════════════════════════
 
-function isMatchLocked(utcDate: string, status: string): boolean {
+export function isMatchLocked(utcDate: string, status: string): boolean {
   const openStatuses = ["TIMED", "SCHEDULED"];
   if (!openStatuses.includes(status)) return true;
   return Date.now() > new Date(utcDate).getTime() - 1 * 60 * 1000;
@@ -958,6 +973,17 @@ export async function updatePoolScoringModel(
   return { error: calcErr };
 }
 
+export async function updatePoolVariationMode(
+  poolId: string,
+  mode: VariationMode,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase.rpc("update_pool_variation_mode", {
+    p_pool_id: poolId,
+    p_variation_mode: mode,
+  });
+  return { error: error?.message ?? null };
+}
+
 async function scoreMatchPredictions(
   matchId: string,
   realHome: number,
@@ -1100,6 +1126,84 @@ export async function fetchRoundLeaderboards(
   });
 }
 
+// ── Variação de posição ──────────────────────────────────────
+// Ranking de competição padrão (1224): pontuações iguais = mesma posição.
+function competitionRanks(
+  totals: { userId: string; total: number }[],
+): Map<string, number> {
+  const sorted = [...totals].sort((a, b) => b.total - a.total);
+  const ranks = new Map<string, number>();
+  let rank = 0;
+  let prevTotal: number | null = null;
+  sorted.forEach((e, i) => {
+    if (prevTotal === null || e.total !== prevTotal) {
+      rank = i + 1;
+      prevTotal = e.total;
+    }
+    ranks.set(e.userId, rank);
+  });
+  return ranks;
+}
+
+// Calcula quantas posições cada usuário subiu (+) ou desceu (−) na
+// classificação geral em relação à última partida/rodada finalizada.
+// Retorna apenas usuários cuja posição variou (delta ≠ 0).
+export function computePositionVariations(
+  entries: LeaderboardEntry[],
+  allUserPredictions: Map<string, UserPredictionDetail[]>,
+  matches: Pick<
+    BolaoMatch,
+    "id" | "status" | "utc_date" | "round_label" | "score_home" | "score_away"
+  >[],
+  mode: VariationMode,
+): Map<string, number> {
+  const result = new Map<string, number>();
+  if (mode === "off" || entries.length === 0) return result;
+
+  const finished = matches.filter(
+    (m) =>
+      m.status === "FINISHED" && m.score_home !== null && m.score_away !== null,
+  );
+  if (finished.length === 0) return result;
+
+  // Última partida finalizada (por data)
+  const last = finished.reduce((a, b) =>
+    new Date(b.utc_date).getTime() > new Date(a.utc_date).getTime() ? b : a,
+  );
+
+  // Partidas a excluir para obter a classificação "anterior"
+  const excluded = new Set<string>(
+    mode === "match"
+      ? [last.id]
+      : finished
+          .filter((m) => m.round_label === last.round_label)
+          .map((m) => m.id),
+  );
+
+  const current = entries.map((e) => ({
+    userId: e.user_id,
+    total: e.total_points,
+  }));
+  const previous = entries.map((e) => {
+    const preds = allUserPredictions.get(e.user_id) ?? [];
+    const removed = preds.reduce(
+      (s, p) => (excluded.has(p.match_id) ? s + (p.points_earned ?? 0) : s),
+      0,
+    );
+    return { userId: e.user_id, total: e.total_points - removed };
+  });
+
+  const currRanks = competitionRanks(current);
+  const prevRanks = competitionRanks(previous);
+
+  for (const e of entries) {
+    const delta =
+      (prevRanks.get(e.user_id) ?? 0) - (currRanks.get(e.user_id) ?? 0);
+    if (delta !== 0) result.set(e.user_id, delta);
+  }
+  return result;
+}
+
 export async function fetchAllUserPredictions(
   poolId: string,
 ): Promise<Map<string, UserPredictionDetail[]>> {
@@ -1140,6 +1244,83 @@ export async function fetchAllUserPredictions(
   }
 
   return result;
+}
+
+// ══════════════════════════════════════════════════════════════
+// Snapshot consolidado (stale-while-revalidate)
+// ══════════════════════════════════════════════════════════════
+
+export interface BolaoSnapshot {
+  pool: BolaoPool | null;
+  rounds: RoundGroup[];
+  members: BolaoPoolMember[];
+  leaderboard: LeaderboardEntry[];
+  roundLeaderboards: RoundLeaderboard[];
+  // Map não serializa em JSON → guardamos como pares e reconstruímos no consumidor.
+  userPredictions: [string, UserPredictionDetail[]][];
+}
+
+// Busca tudo o que a BolaoDetailPage precisa em uma única chamada agregada.
+export async function fetchBolaoSnapshot(
+  poolId: string,
+  userId: string,
+): Promise<BolaoSnapshot> {
+  const [pool, rounds, members, leaderboard, roundLeaderboards, preds] =
+    await Promise.all([
+      fetchPoolById(poolId, userId),
+      fetchMatchesForPool(poolId, userId),
+      fetchPoolMembers(poolId),
+      fetchLeaderboard(poolId),
+      fetchRoundLeaderboards(poolId),
+      fetchAllUserPredictions(poolId),
+    ]);
+  return {
+    pool,
+    rounds,
+    members,
+    leaderboard,
+    roundLeaderboards,
+    userPredictions: Array.from(preds.entries()),
+  };
+}
+
+// Assinatura barata para detectar se o snapshot mudou de fato (evita re-render
+// e regravação de cache quando a revalidação retorna dados idênticos).
+// NÃO inclui is_locked (depende do relógio) nem datas voláteis irrelevantes.
+export function snapshotSignature(s: BolaoSnapshot): string {
+  const matches = s.rounds
+    .flatMap((r) => r.matches)
+    .map(
+      (m) =>
+        `${m.id}:${m.status}:${m.score_home}:${m.score_away}:${m.utc_date}:${m.updated_at}`,
+    );
+  const board = s.leaderboard.map((e) => `${e.user_id}:${e.total_points}`);
+  const preds = s.userPredictions.flatMap(([u, ps]) =>
+    ps.map(
+      (p) =>
+        `${u}:${p.match_id}:${p.pred_home}-${p.pred_away}:${p.points_earned}`,
+    ),
+  );
+  return [
+    s.pool?.scoring_model,
+    s.pool?.variation_mode,
+    s.pool?.member_count,
+    ...matches,
+    ...board,
+    ...preds,
+  ].join("|");
+}
+
+// Recalcula is_locked a partir do relógio atual — necessário ao reidratar de um
+// cache antigo, onde um jogo pode ter fechado desde a última gravação.
+export function withRecomputedLocks(rounds: RoundGroup[]): RoundGroup[] {
+  return rounds.map((r) => ({
+    ...r,
+    matches: r.matches.map((m) => ({
+      ...m,
+      is_locked: isMatchLocked(m.utc_date, m.status),
+    })),
+  }));
 }
 
 // ══════════════════════════════════════════════════════════════
