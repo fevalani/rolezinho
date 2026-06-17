@@ -688,6 +688,21 @@ export async function upsertPrediction(
   homeGoals: number,
   awayGoals: number,
 ): Promise<{ error: string | null }> {
+  // Guard autoritativo: revalida o lock contra o relógio no momento da
+  // gravação. O is_locked do cliente pode estar defasado (página aberta desde
+  // antes do início do jogo, sem interação que recalcule), então confiar só na
+  // UI permite editar palpite após o apito. Aqui rechecamos no banco.
+  const { data: match } = await supabase
+    .from("bolao_matches")
+    .select("utc_date, status")
+    .eq("id", matchId)
+    .maybeSingle();
+
+  if (!match) return { error: "Partida não encontrada." };
+  if (isMatchLocked(match.utc_date, match.status)) {
+    return { error: "Palpites encerrados para esta partida." };
+  }
+
   const { error } = await supabase.from("bolao_predictions").upsert(
     {
       pool_id: poolId,

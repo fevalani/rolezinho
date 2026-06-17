@@ -2,10 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "@/components/Avatar";
-import {
-  scheduleBolaoReminders,
-  scheduleBolaoTestNotifications,
-} from "@/lib/notificationService";
+import { scheduleBolaoReminders } from "@/lib/notificationService";
 import { readCache, writeCache } from "@/lib/localCache";
 import {
   fetchBolaoSnapshot,
@@ -780,6 +777,24 @@ export function BolaoDetailPage() {
     };
   }, [poolId, revalidate]);
 
+  // Recalcula is_locked periodicamente: trava os inputs no horário do jogo
+  // mesmo sem interação do usuário (ex.: página aberta no celular desde antes
+  // do início). Sem isto, o lock só era reavaliado em fetch/rehidratação.
+  useEffect(() => {
+    const id = setInterval(() => {
+      setRounds((prev) => {
+        const next = withRecomputedLocks(prev);
+        const changed = prev.some((r, i) =>
+          r.matches.some(
+            (m, j) => m.is_locked !== next[i].matches[j].is_locked,
+          ),
+        );
+        return changed ? next : prev;
+      });
+    }, 30_000);
+    return () => clearInterval(id);
+  }, []);
+
   // Pull-to-refresh: puxar para baixo a partir do topo da página revalida.
   // Enquanto o dedo arrasta, mostra um indicador que cresce com resistência;
   // ao soltar acima do limiar, dispara a revalidação.
@@ -809,7 +824,10 @@ export function BolaoDetailPage() {
     };
 
     const onTouchEnd = () => {
-      if (pullStartY.current !== null && pullDistRef.current >= PULL_THRESHOLD) {
+      if (
+        pullStartY.current !== null &&
+        pullDistRef.current >= PULL_THRESHOLD
+      ) {
         setPullRefreshing(true);
         revalidate().finally(() => setPullRefreshing(false));
       }
@@ -852,14 +870,8 @@ export function BolaoDetailPage() {
   );
   useEffect(() => {
     if (!poolId || allMatches.length === 0) return;
-    // Admin (valanife@gmail.com): modo TESTE — notificação interativa a cada
-    // minuto para os próximos jogos. Demais usuários: lembrete normal de 1h.
-    if (isAdmin) {
-      scheduleBolaoTestNotifications(poolId, allMatches);
-    } else {
-      scheduleBolaoReminders(poolId, allMatches);
-    }
-  }, [poolId, allMatches, isAdmin]);
+    scheduleBolaoReminders(poolId, allMatches);
+  }, [poolId, allMatches]);
 
   const handleSync = async () => {
     if (!poolId || syncing) return;
@@ -1017,13 +1029,15 @@ export function BolaoDetailPage() {
   const handleSave = async () => {
     if (!poolId || !user || saving) return;
     setSaving(true);
-    await Promise.all(
+    const results = await Promise.all(
       Object.entries(pendingPredictions).map(([matchId, { home, away }]) =>
         upsertPrediction(poolId, matchId, user.id, home, away),
       ),
     );
+    const failed = results.find((r) => r.error);
     setPendingPredictions({});
     setSaving(false);
+    if (failed) showToast(failed.error ?? "Não foi possível salvar o palpite.");
     revalidate();
   };
 
@@ -1178,16 +1192,42 @@ export function BolaoDetailPage() {
                 </div>
               ) : (
                 <div className="px-4 flex flex-col gap-2">
-                  {currentRound?.matches.map((match) => (
-                    <MatchCard
-                      key={match.id}
-                      match={match}
-                      pending={pendingPredictions[match.id]}
-                      onPredictionChange={handlePredictionChange}
-                      isAdmin={isAdmin}
-                      onAdminEditResult={handleAdminEditResult}
-                    />
-                  ))}
+                  {(() => {
+                    const all = currentRound?.matches ?? [];
+                    const upcoming = all.filter((m) => m.status !== "FINISHED");
+                    const finished = all.filter((m) => m.status === "FINISHED");
+                    const renderCard = (match: MatchWithPrediction) => (
+                      <MatchCard
+                        key={match.id}
+                        match={match}
+                        pending={pendingPredictions[match.id]}
+                        onPredictionChange={handlePredictionChange}
+                        isAdmin={isAdmin}
+                        onAdminEditResult={handleAdminEditResult}
+                      />
+                    );
+                    const sectionLabel = (text: string) => (
+                      <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] px-1 pt-1">
+                        {text}
+                      </div>
+                    );
+                    return (
+                      <>
+                        {upcoming.length > 0 && (
+                          <>
+                            {sectionLabel("Próximas partidas")}
+                            {upcoming.map(renderCard)}
+                          </>
+                        )}
+                        {finished.length > 0 && (
+                          <>
+                            {sectionLabel("Partidas Finalizadas")}
+                            {finished.map(renderCard)}
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
 
                   {/* Botão inline — aparece após o último jogo */}
                   {Object.keys(pendingPredictions).length > 0 && (
