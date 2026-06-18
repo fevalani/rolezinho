@@ -142,6 +142,87 @@ function MatchCard({
     }
   };
 
+  // ── Card compacto para partidas finalizadas ──────────────────
+  // Jogo já decidido só precisa mostrar placar, meu palpite e pontos —
+  // ocupa bem menos espaço que o card de palpite. Admin editando cai no
+  // layout completo abaixo (precisa dos inputs de placar).
+  if (isFinished && !adminEditing) {
+    return (
+      <div className="bg-[var(--bg-elevated)] rounded-lg px-3 py-2 border border-[rgba(255,255,255,0.06)]">
+        <div className="flex items-center gap-2">
+          {/* Casa */}
+          <div className="flex-1 flex items-center gap-1.5 min-w-0">
+            {match.home_crest && (
+              <img
+                src={match.home_crest}
+                alt=""
+                className="w-4 h-4 object-contain shrink-0"
+                onError={(e) => (e.currentTarget.style.display = "none")}
+              />
+            )}
+            <span className="text-xs text-[var(--text-secondary)] truncate">
+              {match.home_team}
+            </span>
+          </div>
+
+          {/* Placar */}
+          <div className="flex items-center gap-1 shrink-0 text-sm font-bold text-[var(--text-primary)] tabular-nums">
+            <span>{hasResult ? match.score_home : "—"}</span>
+            <span className="text-[var(--text-muted)] text-xs">×</span>
+            <span>{hasResult ? match.score_away : "—"}</span>
+          </div>
+
+          {/* Visitante */}
+          <div className="flex-1 flex items-center justify-end gap-1.5 min-w-0">
+            <span className="text-xs text-[var(--text-secondary)] truncate text-right">
+              {match.away_team}
+            </span>
+            {match.away_crest && (
+              <img
+                src={match.away_crest}
+                alt=""
+                className="w-4 h-4 object-contain shrink-0"
+                onError={(e) => (e.currentTarget.style.display = "none")}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Rodapé: palpite + pontos (sem borda nem header) */}
+        <div className="flex items-center justify-between gap-2 mt-1 text-[0.6rem] text-[var(--text-muted)]">
+          <span className="shrink-0">{formatDate(match.utc_date)}</span>
+          <div className="flex items-center gap-2 shrink-0 text-xs">
+            {match.my_prediction && hasResult && (
+              <span>
+                Palpite{" "}
+                <span className="text-[var(--text-secondary)] font-medium text-xs">
+                  {match.my_prediction.home_goals}×
+                  {match.my_prediction.away_goals}
+                </span>
+              </span>
+            )}
+            {match.my_prediction?.points_earned !== undefined && (
+              <PointsBadge pts={match.my_prediction.points_earned} />
+            )}
+            {isAdmin && match.is_locked && (
+              <button
+                onClick={() => {
+                  setAdminHome(String(match.score_home ?? ""));
+                  setAdminAway(String(match.score_away ?? ""));
+                  setAdminEditing(true);
+                }}
+                className="text-[var(--text-muted)] hover:text-[var(--gold)] transition-colors"
+                title="Editar resultado"
+              >
+                ✏️
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`bg-[var(--bg-elevated)] rounded-xl p-3 border ${

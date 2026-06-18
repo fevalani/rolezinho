@@ -8,6 +8,8 @@ import {
   getGameDate,
   normalize,
   isValidWord,
+  isPlausibleWord,
+  addRuntimeWords,
   scoreGuess,
   aggregateKeyStatuses,
   pointsFor,
@@ -19,6 +21,9 @@ import {
   getDailyLeaderboard,
   getOverallLeaderboard,
   getUserStats,
+  getApprovedWords,
+  verifyWordInDictionary,
+  suggestWord,
 } from "./letrecoService";
 import type {
   GameStatus,
@@ -391,8 +396,12 @@ export function LetrecoPage() {
   const [overall, setOverall] = useState<OverallEntry[] | null>(null);
   const [stats, setStats] = useState<LetrecoStats | null>(null);
   const [shareLabel, setShareLabel] = useState("Compartilhar resultado");
+  // Palpite recusado que *parece* palavra → oferece adicionar ao dicionário
+  const [suggestable, setSuggestable] = useState<string | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Input oculto que abre o teclado nativo ao selecionar uma célula
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -402,7 +411,40 @@ export function LetrecoPage() {
     toastTimer.current = setTimeout(() => setToast(null), 1800);
   }, []);
 
+  // Mostra o botão "adicionar palavra" por alguns segundos e some sozinho.
+  const offerSuggestion = useCallback((word: string) => {
+    setSuggestable(word);
+    if (suggestTimer.current) clearTimeout(suggestTimer.current);
+    suggestTimer.current = setTimeout(() => setSuggestable(null), 6000);
+  }, []);
+
+  const clearSuggestion = useCallback(() => {
+    if (suggestTimer.current) clearTimeout(suggestTimer.current);
+    setSuggestable(null);
+  }, []);
+
   const keyStatuses = aggregateKeyStatuses(guesses, answer);
+
+  // Carrega palavras aprovadas pela turma e mescla ao dicionário de validação.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const words = await getApprovedWords();
+      if (active && words.length > 0) addRuntimeWords(words);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Limpa timers ao desmontar
+  useEffect(
+    () => () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      if (suggestTimer.current) clearTimeout(suggestTimer.current);
+    },
+    [],
+  );
 
   const loadResultData = useCallback(async () => {
     if (!user) return;
@@ -457,6 +499,9 @@ export function LetrecoPage() {
       setShake(true);
       flashToast("Palavra não está na lista");
       setTimeout(() => setShake(false), 450);
+      // Se o palpite parece uma palavra real, oferece adicioná-la ao dicionário
+      const candidate = normalize(word);
+      if (isPlausibleWord(candidate)) offerSuggestion(candidate);
       return;
     }
 
@@ -496,7 +541,31 @@ export function LetrecoPage() {
     gameDate,
     flashToast,
     loadResultData,
+    offerSuggestion,
   ]);
+
+  // Valida a palavra numa API pública e, existindo, grava no dicionário da turma.
+  const handleSuggestWord = useCallback(async () => {
+    if (!user || !suggestable || suggesting) return;
+    const word = suggestable;
+    setSuggesting(true);
+    const exists = await verifyWordInDictionary(word);
+    if (!exists) {
+      flashToast("Não encontrei essa palavra no dicionário 🤔");
+      setSuggesting(false);
+      clearSuggestion();
+      return;
+    }
+    const { error } = await suggestWord(user.id, word);
+    if (error) {
+      flashToast("Não consegui salvar agora 😕");
+    } else {
+      addRuntimeWords([word]);
+      flashToast("Palavra adicionada! Pode usar ✅");
+    }
+    setSuggesting(false);
+    clearSuggestion();
+  }, [user, suggestable, suggesting, flashToast, clearSuggestion]);
 
   const handleKey = useCallback(
     (k: string) => {
@@ -678,9 +747,14 @@ export function LetrecoPage() {
         </div>
       )}
 
-      {/* Input oculto: focado ao clicar numa célula, faz subir o teclado
-          nativo do aparelho. Fica fora da tela mas focável (não pode ser
-          display:none/hidden, senão não recebe foco). */}
+      {/* Input que abre o teclado nativo ao clicar numa célula.
+          IMPORTANTE: o WebView do Android só sobe o IME para um input
+          "de verdade" — focável e com área real. Por isso NÃO usamos
+          aria-hidden / tabIndex=-1 / pointer-events-none / tamanho 1px
+          (qualquer um deles faz o Chromium tratar o campo como invisível
+          e suprimir o teclado). Ele fica invisível por opacity-0 e atrás
+          do fundo da página (-z-10), sem atrapalhar o toque nas células;
+          fontSize 16px evita o zoom automático ao focar. */}
       <input
         ref={inputRef}
         defaultValue={INPUT_SENTINEL}
@@ -688,15 +762,14 @@ export function LetrecoPage() {
         onKeyDown={handleNativeKeyDown}
         onFocus={resetInput}
         readOnly={status !== "playing"}
-        aria-hidden="true"
-        tabIndex={-1}
         autoCapitalize="characters"
         autoComplete="off"
         autoCorrect="off"
         spellCheck={false}
         inputMode="text"
         enterKeyHint="enter"
-        className="absolute opacity-0 w-px h-px -z-10 left-1/2 top-1/2 pointer-events-none"
+        style={{ fontSize: 16, caretColor: "transparent" }}
+        className="absolute -z-10 opacity-0 left-0 top-0 w-40 h-12 border-0 bg-transparent"
       />
 
       {/* Jogo */}
@@ -710,6 +783,25 @@ export function LetrecoPage() {
           shake={shake}
           onCellClick={handleCellClick}
         />
+
+        {/* Palpite recusado que parece palavra → oferece adicionar ao dicionário */}
+        {status === "playing" && suggestable && (
+          <div className="flex items-center justify-center gap-2 -mt-2 anim-fade">
+            <span className="text-xs text-[var(--text-muted)]">
+              <span className="font-bold text-[var(--text-secondary)] tracking-widest">
+                {suggestable}
+              </span>{" "}
+              não está na lista
+            </span>
+            <button
+              onClick={handleSuggestWord}
+              disabled={suggesting}
+              className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[rgba(201,165,90,0.15)] text-[var(--gold)] border border-[rgba(201,165,90,0.35)] hover:bg-[rgba(201,165,90,0.25)] transition-all active:scale-95 disabled:opacity-60"
+            >
+              {suggesting ? "Verificando…" : "+ Adicionar palavra"}
+            </button>
+          </div>
+        )}
 
         {status === "playing" ? (
           <Keyboard

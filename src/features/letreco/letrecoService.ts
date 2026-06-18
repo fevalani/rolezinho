@@ -76,6 +76,75 @@ export async function saveGame(
 }
 
 // ══════════════════════════════════════════════════════════════
+// Palavras da comunidade
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Palavras aprovadas pela turma (ampliam só a validação de palpites, nunca
+ * o sorteio da palavra do dia). Carregadas no boot e mescladas via
+ * `addRuntimeWords`. Falha silenciosa: sem rede, o jogo segue com o
+ * dicionário base do `words.txt`.
+ */
+export async function getApprovedWords(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("letreco_suggested_words")
+    .select("word")
+    .eq("status", "approved");
+
+  if (error || !data) return [];
+  return data.map((d) => (d as { word: string }).word);
+}
+
+/**
+ * Verifica numa API pública de dicionário se a palavra realmente existe.
+ * Primária: Dicionário Aberto (pt-BR, grátis, sem chave). Timeout curto
+ * para não travar a UI. Retorna `true` só se houver acepção registrada.
+ */
+export async function verifyWordInDictionary(word: string): Promise<boolean> {
+  const term = word.trim().toLowerCase();
+  if (!term) return false;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const res = await fetch(
+      `https://api.dicionario-aberto.net/word/${encodeURIComponent(term)}`,
+      { signal: controller.signal },
+    );
+    if (!res.ok) return false;
+    const json = (await res.json()) as unknown;
+    // A API responde um array de acepções; vazio = palavra inexistente.
+    return Array.isArray(json) && json.length > 0;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Grava a palavra sugerida (já validada pela API) no banco. Idempotente:
+ * conflito com `unique(word)` é tratado como sucesso (já estava lá).
+ */
+export async function suggestWord(
+  userId: string,
+  word: string,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase.from("letreco_suggested_words").insert({
+    word,
+    status: "approved",
+    source: "dicionario-aberto",
+    added_by: userId,
+  });
+
+  // 23505 = unique_violation → palavra já existe, tudo certo.
+  if (error && error.code !== "23505") {
+    return { error: error.message };
+  }
+  return { error: null };
+}
+
+// ══════════════════════════════════════════════════════════════
 // Ranking do dia
 // ══════════════════════════════════════════════════════════════
 

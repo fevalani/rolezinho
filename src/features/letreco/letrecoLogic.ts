@@ -41,9 +41,72 @@ export const WORD_LIST: string[] = Array.from(
 
 const WORD_SET = new Set(WORD_LIST);
 
+/**
+ * Palavras extras aprovadas pela comunidade, carregadas do banco em runtime.
+ * Ampliam APENAS a validação de palpites — nunca o pool de respostas
+ * (a palavra do dia continua determinística só a partir de `words.txt`).
+ */
+const EXTRA_WORD_SET = new Set<string>();
+
+/** Mescla palavras aprovadas (vindas do banco) ao dicionário de validação. */
+export function addRuntimeWords(words: string[]): void {
+  for (const w of words) {
+    const n = normalize(w);
+    if (n.length === WORD_LENGTH) EXTRA_WORD_SET.add(n);
+  }
+}
+
 /** Valida se o palpite existe na lista de palavras permitidas */
 export function isValidWord(word: string): boolean {
-  return WORD_SET.has(normalize(word));
+  const n = normalize(word);
+  return WORD_SET.has(n) || EXTRA_WORD_SET.has(n);
+}
+
+// ─── Heurística "parece uma palavra" ────────────────────────────
+
+const VOWELS = new Set(["A", "E", "I", "O", "U"]);
+
+// Sequências óbvias de teclado — não são palavras, mas passariam nas
+// outras regras (têm vogais, sem letras repetidas).
+const KEYBOARD_RUNS = [
+  "QWERT", "WERTY", "ERTYU", "RTYUI", "TYUIO", "YUIOP",
+  "ASDFG", "SDFGH", "DFGHJ", "FGHJK", "GHJKL",
+  "ZXCVB", "XCVBN", "CVBNM",
+];
+
+/**
+ * Decide se um palpite recusado *parece* uma palavra de verdade — só então
+ * vale a pena oferecer o botão de "adicionar ao dicionário" e gastar uma
+ * chamada à API. Não precisa ser perfeita: filtra o lixo gritante (sequências
+ * aleatórias, teclas em fila, letras repetidas demais) e deixa a API ser a
+ * fonte de verdade final. Melhor pecar por tolerância do que esconder o botão
+ * numa palavra real.
+ */
+export function isPlausibleWord(word: string): boolean {
+  const w = normalize(word);
+  if (w.length !== WORD_LENGTH) return false;
+
+  // 1) precisa de pelo menos uma vogal
+  let vowels = 0;
+  for (const ch of w) if (VOWELS.has(ch)) vowels++;
+  if (vowels === 0) return false;
+
+  // 2) não pode ser quase tudo a mesma letra (ex.: AAAAB, AAABA)
+  const counts: Record<string, number> = {};
+  for (const ch of w) counts[ch] = (counts[ch] ?? 0) + 1;
+  if (Math.max(...Object.values(counts)) > 3) return false;
+
+  // 3) sem 3 letras idênticas seguidas (ex.: LLLAA)
+  if (/(.)\1\1/.test(w)) return false;
+
+  // 4) sem 3 consoantes idênticas... e sem 4 consoantes seguidas quaisquer
+  //    (clusters assim não existem em português: BCDFG, MNBVC)
+  if (/[^AEIOU]{4}/.test(w)) return false;
+
+  // 5) não pode ser uma fileira do teclado
+  if (KEYBOARD_RUNS.includes(w)) return false;
+
+  return true;
 }
 
 /** Pontos pelo nº da tentativa do acerto (1-indexed). Fora da faixa → 0. */

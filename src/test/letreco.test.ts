@@ -4,6 +4,8 @@ import {
   scoreGuess,
   pointsFor,
   isValidWord,
+  isPlausibleWord,
+  addRuntimeWords,
   getWordOfDay,
   buildShareText,
   WORD_LIST,
@@ -70,6 +72,40 @@ describe("WORD_LIST / isValidWord", () => {
     expect(isValidWord(WORD_LIST[0])).toBe(true);
     expect(isValidWord("ZZZZZ")).toBe(false);
     expect(isValidWord("abc")).toBe(false);
+  });
+});
+
+describe("isPlausibleWord", () => {
+  it("aceita palavras com cara de português", () => {
+    for (const w of ["PRATO", "LIVRO", "CAIXA", "ABACO", "FELIZ"]) {
+      expect(isPlausibleWord(w)).toBe(true);
+    }
+  });
+  it("rejeita sequências aleatórias / sem vogal", () => {
+    for (const w of ["QWERT", "ASDFG", "ZXCVB", "BCDFG", "BRTML"]) {
+      expect(isPlausibleWord(w)).toBe(false);
+    }
+  });
+  it("rejeita letra repetida demais", () => {
+    expect(isPlausibleWord("AAAAA")).toBe(false);
+    expect(isPlausibleWord("AAAAB")).toBe(false);
+    expect(isPlausibleWord("LLLAA")).toBe(false);
+  });
+  it("rejeita tamanho diferente de 5", () => {
+    expect(isPlausibleWord("CASA")).toBe(false);
+    expect(isPlausibleWord("CADEIRA")).toBe(false);
+  });
+});
+
+describe("addRuntimeWords", () => {
+  it("amplia a validação sem afetar o pool de respostas", () => {
+    const novel = "XPTOZ"; // não está no words.txt
+    expect(isValidWord(novel)).toBe(false);
+    addRuntimeWords([novel, "ab", "TOOLONGWORD"]); // só a de 5 letras entra
+    expect(isValidWord(novel)).toBe(true);
+    expect(isValidWord(novel.toLowerCase())).toBe(true);
+    // não vira resposta do dia (pool continua só o words.txt)
+    expect(WORD_LIST).not.toContain(novel);
   });
 });
 
