@@ -3,19 +3,20 @@
 // ═══════════════════════════════════════════
 
 import wordsRaw from "./words.txt?raw";
+import dictionaryRaw from "./dictionary.txt?raw";
 import type { LetterStatus } from "./letrecoTypes";
 
 /** Tamanho da palavra (padrão do gênero) */
 export const WORD_LENGTH = 5;
 
 /** Tentativas por jogador por dia */
-export const MAX_ATTEMPTS = 5;
+export const MAX_ATTEMPTS = 6;
 
 /**
  * Pontuação por nº da tentativa do acerto (índice 0 = acertou de primeira).
  * Fica num único lugar para ajuste fácil.
  */
-export const SCORE_BY_ATTEMPT = [100, 70, 50, 30, 15] as const;
+export const SCORE_BY_ATTEMPT = [100, 70, 50, 30, 15, 5] as const;
 
 /** Remove acentos e coloca em maiúsculas: "AÇÃO" → "ACAO" */
 export function normalize(word: string): string {
@@ -39,12 +40,22 @@ export const WORD_LIST: string[] = Array.from(
   ),
 );
 
-const WORD_SET = new Set(WORD_LIST);
+/**
+ * Dicionário de VALIDAÇÃO de palpites — bem mais amplo que o pool de
+ * respostas. Inclui `words.txt` + uma lista grande importada do dicionário
+ * pt_BR do LibreOffice/Hunspell (via pythonprobr/palavras), filtrada para
+ * palavras de 5 letras. Serve só para aceitar/rejeitar palpites; a palavra
+ * do dia continua vindo exclusivamente de `WORD_LIST` (ver `getWordOfDay`).
+ */
+const DICTIONARY_SET = new Set(WORD_LIST);
+for (const w of dictionaryRaw.split(/\r?\n/)) {
+  const n = normalize(w);
+  if (n.length === WORD_LENGTH) DICTIONARY_SET.add(n);
+}
 
 /**
  * Palavras extras aprovadas pela comunidade, carregadas do banco em runtime.
- * Ampliam APENAS a validação de palpites — nunca o pool de respostas
- * (a palavra do dia continua determinística só a partir de `words.txt`).
+ * Cobre o que ainda faltar no dicionário grande acima.
  */
 const EXTRA_WORD_SET = new Set<string>();
 
@@ -59,7 +70,7 @@ export function addRuntimeWords(words: string[]): void {
 /** Valida se o palpite existe na lista de palavras permitidas */
 export function isValidWord(word: string): boolean {
   const n = normalize(word);
-  return WORD_SET.has(n) || EXTRA_WORD_SET.has(n);
+  return DICTIONARY_SET.has(n) || EXTRA_WORD_SET.has(n);
 }
 
 // ─── Heurística "parece uma palavra" ────────────────────────────

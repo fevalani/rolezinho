@@ -54,12 +54,12 @@ describe("scoreGuess", () => {
 describe("pointsFor", () => {
   it("dá mais pontos quanto antes acerta", () => {
     expect(pointsFor(1)).toBe(SCORE_BY_ATTEMPT[0]);
-    expect(pointsFor(5)).toBe(SCORE_BY_ATTEMPT[4]);
-    expect(pointsFor(1)).toBeGreaterThan(pointsFor(5));
+    expect(pointsFor(6)).toBe(SCORE_BY_ATTEMPT[5]);
+    expect(pointsFor(1)).toBeGreaterThan(pointsFor(6));
   });
   it("retorna 0 fora da faixa", () => {
     expect(pointsFor(0)).toBe(0);
-    expect(pointsFor(6)).toBe(0);
+    expect(pointsFor(7)).toBe(0);
   });
 });
 
@@ -128,7 +128,7 @@ describe("buildShareText", () => {
   it("gera grade em emojis sem revelar a palavra", () => {
     const answer = "AMORA";
     const text = buildShareText(["AMIGO", "AMORA"], answer, true, "2026-06-17");
-    expect(text).toContain("2/5");
+    expect(text).toContain("2/6");
     expect(text).toContain("🟩");
     expect(text).not.toContain(answer);
   });
