@@ -14,6 +14,7 @@ import {
 // ══════════════════════════════════════════════════════════════
 
 export type { ChampionshipCode };
+export { toRoundLabel };
 
 // ── Modelos de pontuação ─────────────────────────────────────
 export type PresetScoringModel = "classic" | "extended" | "simplified";
@@ -30,6 +31,13 @@ export const VARIATION_MODES: Record<VariationMode, string> = {
   round: "Por rodada",
   match: "Por partida",
 };
+
+// ── Multiplicador de pontos por fase eliminatória (mata-mata) ─
+// Chave = stage (ex: "ROUND_OF_32", "QUARTER_FINALS"). Fase ausente = 1x (sem alteração).
+// Cada campeonato tem seu próprio conjunto de fases eliminatórias (ex: a Copa
+// do Mundo 2026 começa nas dezesseis-avos, outros campeonatos podem começar
+// direto nas oitavas), por isso o multiplicador é livre por fase, não fixo.
+export type StageMultipliers = Partial<Record<string, number>>;
 
 // Configuração de pontos do modelo personalizado.
 // Cada chave corresponde a uma categoria de acerto.
@@ -164,6 +172,7 @@ export interface BolaoPool {
   scoring_model: ScoringModel;
   scoring_config: CustomScoringConfig | null;
   variation_mode: VariationMode;
+  stage_multipliers: StageMultipliers;
 }
 
 export interface BolaoPoolMember {
@@ -450,6 +459,7 @@ export async function fetchAllPools(userId: string): Promise<BolaoPool[]> {
       scoring_model: (p.scoring_model ?? "classic") as ScoringModel,
       scoring_config: (p.scoring_config ?? null) as CustomScoringConfig | null,
       variation_mode: (p.variation_mode ?? "off") as VariationMode,
+      stage_multipliers: (p.stage_multipliers ?? {}) as StageMultipliers,
     };
   });
 }
@@ -480,6 +490,7 @@ export async function fetchPoolById(
     scoring_model: (data.scoring_model ?? "classic") as ScoringModel,
     scoring_config: (data.scoring_config ?? null) as CustomScoringConfig | null,
     variation_mode: (data.variation_mode ?? "off") as VariationMode,
+    stage_multipliers: (data.stage_multipliers ?? {}) as StageMultipliers,
   };
 }
 
@@ -997,6 +1008,44 @@ export async function updatePoolVariationMode(
     p_variation_mode: mode,
   });
   return { error: error?.message ?? null };
+}
+
+// Fases eliminatórias que de fato existem entre as partidas do campeonato,
+// na ordem de KNOCKOUT_STAGE_ORDER. Cada campeonato pode começar em uma fase
+// diferente (ex: Copa do Mundo 2026 começa nas dezesseis-avos, outros
+// campeonatos podem começar direto nas oitavas ou nas quartas).
+export async function fetchKnockoutStages(
+  championshipId: string,
+): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("bolao_matches")
+    .select("stage")
+    .eq("championship_id", championshipId)
+    .in("stage", KNOCKOUT_STAGE_ORDER);
+
+  if (error || !data) return [];
+
+  const stages = new Set(data.map((m) => m.stage as string));
+  return KNOCKOUT_STAGE_ORDER.filter((s) => stages.has(s));
+}
+
+export async function updatePoolStageMultipliers(
+  poolId: string,
+  multipliers: StageMultipliers,
+): Promise<{ error: string | null }> {
+  const { error: rpcErr } = await supabase.rpc("update_pool_stage_multipliers", {
+    p_pool_id: poolId,
+    p_stage_multipliers: multipliers,
+  });
+  if (rpcErr) return { error: rpcErr.message };
+
+  const { error: resetErr } = await supabase.rpc("reset_pool_scores", {
+    p_pool_id: poolId,
+  });
+  if (resetErr) return { error: resetErr.message };
+
+  const { error: calcErr } = await recalculateAllPoints(poolId);
+  return { error: calcErr };
 }
 
 async function scoreMatchPredictions(

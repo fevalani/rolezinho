@@ -16,17 +16,21 @@ import {
   recalculateAllPoints,
   updatePoolScoringModel,
   updatePoolVariationMode,
+  fetchKnockoutStages,
+  updatePoolStageMultipliers,
   computePositionVariations,
   leavePool,
   SCORING_MODELS,
   VARIATION_MODES,
   getScoringDisplay,
+  toRoundLabel,
   CUSTOM_SCORING_CATEGORIES,
   DEFAULT_CUSTOM_CONFIG,
   type ScoringModel,
   type PresetScoringModel,
   type VariationMode,
   type CustomScoringConfig,
+  type StageMultipliers,
   type BolaoPool,
   type RoundGroup,
   type MatchWithPrediction,
@@ -726,6 +730,10 @@ export function BolaoDetailPage() {
   const [adminVariationMode, setAdminVariationMode] =
     useState<VariationMode>("off");
   const [changingVariation, setChangingVariation] = useState(false);
+  const [adminStageMultipliers, setAdminStageMultipliers] =
+    useState<StageMultipliers>({});
+  const [knockoutStages, setKnockoutStages] = useState<string[]>([]);
+  const [changingMultipliers, setChangingMultipliers] = useState(false);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -737,6 +745,11 @@ export function BolaoDetailPage() {
   >({});
 
   const isAdmin = user?.email === "valanife@gmail.com";
+  const isCreator = !!user && !!pool && user.id === pool.created_by;
+  // Criador do bolão pode configurar pontuação (modelo, variação, multiplicador
+  // de mata-mata), mas não tem acesso a edição manual de placar, importação de
+  // dados via API nem recálculo manual de pontos — isso fica restrito ao admin.
+  const canManageScoring = isAdmin || isCreator;
 
   // ── Cache + revalidação (stale-while-revalidate) ──
   const cacheKey = poolId && user ? `bolao:${poolId}:${user.id}` : null;
@@ -809,6 +822,7 @@ export function BolaoDetailPage() {
         setAdminScoringModel(snap.pool.scoring_model);
         setAdminCustomConfig(snap.pool.scoring_config ?? DEFAULT_CUSTOM_CONFIG);
         setAdminVariationMode(snap.pool.variation_mode);
+        setAdminStageMultipliers(snap.pool.stage_multipliers ?? {});
       }
       if (autoSelectRound && !userPickedRoundRef.current) {
         setSelectedRoundIdx(computeCurrentRoundIdx(rounds));
@@ -953,6 +967,13 @@ export function BolaoDetailPage() {
     if (!poolId || allMatches.length === 0) return;
     scheduleBolaoReminders(poolId, allMatches);
   }, [poolId, allMatches]);
+
+  // Fases eliminatórias que existem de fato no campeonato deste bolão (cada
+  // campeonato pode começar em uma fase diferente).
+  useEffect(() => {
+    if (!pool?.championship_id) return;
+    fetchKnockoutStages(pool.championship_id).then(setKnockoutStages);
+  }, [pool?.championship_id]);
 
   const handleSync = async () => {
     if (!poolId || syncing) return;
@@ -1100,6 +1121,35 @@ export function BolaoDetailPage() {
     setAdminCustomConfig((prev) => ({ ...prev, [key]: value }));
   };
 
+  const handleStageMultiplierChange = (stage: string, value: number) => {
+    setAdminStageMultipliers((prev) => ({ ...prev, [stage]: value }));
+  };
+
+  // Há alterações pendentes nos multiplicadores de fase eliminatória?
+  const multipliersDirty = (() => {
+    if (!pool) return false;
+    const saved = pool.stage_multipliers ?? {};
+    return knockoutStages.some(
+      (stage) => (saved[stage] ?? 1) !== (adminStageMultipliers[stage] ?? 1),
+    );
+  })();
+
+  const handleMultipliersChange = async () => {
+    if (!poolId || changingMultipliers) return;
+    setChangingMultipliers(true);
+    const { error } = await updatePoolStageMultipliers(
+      poolId,
+      adminStageMultipliers,
+    );
+    setChangingMultipliers(false);
+    if (error) {
+      showToast(`Erro: ${error}`);
+    } else {
+      revalidate();
+      showToast("Multiplicadores de fase salvos e pontos recalculados ✓");
+    }
+  };
+
   const handlePredictionChange = useCallback(
     (matchId: string, home: number, away: number) => {
       setPendingPredictions((prev) => ({ ...prev, [matchId]: { home, away } }));
@@ -1226,7 +1276,7 @@ export function BolaoDetailPage() {
             ["palpites", "Palpites"],
             ["classificacao", "Classificação"],
             ["info", "Info"],
-            ...(isAdmin ? [["admin", "Admin"]] : []),
+            ...(canManageScoring ? [["admin", "Admin"]] : []),
           ] as [Tab, string][]
         ).map(([tab, label]) => (
           <button
@@ -1485,112 +1535,116 @@ export function BolaoDetailPage() {
       )}
 
       {/* ── Admin ── */}
-      {activeTab === "admin" && isAdmin && (
+      {activeTab === "admin" && canManageScoring && (
         <div className="px-4 mt-3 flex flex-col gap-4">
-          {/* Partidas */}
-          <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex flex-col gap-1">
-            <p className="text-xs text-[var(--text-muted)] font-medium uppercase tracking-wide mb-2">
-              Partidas
-            </p>
+          {isAdmin && (
+            <>
+              {/* Partidas */}
+              <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex flex-col gap-1">
+                <p className="text-xs text-[var(--text-muted)] font-medium uppercase tracking-wide mb-2">
+                  Partidas
+                </p>
 
-            <button
-              onClick={handleForcePopulate}
-              disabled={populating}
-              className="flex items-center gap-3 px-3 py-3 rounded-xl border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.02)] transition-all disabled:opacity-50 text-left"
-            >
-              <span className="text-lg shrink-0">
-                {populating ? (
-                  <span className="spinner" style={{ width: 18, height: 18 }} />
-                ) : (
-                  "⬇️"
-                )}
-              </span>
-              <div className="flex flex-col min-w-0">
-                <span className="text-sm font-medium text-[var(--text-primary)]">
-                  Importar da API
-                </span>
-                <span className="text-xs text-[var(--text-muted)]">
-                  Busca todas as partidas do campeonato e preserva rodadas já
-                  inseridas
-                </span>
+                <button
+                  onClick={handleForcePopulate}
+                  disabled={populating}
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.02)] transition-all disabled:opacity-50 text-left"
+                >
+                  <span className="text-lg shrink-0">
+                    {populating ? (
+                      <span className="spinner" style={{ width: 18, height: 18 }} />
+                    ) : (
+                      "⬇️"
+                    )}
+                  </span>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium text-[var(--text-primary)]">
+                      Importar da API
+                    </span>
+                    <span className="text-xs text-[var(--text-muted)]">
+                      Busca todas as partidas do campeonato e preserva rodadas já
+                      inseridas
+                    </span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={handleSyncSchedule}
+                  disabled={syncingSchedule}
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.02)] transition-all disabled:opacity-50 text-left"
+                >
+                  <span className="text-lg shrink-0">
+                    {syncingSchedule ? (
+                      <span className="spinner" style={{ width: 18, height: 18 }} />
+                    ) : (
+                      "📅"
+                    )}
+                  </span>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium text-[var(--text-primary)]">
+                      Atualizar horários
+                    </span>
+                    <span className="text-xs text-[var(--text-muted)]">
+                      Atualiza datas e status das partidas ainda não finalizadas
+                    </span>
+                  </div>
+                </button>
               </div>
-            </button>
 
-            <button
-              onClick={handleSyncSchedule}
-              disabled={syncingSchedule}
-              className="flex items-center gap-3 px-3 py-3 rounded-xl border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.02)] transition-all disabled:opacity-50 text-left"
-            >
-              <span className="text-lg shrink-0">
-                {syncingSchedule ? (
-                  <span className="spinner" style={{ width: 18, height: 18 }} />
-                ) : (
-                  "📅"
-                )}
-              </span>
-              <div className="flex flex-col min-w-0">
-                <span className="text-sm font-medium text-[var(--text-primary)]">
-                  Atualizar horários
-                </span>
-                <span className="text-xs text-[var(--text-muted)]">
-                  Atualiza datas e status das partidas ainda não finalizadas
-                </span>
+              {/* Pontuação */}
+              <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex flex-col gap-1">
+                <p className="text-xs text-[var(--text-muted)] font-medium uppercase tracking-wide mb-2">
+                  Pontuação
+                </p>
+
+                <button
+                  onClick={handleSync}
+                  disabled={syncing}
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.02)] transition-all disabled:opacity-50 text-left"
+                >
+                  <span className="text-lg shrink-0">
+                    {syncing ? (
+                      <span className="spinner" style={{ width: 18, height: 18 }} />
+                    ) : (
+                      "🔄"
+                    )}
+                  </span>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium text-[var(--text-primary)]">
+                      Sincronizar resultados
+                    </span>
+                    <span className="text-xs text-[var(--text-muted)]">
+                      Busca resultados finais via API e calcula pontos
+                      automaticamente
+                    </span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={handleRecalculate}
+                  disabled={recalculating}
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.02)] transition-all disabled:opacity-50 text-left"
+                >
+                  <span className="text-lg shrink-0">
+                    {recalculating ? (
+                      <span className="spinner" style={{ width: 18, height: 18 }} />
+                    ) : (
+                      "♻️"
+                    )}
+                  </span>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium text-[var(--text-primary)]">
+                      Recalcular pontos
+                    </span>
+                    <span className="text-xs text-[var(--text-muted)]">
+                      Força recálculo de pontos para todas as partidas com resultado
+                      registrado
+                    </span>
+                  </div>
+                </button>
               </div>
-            </button>
-          </div>
-
-          {/* Pontuação */}
-          <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex flex-col gap-1">
-            <p className="text-xs text-[var(--text-muted)] font-medium uppercase tracking-wide mb-2">
-              Pontuação
-            </p>
-
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              className="flex items-center gap-3 px-3 py-3 rounded-xl border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.02)] transition-all disabled:opacity-50 text-left"
-            >
-              <span className="text-lg shrink-0">
-                {syncing ? (
-                  <span className="spinner" style={{ width: 18, height: 18 }} />
-                ) : (
-                  "🔄"
-                )}
-              </span>
-              <div className="flex flex-col min-w-0">
-                <span className="text-sm font-medium text-[var(--text-primary)]">
-                  Sincronizar resultados
-                </span>
-                <span className="text-xs text-[var(--text-muted)]">
-                  Busca resultados finais via API e calcula pontos
-                  automaticamente
-                </span>
-              </div>
-            </button>
-
-            <button
-              onClick={handleRecalculate}
-              disabled={recalculating}
-              className="flex items-center gap-3 px-3 py-3 rounded-xl border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.02)] transition-all disabled:opacity-50 text-left"
-            >
-              <span className="text-lg shrink-0">
-                {recalculating ? (
-                  <span className="spinner" style={{ width: 18, height: 18 }} />
-                ) : (
-                  "♻️"
-                )}
-              </span>
-              <div className="flex flex-col min-w-0">
-                <span className="text-sm font-medium text-[var(--text-primary)]">
-                  Recalcular pontos
-                </span>
-                <span className="text-xs text-[var(--text-muted)]">
-                  Força recálculo de pontos para todas as partidas com resultado
-                  registrado
-                </span>
-              </div>
-            </button>
-          </div>
+            </>
+          )}
 
           {/* Modelo de pontuação */}
           <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex flex-col gap-3">
@@ -1767,10 +1821,86 @@ export function BolaoDetailPage() {
             </button>
           </div>
 
-          <p className="text-[0.65rem] text-[var(--text-muted)] text-center px-2">
-            Para editar o resultado de um jogo manualmente, acesse a aba
-            Palpites e toque em ✏️ no card da partida.
-          </p>
+          {/* Multiplicador por fase eliminatória */}
+          <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex flex-col gap-3">
+            <div>
+              <p className="text-xs text-[var(--text-muted)] font-medium uppercase tracking-wide">
+                Multiplicador de Mata-Mata
+              </p>
+              <p className="text-[0.65rem] text-[var(--text-muted)] mt-0.5">
+                Multiplica os pontos ganhos em cada fase eliminatória. Fases
+                sem multiplicador definido valem 1x (sem alteração). Cada
+                campeonato tem suas próprias fases — a Copa do Mundo, por
+                exemplo, começa nas dezesseis-avos de final.
+              </p>
+            </div>
+
+            {knockoutStages.length === 0 ? (
+              <p className="text-xs text-[var(--text-muted)]">
+                Este campeonato ainda não tem fases eliminatórias cadastradas.
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-col gap-1.5">
+                  {knockoutStages.map((stage) => (
+                    <div key={stage} className="flex items-center gap-2">
+                      <span className="flex-1 text-xs text-[var(--text-primary)]">
+                        {toRoundLabel(stage, null)}
+                      </span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.5"
+                        min="0"
+                        value={adminStageMultipliers[stage] ?? 1}
+                        onChange={(e) =>
+                          handleStageMultiplierChange(
+                            stage,
+                            e.target.value === ""
+                              ? 1
+                              : parseFloat(e.target.value) || 0,
+                          )
+                        }
+                        className="w-16 shrink-0 text-center text-sm font-bold text-[var(--gold)] bg-[var(--bg-elevated)] border border-[rgba(255,255,255,0.08)] rounded-lg px-2 py-1.5 focus:outline-none focus:border-[rgba(201,165,90,0.5)]"
+                      />
+                      <span className="text-xs text-[var(--text-muted)] shrink-0">
+                        x
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {multipliersDirty && (
+                  <p className="text-[0.65rem] text-orange-400 bg-[rgba(251,146,60,0.08)] border border-[rgba(251,146,60,0.2)] rounded-lg px-3 py-2">
+                    Ao salvar, as pontuações dos jogos eliminatórios serão
+                    recalculadas.
+                  </p>
+                )}
+
+                <button
+                  onClick={handleMultipliersChange}
+                  disabled={changingMultipliers || !multipliersDirty}
+                  className="w-full py-3 rounded-xl font-semibold text-sm bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] hover:bg-[rgba(201,165,90,0.2)] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                >
+                  {changingMultipliers ? (
+                    <>
+                      <span className="spinner" style={{ width: 14, height: 14 }} />
+                      Recalculando…
+                    </>
+                  ) : (
+                    "Salvar multiplicadores"
+                  )}
+                </button>
+              </>
+            )}
+          </div>
+
+          {isAdmin && (
+            <p className="text-[0.65rem] text-[var(--text-muted)] text-center px-2">
+              Para editar o resultado de um jogo manualmente, acesse a aba
+              Palpites e toque em ✏️ no card da partida.
+            </p>
+          )}
         </div>
       )}
 

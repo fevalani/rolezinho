@@ -123,6 +123,7 @@ async function sofaFetch(path: string): Promise<SimpleResponse> {
 // Mapeamento de stages para português
 const STAGE_LABELS: Record<string, string> = {
   GROUP_STAGE: "Fase de Grupos",
+  ROUND_OF_32: "Dezesseis-avos de Final",
   ROUND_OF_16: "Oitavas de Final",
   QUARTER_FINALS: "Quartas de Final",
   SEMI_FINALS: "Semifinal",
