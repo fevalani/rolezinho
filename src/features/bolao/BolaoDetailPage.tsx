@@ -44,6 +44,14 @@ import {
 
 type Tab = "palpites" | "classificacao" | "info" | "admin";
 
+interface ParticipantPrediction {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  pred_home: number;
+  pred_away: number;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────
 
 function formatDate(utcDate: string): string {
@@ -84,12 +92,16 @@ function MatchCard({
   onPredictionChange,
   isAdmin,
   onAdminEditResult,
+  otherPredictions,
+  currentUserId,
 }: {
   match: MatchWithPrediction;
   pending?: { home: number; away: number };
   onPredictionChange: (matchId: string, home: number, away: number) => void;
   isAdmin?: boolean;
   onAdminEditResult?: (matchId: string, home: number, away: number) => void;
+  otherPredictions?: ParticipantPrediction[];
+  currentUserId?: string;
 }) {
   const [homeGoals, setHomeGoals] = useState<string>(
     pending !== undefined
@@ -109,9 +121,13 @@ function MatchCard({
   const [adminEditing, setAdminEditing] = useState(false);
   const [adminHome, setAdminHome] = useState(String(match.score_home ?? ""));
   const [adminAway, setAdminAway] = useState(String(match.score_away ?? ""));
+  const [showParticipants, setShowParticipants] = useState(false);
 
   const isFinished = match.status === "FINISHED";
   const hasResult = match.score_home !== null && match.score_away !== null;
+  // Palpites travados mas resultado ainda não fechado = partida ao vivo (ou
+  // a poucos instantes do início) — é quando vale espiar o palpite dos outros.
+  const isLive = match.is_locked && !isFinished;
 
   const handleAdminSave = () => {
     const h = parseInt(adminHome);
@@ -404,6 +420,57 @@ function MatchCard({
           <span className="text-[var(--text-primary)] font-medium">
             {match.my_prediction.home_goals} × {match.my_prediction.away_goals}
           </span>
+        </div>
+      )}
+
+      {/* Palpites dos participantes (partida ao vivo / já travada) */}
+      {isLive && (
+        <div className="mt-2 pt-2 border-t border-[rgba(255,255,255,0.04)]">
+          <button
+            onClick={() => setShowParticipants((v) => !v)}
+            className="w-full flex items-center justify-between gap-1.5 text-[0.65rem] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+          >
+            <span>
+              👥 Palpites dos participantes
+              {otherPredictions && otherPredictions.length > 0
+                ? ` (${otherPredictions.length})`
+                : ""}
+            </span>
+            <span
+              className={`shrink-0 transition-transform duration-200 ${
+                showParticipants ? "rotate-180" : ""
+              }`}
+            >
+              ▾
+            </span>
+          </button>
+
+          {showParticipants && (
+            <div className="mt-2 flex flex-col gap-1.5">
+              {!otherPredictions || otherPredictions.length === 0 ? (
+                <p className="text-[0.65rem] text-[var(--text-muted)] text-center py-1">
+                  Nenhum palpite registrado
+                </p>
+              ) : (
+                otherPredictions.map((p) => (
+                  <div key={p.user_id} className="flex items-center gap-2">
+                    <Avatar url={p.avatar_url} name={p.display_name} size="xs" />
+                    <span className="flex-1 text-[0.65rem] text-[var(--text-primary)] truncate">
+                      {p.display_name}
+                      {p.user_id === currentUserId && (
+                        <span className="ml-1 text-[var(--text-muted)]">
+                          (você)
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-[0.7rem] font-semibold text-[var(--text-primary)] tabular-nums shrink-0">
+                      {p.pred_home}–{p.pred_away}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -952,6 +1019,28 @@ export function BolaoDetailPage() {
   // Agenda notificações 1h antes de partidas sem palpite
   const allMatches = useMemo(() => rounds.flatMap((r) => r.matches), [rounds]);
 
+  // Palpites de todos os participantes agrupados por partida — usado para
+  // exibir "palpites dos participantes" nas partidas já encerradas (ao vivo).
+  const predictionsByMatch = useMemo(() => {
+    const map = new Map<string, ParticipantPrediction[]>();
+    const profileByUserId = new Map(members.map((m) => [m.user_id, m.profile]));
+    for (const [userId, preds] of allUserPredictions) {
+      const profile = profileByUserId.get(userId);
+      if (!profile) continue;
+      for (const p of preds) {
+        if (!map.has(p.match_id)) map.set(p.match_id, []);
+        map.get(p.match_id)!.push({
+          user_id: userId,
+          display_name: profile.display_name,
+          avatar_url: profile.avatar_url,
+          pred_home: p.pred_home,
+          pred_away: p.pred_away,
+        });
+      }
+    }
+    return map;
+  }, [allUserPredictions, members]);
+
   // Variação de posição na classificação geral (só quando habilitada no bolão)
   const positionVariations = useMemo(
     () =>
@@ -1335,6 +1424,8 @@ export function BolaoDetailPage() {
                         onPredictionChange={handlePredictionChange}
                         isAdmin={isAdmin}
                         onAdminEditResult={handleAdminEditResult}
+                        otherPredictions={predictionsByMatch.get(match.id)}
+                        currentUserId={user?.id}
                       />
                     );
                     const sectionLabel = (text: string) => (
