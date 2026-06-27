@@ -8,6 +8,12 @@
   }
 }
 
+@utility chart-scroll-inner {
+  @media (max-width: 767px) {
+    min-width: var(--chart-min-width, 300px);
+  }
+}
+
 :root {
   --bg-abyss: #05050a;
   --bg-deep: #08080f;

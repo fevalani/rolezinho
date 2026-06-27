@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { type CSSProperties, useMemo, useRef, useState } from "react";
 import {
   LineChart,
   Line,
@@ -216,6 +216,14 @@ export function BolaoStatsTab({
   currentUserId,
 }: Props) {
   const [hiddenLines, setHiddenLines] = useState<Set<string>>(new Set());
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleChartScroll = () => {
+    setIsScrolling(true);
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    scrollTimerRef.current = setTimeout(() => setIsScrolling(false), 200);
+  };
 
   const positionData = useMemo(
     () => computePositionEvolution(allUserPredictions, members),
@@ -297,38 +305,65 @@ export function BolaoStatsTab({
               })}
             </div>
 
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={positionData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                <XAxis
-                  dataKey="matchIdx"
-                  tick={{ fontSize: 9, fill: "var(--text-muted)" }}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  reversed
-                  domain={[1, members.length]}
-                  ticks={Array.from({ length: members.length }, (_, i) => i + 1)}
-                  tick={{ fontSize: 9, fill: "var(--text-muted)" }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v) => `${v}º`}
-                />
-                <Tooltip content={<EvolutionTooltip members={members} />} />
-                {members.map((m, i) => (
-                  <Line
-                    key={m.user_id}
-                    type="monotone"
-                    dataKey={m.user_id}
-                    stroke={LINE_COLORS[i % LINE_COLORS.length]}
-                    strokeWidth={hiddenLines.has(m.user_id) ? 0 : 2}
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                    connectNulls
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
+            <div className="flex">
+              {/* Eixo Y fixo — não scrollável */}
+              <div className="shrink-0" style={{ width: 20 }}>
+                <ResponsiveContainer width="100%" height={200}>
+                  <LineChart data={positionData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+                    <XAxis dataKey="matchIdx" hide />
+                    <YAxis
+                      reversed
+                      domain={[1, members.length]}
+                      ticks={Array.from({ length: members.length }, (_, i) => i + 1)}
+                      width={20}
+                      tick={{ fontSize: 8, fill: "var(--text-muted)" }}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(v) => `${v}º`}
+                    />
+                    {members[0] && (
+                      <Line dataKey={members[0].user_id} strokeWidth={0} dot={false} />
+                    )}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Dados scrolláveis */}
+              <div
+                className="overflow-x-auto scrollbar-none flex-1"
+                onScroll={handleChartScroll}
+              >
+                <div
+                  className="chart-scroll-inner"
+                  style={{ '--chart-min-width': `${Math.max(280, positionData.length * 24)}px` } as CSSProperties}
+                >
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={positionData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                      <XAxis
+                        dataKey="matchIdx"
+                        tick={{ fontSize: 9, fill: "var(--text-muted)" }}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis hide reversed domain={[1, members.length]} />
+                      {!isScrolling && <Tooltip content={<EvolutionTooltip members={members} />} />}
+                      {members.map((m, i) => (
+                        <Line
+                          key={m.user_id}
+                          type="monotone"
+                          dataKey={m.user_id}
+                          stroke={LINE_COLORS[i % LINE_COLORS.length]}
+                          strokeWidth={hiddenLines.has(m.user_id) ? 0 : 2}
+                          dot={false}
+                          activeDot={{ r: 4 }}
+                          connectNulls
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
 
             <p className="text-[0.6rem] text-[var(--text-muted)] text-center mt-1">
               Toque na legenda para isolar um participante

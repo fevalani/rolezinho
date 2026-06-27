@@ -1,41 +1,49 @@
 import wordsRaw from "./words_letroso.txt?raw";
+import dictionaryRaw from "./dictionary.txt?raw";
 import { normalize } from "./letrecoLogic";
 import type { LetrosoTileStatus } from "./letrosoTypes";
 
 export { normalize };
 
-export const MAX_LETROSO_ATTEMPTS = 6;
-
-// Pontuação 2× Letreco
-export const LETROSO_SCORE_BY_ATTEMPT = [200, 140, 100, 60, 30, 10] as const;
+// ─── Pontuação sem limite de tentativas ─────────────────────────────
 
 export function letrosoPointsFor(attempt: number): number {
-  return LETROSO_SCORE_BY_ATTEMPT[attempt - 1] ?? 0;
+  if (attempt <= 1) return 200;
+  if (attempt === 2) return 160;
+  if (attempt === 3) return 120;
+  if (attempt === 4) return 90;
+  if (attempt === 5) return 60;
+  if (attempt === 6) return 40;
+  return Math.max(10, 40 - (attempt - 6) * 5);
 }
 
-// ─── Lista de palavras ───────────────────────────────────────────
+// ─── Pool de respostas (words_letroso.txt) ───────────────────────────
 
 export const LETROSO_WORDS: string[] = Array.from(
   new Set(
     wordsRaw
       .split(/\r?\n/)
       .map((w) => normalize(w))
-      .filter((w) => w.length >= 6 && w.length <= 10),
+      .filter((w) => w.length >= 5 && w.length <= 10),
   ),
 );
 
-// Conjunto para validação rápida (por tamanho)
-const LETROSO_BY_LENGTH = new Map<number, Set<string>>();
-for (const w of LETROSO_WORDS) {
-  if (!LETROSO_BY_LENGTH.has(w.length)) LETROSO_BY_LENGTH.set(w.length, new Set());
-  LETROSO_BY_LENGTH.get(w.length)!.add(w);
+// ─── Dicionário de validação de palpites ─────────────────────────────
+// Aceita qualquer palavra do pool de respostas + dictionary.txt (5-10 letras)
+
+const VALID_GUESSES = new Set<string>();
+for (const w of LETROSO_WORDS) VALID_GUESSES.add(w);
+for (const line of dictionaryRaw.split(/\r?\n/)) {
+  const w = normalize(line);
+  if (w.length >= 5 && w.length <= 10) VALID_GUESSES.add(w);
 }
 
-export function isValidLetrosoWord(word: string, length: number): boolean {
-  return LETROSO_BY_LENGTH.get(length)?.has(normalize(word)) ?? false;
+export function isValidLetrosoWord(word: string): boolean {
+  const w = normalize(word);
+  return w.length >= 5 && w.length <= 10 && VALID_GUESSES.has(w);
 }
 
-// ─── Palavra do dia ──────────────────────────────────────────────
+// ─── Palavra do dia ──────────────────────────────────────────────────
 
 function mulberry32(seed: number): () => number {
   let t = seed >>> 0;
@@ -81,7 +89,7 @@ export function getLetrosoWordOfDay(date: Date = new Date()): string {
   return LETROSO_WORDS[idx];
 }
 
-// ─── Scoring com agrupamento visual ─────────────────────────────
+// ─── Scoring com agrupamento visual ─────────────────────────────────
 
 function scoreWordle(guess: string, answer: string): ("correct" | "present" | "absent")[] {
   const g = normalize(guess);
@@ -125,7 +133,6 @@ export function scoreLetrosoGuess(guess: string, answer: string): LetrosoTileSta
     s === "present" ? "present" : s === "absent" ? "absent" : ("solo" as LetrosoTileStatus),
   );
 
-  // Encontra runs de letras "correct"
   const runs: { start: number; end: number }[] = [];
   let i = 0;
   while (i < n) {
@@ -174,7 +181,7 @@ export function scoreLetrosoGuess(guess: string, answer: string): LetrosoTileSta
   return result;
 }
 
-// ─── Teclado — status agregado (compatível com Letreco) ─────────
+// ─── Teclado — status agregado ───────────────────────────────────────
 
 export function aggregateLetrosoKeyStatuses(
   guesses: string[],
@@ -194,7 +201,7 @@ export function aggregateLetrosoKeyStatuses(
   return map;
 }
 
-// ─── Compartilhamento ────────────────────────────────────────────
+// ─── Compartilhamento ────────────────────────────────────────────────
 
 function emojiForTile(s: LetrosoTileStatus): string {
   if (s === "absent") return "⬛";
@@ -208,8 +215,8 @@ export function buildLetrosoShareText(
   won: boolean,
   gameDate: string,
 ): string {
-  const tries = won ? `${guesses.length}/${MAX_LETROSO_ATTEMPTS}` : `X/${MAX_LETROSO_ATTEMPTS}`;
-  const header = `Letroso ${gameDate} ${tries} (${answer.length} letras)`;
+  const tries = won ? `${guesses.length}` : "X";
+  const header = `Letroso ${gameDate} — ${tries} tentativas`;
   const grid = guesses
     .map((g) => scoreLetrosoGuess(g, answer).map(emojiForTile).join(""))
     .join("\n");

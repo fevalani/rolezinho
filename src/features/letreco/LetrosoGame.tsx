@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import {
-  MAX_LETROSO_ATTEMPTS,
   getLetrosoWordOfDay,
   getLetrosoGameDate,
   normalize,
@@ -128,123 +127,117 @@ function tileStyle(status: LetrosoTileStatus | "empty" | "filled"): {
   }
 }
 
-function tileFontSize(wordLength: number): string {
-  if (wordLength <= 6) return "text-2xl";
-  if (wordLength <= 7) return "text-xl";
-  if (wordLength <= 8) return "text-lg";
-  return "text-base";
+function tileFontSize(len: number): string {
+  if (len <= 6) return "text-xl";
+  if (len <= 8) return "text-base";
+  return "text-sm";
 }
 
 // ─── Grade ────────────────────────────────────────────────────────
 
 function LetrosoGrid({
   guesses,
-  cells,
-  cursor,
+  currentInput,
   active,
   answer,
   shake,
-  onCellClick,
+  onTapInput,
 }: {
   guesses: string[];
-  cells: string[];
-  cursor: number;
+  currentInput: string;
   active: boolean;
   answer: string;
   shake: boolean;
-  onCellClick: (i: number) => void;
+  onTapInput: () => void;
 }) {
-  const wl = answer.length;
-  const fontSize = tileFontSize(wl);
-  const maxW = wl <= 6 ? 360 : wl <= 8 ? 340 : 320;
-
-  const rows = [];
-  for (let r = 0; r < MAX_LETROSO_ATTEMPTS; r++) {
-    const submitted = guesses[r];
-    const isCurrent = r === guesses.length;
-    const editable = isCurrent && active;
-    const statuses = submitted ? scoreLetrosoGuess(submitted, answer) : null;
-
-    const cells_ = [];
-    for (let c = 0; c < wl; c++) {
-      let letter = "";
-      let styleKey: LetrosoTileStatus | "empty" | "filled" = "empty";
-      let extra = "";
-      const isCursor = editable && c === cursor;
-
-      if (submitted) {
-        letter = submitted[c] ?? "";
-        styleKey = statuses![c];
-        extra = "letreco-flip";
-      } else if (isCurrent) {
-        letter = cells[c] ?? "";
-        styleKey = letter ? "filled" : "empty";
-        if (isCursor) extra = "letreco-cursor";
-        else if (letter && active) extra = "letreco-pop";
-      }
-
-      const s = tileStyle(styleKey);
-      // Blocos consecutivos: reduzir gap para -1px via margin
-      const isInBlock =
-        submitted &&
-        statuses &&
-        (statuses[c] === "block_mid" ||
-          statuses[c] === "block_end" ||
-          statuses[c] === "cap_s_end" ||
-          statuses[c] === "cap_e_end" ||
-          statuses[c] === "cap_e");
-      const rightIsBlock =
-        submitted &&
-        statuses &&
-        c < wl - 1 &&
-        (statuses[c] === "block_start" ||
-          statuses[c] === "block_mid" ||
-          statuses[c] === "cap_s" ||
-          statuses[c] === "cap_s_end" ||
-          statuses[c] === "cap_e");
-
-      cells_.push(
-        <div
-          key={c}
-          onClick={editable ? () => onCellClick(c) : undefined}
-          className={[
-            "flex items-center justify-center aspect-square border-2 font-bold uppercase select-none",
-            fontSize,
-            s.bg,
-            s.border,
-            s.text,
-            s.radius,
-            s.ring ?? "",
-            extra,
-            editable ? "cursor-pointer" : "",
-          ].join(" ")}
-          style={{
-            ...(extra === "letreco-flip" ? { animationDelay: `${c * 0.1}s` } : {}),
-            ...(isInBlock ? { marginLeft: "-2px" } : {}),
-            ...(rightIsBlock ? { marginRight: "-2px" } : {}),
-          }}
-        >
-          {letter}
-        </div>,
-      );
-    }
-
-    rows.push(
-      <div
-        key={r}
-        className={`flex gap-1.5 ${isCurrent && shake ? "anim-shake" : ""}`}
-      >
-        {cells_}
-      </div>,
-    );
-  }
-
   return (
-    <div
-      className="flex flex-col gap-1.5 mx-auto w-full"
-      style={{ maxWidth: maxW }}
-    >
-      {rows}
+    <div className="flex flex-col gap-1.5 mx-auto w-full" style={{ maxWidth: 380 }}>
+      {/* Linhas submetidas */}
+      {guesses.map((guess, r) => {
+        const statuses = scoreLetrosoGuess(guess, answer);
+        const wl = guess.length;
+        const fs = tileFontSize(wl);
+
+        return (
+          <div key={r} className="flex gap-1 justify-center">
+            {guess.split("").map((letter, c) => {
+              const styleKey = statuses[c];
+              const s = tileStyle(styleKey);
+
+              const isInBlock =
+                statuses[c] === "block_mid" ||
+                statuses[c] === "block_end" ||
+                statuses[c] === "cap_s_end" ||
+                statuses[c] === "cap_e_end" ||
+                statuses[c] === "cap_e";
+              const rightIsBlock =
+                c < wl - 1 &&
+                (statuses[c] === "block_start" ||
+                  statuses[c] === "block_mid" ||
+                  statuses[c] === "cap_s" ||
+                  statuses[c] === "cap_s_end" ||
+                  statuses[c] === "cap_e");
+
+              return (
+                <div
+                  key={c}
+                  className={[
+                    "w-8 h-8 flex items-center justify-center border-2 font-bold uppercase select-none letreco-flip",
+                    fs,
+                    s.bg,
+                    s.border,
+                    s.text,
+                    s.radius,
+                    s.ring ?? "",
+                  ].join(" ")}
+                  style={{
+                    animationDelay: `${c * 0.1}s`,
+                    ...(isInBlock ? { marginLeft: "-2px" } : {}),
+                    ...(rightIsBlock ? { marginRight: "-2px" } : {}),
+                  }}
+                >
+                  {letter}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+
+      {/* Linha de input atual */}
+      {active && (
+        <div
+          className={`flex gap-1 justify-center ${shake ? "anim-shake" : ""}`}
+          onClick={onTapInput}
+        >
+          {currentInput.length === 0 ? (
+            // Placeholder com cursor piscando
+            <div className="w-8 h-8 flex items-center justify-center border-2 border-[rgba(255,255,255,0.1)] rounded-md letreco-cursor" />
+          ) : (
+            <>
+              {currentInput.split("").map((letter, c) => {
+                const s = tileStyle("filled");
+                return (
+                  <div
+                    key={c}
+                    className={[
+                      "w-8 h-8 flex items-center justify-center border-2 font-bold uppercase select-none letreco-pop",
+                      tileFontSize(currentInput.length),
+                      s.bg, s.border, s.text, s.radius,
+                    ].join(" ")}
+                  >
+                    {letter}
+                  </div>
+                );
+              })}
+              {/* Cursor no fim */}
+              {currentInput.length < 10 && (
+                <div className="w-8 h-8 flex items-center justify-center border-2 border-[rgba(255,255,255,0.1)] rounded-md letreco-cursor" />
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -347,11 +340,9 @@ function FeedbackLegend() {
 function LetrosoLeaderboard({
   entries,
   meId,
-  maxAttempts,
 }: {
   entries: LetrosoLeaderboardEntry[];
   meId: string | undefined;
-  maxAttempts: number;
 }) {
   if (entries.length === 0) {
     return (
@@ -385,7 +376,7 @@ function LetrosoLeaderboard({
               </p>
               <p className="text-[0.65rem] text-[var(--text-muted)]">
                 {e.status === "won"
-                  ? `Acertou em ${e.attempts}/${maxAttempts}`
+                  ? `Acertou em ${e.attempts} tentativa${e.attempts === 1 ? "" : "s"}`
                   : "Não acertou"}
               </p>
             </div>
@@ -403,11 +394,9 @@ export function LetrosoGame() {
   const { user } = useAuth();
   const answer = useMemo(() => getLetrosoWordOfDay(), []);
   const gameDate = useMemo(() => getLetrosoGameDate(), []);
-  const wordLength = answer.length;
 
   const [guesses, setGuesses] = useState<string[]>([]);
-  const [cells, setCells] = useState<string[]>(() => new Array(wordLength).fill(""));
-  const [cursor, setCursor] = useState(0);
+  const [currentInput, setCurrentInput] = useState<string>("");
   const [status, setStatus] = useState<GameStatus>("playing");
   const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -454,7 +443,7 @@ export function LetrosoGame() {
         setGuesses(game.guesses);
         setStatus(game.status);
         setScore(game.score);
-        setCells(new Array(wordLength).fill(""));
+        setCurrentInput("");
         if (game.status !== "playing") {
           setShowResult(true);
           loadLeaderboard();
@@ -463,34 +452,31 @@ export function LetrosoGame() {
       setLoading(false);
     })();
     return () => { active = false; };
-  }, [user, gameDate, wordLength, loadLeaderboard]);
+  }, [user, gameDate, loadLeaderboard]);
 
   const submitGuess = useCallback(async () => {
     if (!user || status !== "playing") return;
-    const word = cells.join("");
-    if (word.length !== wordLength || cells.some((ch) => !ch)) {
+    const word = normalize(currentInput);
+    if (word.length < 5) {
       setShake(true);
-      flashToast("Faltam letras");
+      flashToast("Mínimo 5 letras");
       setTimeout(() => setShake(false), 450);
       return;
     }
-    if (!isValidLetrosoWord(word, wordLength)) {
+    if (!isValidLetrosoWord(word)) {
       setShake(true);
-      flashToast("Palavra não está na lista");
+      flashToast("Palavra não encontrada");
       setTimeout(() => setShake(false), 450);
       return;
     }
 
-    const guess = normalize(word);
-    const newGuesses = [...guesses, guess];
-    const won = guess === answer;
-    const lost = !won && newGuesses.length >= MAX_LETROSO_ATTEMPTS;
-    const newStatus: GameStatus = won ? "won" : lost ? "lost" : "playing";
+    const newGuesses = [...guesses, word];
+    const won = word === answer;
+    const newStatus: GameStatus = won ? "won" : "playing";
     const newScore = won ? letrosoPointsFor(newGuesses.length) : 0;
 
     setGuesses(newGuesses);
-    setCells(new Array(wordLength).fill(""));
-    setCursor(0);
+    setCurrentInput("");
     setStatus(newStatus);
     setScore(newScore);
 
@@ -501,44 +487,26 @@ export function LetrosoGame() {
       score: newScore,
     });
 
-    if (newStatus !== "playing") {
+    if (newStatus === "won") {
       setTimeout(() => {
         setShowResult(true);
         loadLeaderboard();
-      }, wordLength * 120 + 200);
+      }, word.length * 120 + 200);
     }
-  }, [user, status, cells, guesses, answer, wordLength, gameDate, flashToast, loadLeaderboard]);
+  }, [user, status, currentInput, guesses, answer, gameDate, flashToast, loadLeaderboard]);
 
   const handleKey = useCallback(
     (k: string) => {
       if (status !== "playing") return;
       if (k === "ENTER") {
         submitGuess();
-      } else if (k === "LEFT") {
-        setCursor((c) => Math.max(0, c - 1));
-      } else if (k === "RIGHT") {
-        setCursor((c) => Math.min(wordLength - 1, c + 1));
       } else if (k === "BACK") {
-        setCells((prev) => {
-          const next = [...prev];
-          if (next[cursor]) {
-            next[cursor] = "";
-          } else if (cursor > 0) {
-            next[cursor - 1] = "";
-            setCursor(cursor - 1);
-          }
-          return next;
-        });
+        setCurrentInput((prev) => prev.slice(0, -1));
       } else if (/^[A-Z]$/.test(k)) {
-        setCells((prev) => {
-          const next = [...prev];
-          next[cursor] = k;
-          return next;
-        });
-        setCursor((c) => Math.min(c + 1, wordLength - 1));
+        setCurrentInput((prev) => (prev.length < 10 ? prev + k : prev));
       }
     },
-    [status, cursor, wordLength, submitGuess],
+    [status, submitGuess],
   );
 
   const resetInput = useCallback(() => {
@@ -548,8 +516,7 @@ export function LetrosoGame() {
     el.setSelectionRange(INPUT_SENTINEL.length, INPUT_SENTINEL.length);
   }, []);
 
-  const handleCellClick = useCallback((index: number) => {
-    setCursor(index);
+  const focusInput = useCallback(() => {
     const el = inputRef.current;
     if (el) {
       el.value = INPUT_SENTINEL;
@@ -576,8 +543,6 @@ export function LetrosoGame() {
   const handleNativeKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter") { handleKey("ENTER"); e.preventDefault(); }
-      else if (e.key === "ArrowLeft") { handleKey("LEFT"); e.preventDefault(); }
-      else if (e.key === "ArrowRight") { handleKey("RIGHT"); e.preventDefault(); }
     },
     [handleKey],
   );
@@ -589,8 +554,6 @@ export function LetrosoGame() {
       const key = e.key;
       if (key === "Enter") handleKey("ENTER");
       else if (key === "Backspace") handleKey("BACK");
-      else if (key === "ArrowLeft") handleKey("LEFT");
-      else if (key === "ArrowRight") handleKey("RIGHT");
       else if (/^[a-zA-Z]$/.test(key)) handleKey(key.toUpperCase());
     };
     window.addEventListener("keydown", onKeyDown);
@@ -619,11 +582,14 @@ export function LetrosoGame() {
 
   return (
     <div className="flex flex-col">
-      {/* Cabeçalho do modo */}
+      {/* Cabeçalho */}
       <div className="px-4 pb-3 flex items-center justify-between">
         <div>
           <p className="text-xs text-[var(--text-muted)]">
-            Palavra do dia · {wordLength} letras · {gameDate.split("-").reverse().join("/")}
+            Palavra do dia · {gameDate.split("-").reverse().join("/")}
+          </p>
+          <p className="text-[0.65rem] text-[var(--text-muted)] opacity-60">
+            5 a 10 letras · tentativas ilimitadas
           </p>
         </div>
         <div className="flex gap-2">
@@ -679,12 +645,11 @@ export function LetrosoGame() {
       <div className="flex-1 flex flex-col gap-5 px-4 py-2">
         <LetrosoGrid
           guesses={guesses}
-          cells={cells}
-          cursor={cursor}
+          currentInput={currentInput}
           active={status === "playing"}
           answer={answer}
           shake={shake}
-          onCellClick={handleCellClick}
+          onTapInput={focusInput}
         />
 
         {status === "playing" ? (
@@ -704,7 +669,7 @@ export function LetrosoGame() {
                     Mandou bem! +{score} pts 🎉
                   </p>
                   <p className="text-xs text-[var(--text-muted)] mt-1">
-                    Em {guesses.length} de {MAX_LETROSO_ATTEMPTS} tentativas
+                    Em {guesses.length} tentativa{guesses.length === 1 ? "" : "s"}
                   </p>
                 </>
               ) : (
@@ -761,7 +726,6 @@ export function LetrosoGame() {
             <LetrosoLeaderboard
               entries={leaderboard}
               meId={user?.id}
-              maxAttempts={MAX_LETROSO_ATTEMPTS}
             />
           </div>
         </>

@@ -5,7 +5,6 @@ import type {
   LetrosoLeaderboardEntry,
   LetrosoOverallEntry,
 } from "./letrosoTypes";
-import { MAX_LETROSO_ATTEMPTS } from "./letrosoLogic";
 import type { OverallEntry } from "./letrecoTypes";
 
 // Tabela: letroso_games
@@ -187,4 +186,3 @@ export async function getCombinedOverallLeaderboard(): Promise<OverallEntry[]> {
   });
 }
 
-export { MAX_LETROSO_ATTEMPTS };
