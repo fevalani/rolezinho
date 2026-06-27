@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "@/components/Avatar";
+import { LetrosoGame } from "./LetrosoGame";
+import { getCombinedOverallLeaderboard } from "./letrosoService";
 import {
   WORD_LENGTH,
   MAX_ATTEMPTS,
@@ -19,7 +21,6 @@ import {
   getTodayGame,
   saveGame,
   getDailyLeaderboard,
-  getOverallLeaderboard,
   getUserStats,
   getApprovedWords,
   verifyWordInDictionary,
@@ -371,6 +372,7 @@ function OverallLeaderboard({
 // ─── Página ───────────────────────────────────────────────────
 
 type Tab = "ranking" | "stats";
+type GameMode = "letreco" | "letroso";
 
 export function LetrecoPage() {
   const { user } = useAuth();
@@ -394,6 +396,7 @@ export function LetrecoPage() {
   const [tab, setTab] = useState<Tab>("ranking");
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [overall, setOverall] = useState<OverallEntry[] | null>(null);
+  const [gameMode, setGameMode] = useState<GameMode>("letreco");
   const [stats, setStats] = useState<LetrecoStats | null>(null);
   const [shareLabel, setShareLabel] = useState("Compartilhar resultado");
   // Palpite recusado que *parece* palavra → oferece adicionar ao dicionário
@@ -459,7 +462,7 @@ export function LetrecoPage() {
   const openOverall = useCallback(async () => {
     setShowOverall(true);
     setOverall(null);
-    const lb = await getOverallLeaderboard();
+    const lb = await getCombinedOverallLeaderboard();
     setOverall(lb);
   }, []);
 
@@ -707,38 +710,71 @@ export function LetrecoPage() {
       style={{ paddingBottom: "calc(1rem + var(--safe-bottom))" }}
     >
       {/* Header */}
-      <div className="px-4 pt-6 pb-3 flex items-center justify-between">
+      <div className="px-4 pt-6 pb-2 flex items-center justify-between">
         <div>
           <h1
             className="text-xl font-bold text-[var(--gold)]"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            Letreco 🟩
+            LetraFolia 🎉
           </h1>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            Palavra do dia · {gameDate.split("-").reverse().join("/")}
+            Jogos de palavras da turma
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <button
+          onClick={openOverall}
+          className="px-3 py-2 rounded-xl text-xs font-semibold bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] hover:bg-[rgba(201,165,90,0.2)] transition-all"
+        >
+          🏆 Ranking
+        </button>
+      </div>
+
+      {/* Seletor de modo */}
+      <div className="flex gap-0 border-b border-[rgba(255,255,255,0.06)] px-4 mb-1">
+        {(
+          [
+            ["letreco", "🟩 Letreco", "5 letras"],
+            ["letroso", "🔠 Letroso", "6–10 letras"],
+          ] as const
+        ).map(([mode, label, sub]) => (
           <button
-            onClick={openOverall}
-            className="px-3 py-2 rounded-xl text-xs font-semibold bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] hover:bg-[rgba(201,165,90,0.2)] transition-all"
+            key={mode}
+            onClick={() => setGameMode(mode)}
+            className={`flex flex-col items-start px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${
+              gameMode === mode
+                ? "border-[var(--gold)] text-[var(--gold)]"
+                : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
           >
-            🏆 Ranking
+            <span>{label}</span>
+            <span className="text-[0.55rem] font-normal opacity-70">{sub}</span>
           </button>
+        ))}
+      </div>
+
+      {/* Letreco header inline (só quando ativo) */}
+      {gameMode === "letreco" && (
+        <div className="px-4 pt-2 pb-1 flex items-center justify-between">
+          <p className="text-xs text-[var(--text-muted)]">
+            Palavra do dia · {gameDate.split("-").reverse().join("/")}
+          </p>
           {status !== "playing" && (
             <button
-              onClick={() => {
-                setShowResult(true);
-                loadResultData();
-              }}
-              className="px-3 py-2 rounded-xl text-xs font-semibold bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] hover:bg-[rgba(201,165,90,0.2)] transition-all"
+              onClick={() => { setShowResult(true); loadResultData(); }}
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] transition-all"
             >
               📊 Resultado
             </button>
           )}
         </div>
-      </div>
+      )}
+
+      {/* Modo Letroso */}
+      {gameMode === "letroso" && <LetrosoGame />}
+
+      {/* ── Modo Letreco (conteúdo original abaixo) ── */}
+      {gameMode === "letreco" && <>
 
       {/* Toast */}
       {toast && (
@@ -955,6 +991,9 @@ export function LetrecoPage() {
           </div>
         </>
       )}
+
+      {/* Fim do modo Letreco */}
+      </>}
     </div>
   );
 }

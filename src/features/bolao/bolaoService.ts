@@ -8,6 +8,7 @@ import {
   type ChampionshipCode,
   type FDMatch,
 } from "./footballApi";
+import { getTeamCrest } from "./teamCrests";
 
 // ══════════════════════════════════════════════════════════════
 // Types
@@ -144,9 +145,9 @@ export interface BolaoMatch {
   id: string;
   championship_id: string;
   fd_match_id: number;
-  home_team: string;
+  home_team: string | null;
   home_crest: string | null;
-  away_team: string;
+  away_team: string | null;
   away_crest: string | null;
   round_label: string;
   round_number: number | null;
@@ -362,6 +363,20 @@ async function ensureChampionship(
   return data as BolaoChampionship;
 }
 
+// Nomes que diferem entre SofaScore (original, canônico) e football-data.org.
+// Chave = nome FD → valor = nome canônico gravado no banco.
+const TEAM_NAME_ALIASES: Record<string, string> = {
+  "Turkey": "Türkiye",
+  "Congo DR": "DR Congo",
+  "Cape Verde Islands": "Cape Verde",
+  "Bosnia-Herzegovina": "Bosnia and Herzegovina",
+};
+
+function normalizeTeamName(name: string | null | undefined): string {
+  if (!name) return "A definir";
+  return TEAM_NAME_ALIASES[name] ?? name;
+}
+
 async function syncMatches(
   championship: BolaoChampionship,
   fdMatches: FDMatch[],
@@ -377,9 +392,11 @@ async function syncMatches(
   const rows = fdMatches.map((m) => ({
     championship_id: championship.id,
     fd_match_id: m.id,
-    home_team: m.homeTeam.name,
+    // Mata-mata TBD: API retorna name=null até os classificados serem definidos.
+    // Normaliza variações de nome entre SofaScore e FD para manter consistência.
+    home_team: normalizeTeamName(m.homeTeam.name),
     home_crest: m.homeTeam.crest ?? null,
-    away_team: m.awayTeam.name,
+    away_team: normalizeTeamName(m.awayTeam.name),
     away_crest: m.awayTeam.crest ?? null,
     round_label: toRoundLabel(m.stage, m.matchday),
     round_number: m.matchday ?? null,
@@ -390,6 +407,46 @@ async function syncMatches(
     score_away: m.score.fullTime.away ?? null,
     updated_at: new Date().toISOString(),
   }));
+
+  // Antes de upsert por fd_match_id, detecta registros com o mesmo
+  // time+dia mas fd_match_id diferente (resíduo de import anterior via SofaScore).
+  // Migra o fd_match_id do registro existente para o valor correto da API FD,
+  // evitando duplicatas.
+  const { data: existing } = await supabase
+    .from("bolao_matches")
+    .select("id, fd_match_id, home_team, away_team, utc_date")
+    .eq("championship_id", championship.id);
+
+  if (existing && existing.length > 0) {
+    const currentFdIdSet = new Set(fdMatches.map((m) => m.id));
+    const patchOps: PromiseLike<unknown>[] = [];
+
+    for (const dbMatch of existing as { id: string; fd_match_id: number; home_team: string; away_team: string; utc_date: string }[]) {
+      if (currentFdIdSet.has(dbMatch.fd_match_id)) continue; // já sincronizado, sem ação
+      // Procura a partida da API com mesmo time+dia (ignora TBD)
+      if (dbMatch.home_team === "A definir" || dbMatch.away_team === "A definir") continue;
+      const dbDay = dbMatch.utc_date.slice(0, 10);
+      const apiMatch = fdMatches.find(
+        (m) =>
+          m.id !== dbMatch.fd_match_id &&
+          normalizeTeamName(m.homeTeam.name) === dbMatch.home_team &&
+          normalizeTeamName(m.awayTeam.name) === dbMatch.away_team &&
+          m.utcDate.slice(0, 10) === dbDay,
+      );
+      if (apiMatch) {
+        // Atualiza o fd_match_id no banco para o valor correto da API FD
+        patchOps.push(
+          supabase
+            .from("bolao_matches")
+            .update({ fd_match_id: apiMatch.id, updated_at: new Date().toISOString() })
+            .eq("id", dbMatch.id)
+            .then((r) => r),
+        );
+        console.log(`[syncMatches] Corrigindo fd_match_id: ${dbMatch.home_team} x ${dbMatch.away_team} ${dbDay} — ${dbMatch.fd_match_id} → ${apiMatch.id}`);
+      }
+    }
+    if (patchOps.length > 0) await Promise.all(patchOps);
+  }
 
   const { error } = await supabase
     .from("bolao_matches")
@@ -405,6 +462,7 @@ async function syncMatches(
   }
 
   // Remove partidas stale (não retornadas pela API nesta temporada) que não têm palpites
+  // Usa fdMatches completo (incluindo TBD) para não deletar partidas que a API ainda conhece
   const currentFdIds = fdMatches.map((m) => m.id);
   const { data: stale } = await supabase
     .from("bolao_matches")
@@ -590,7 +648,17 @@ export async function leavePool(
 // Partidas + Palpites
 // ══════════════════════════════════════════════════════════════
 
-export function isMatchLocked(utcDate: string, status: string): boolean {
+const TBD_PLACEHOLDER = "A definir";
+
+export function isMatchLocked(
+  utcDate: string,
+  status: string,
+  homeTeam?: string | null,
+  awayTeam?: string | null,
+): boolean {
+  // Partida sem times definidos fica travada até a API publicar os classificados
+  const isTbd = (t: string | null | undefined) => t === null || t === TBD_PLACEHOLDER;
+  if (isTbd(homeTeam) || isTbd(awayTeam)) return true;
   const openStatuses = ["TIMED", "SCHEDULED"];
   if (!openStatuses.includes(status)) return true;
   return Date.now() > new Date(utcDate).getTime() - 1 * 60 * 1000;
@@ -632,6 +700,9 @@ export async function fetchMatchesForPool(
     const pred = predMap.get(m.id) ?? null;
     return {
       ...m,
+      // Resolve crest: arquivo local (public/crests/) → URL da API → null
+      home_crest: getTeamCrest(m.home_team, m.home_crest),
+      away_crest: getTeamCrest(m.away_team, m.away_crest),
       my_prediction: pred
         ? {
             home_goals: pred.home_goals,
@@ -639,7 +710,7 @@ export async function fetchMatchesForPool(
             points_earned: pred.points_earned,
           }
         : null,
-      is_locked: isMatchLocked(m.utc_date, m.status),
+      is_locked: isMatchLocked(m.utc_date, m.status, m.home_team, m.away_team),
     };
   });
 
@@ -705,12 +776,12 @@ export async function upsertPrediction(
   // UI permite editar palpite após o apito. Aqui rechecamos no banco.
   const { data: match } = await supabase
     .from("bolao_matches")
-    .select("utc_date, status")
+    .select("utc_date, status, home_team, away_team")
     .eq("id", matchId)
     .maybeSingle();
 
   if (!match) return { error: "Partida não encontrada." };
-  if (isMatchLocked(match.utc_date, match.status)) {
+  if (isMatchLocked(match.utc_date, match.status, match.home_team, match.away_team)) {
     return { error: "Palpites encerrados para esta partida." };
   }
 
@@ -1138,7 +1209,7 @@ export async function fetchRoundLeaderboards(
       .eq("pool_id", poolId),
     supabase
       .from("bolao_predictions")
-      .select("user_id, points_earned, home_goals, away_goals, bolao_matches(round_label, score_home, score_away)")
+      .select("user_id, points_earned, home_goals, away_goals, bolao_matches(round_label, utc_date, score_home, score_away)")
       .eq("pool_id", poolId)
       .not("points_earned", "is", null),
   ]);
@@ -1152,16 +1223,26 @@ export async function fetchRoundLeaderboards(
     points_earned: number;
     home_goals: number;
     away_goals: number;
-    bolao_matches: { round_label: string; score_home: number | null; score_away: number | null } | null;
+    bolao_matches: { round_label: string; utc_date: string | null; score_home: number | null; score_away: number | null } | null;
   };
 
   const members = (membersRes.data ?? []) as unknown as MemberRow2[];
   const preds = (predsRes.data ?? []) as unknown as PredRow[];
 
-  // Coleta rodadas únicas
-  const rounds = [
-    ...new Set(preds.map((p) => p.bolao_matches?.round_label).filter(Boolean)),
-  ] as string[];
+  // Coleta rodadas únicas e ordena pela data do último jogo de cada rodada
+  const roundLastDate = new Map<string, string>();
+  for (const p of preds) {
+    const label = p.bolao_matches?.round_label;
+    const date = p.bolao_matches?.utc_date;
+    if (!label || !date) continue;
+    const current = roundLastDate.get(label);
+    if (!current || date > current) roundLastDate.set(label, date);
+  }
+  const rounds = [...roundLastDate.keys()].sort((a, b) => {
+    const da = roundLastDate.get(a)!;
+    const db = roundLastDate.get(b)!;
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
 
   return rounds.map((round) => {
     const roundPreds = preds.filter(
@@ -1382,7 +1463,7 @@ export function withRecomputedLocks(rounds: RoundGroup[]): RoundGroup[] {
     ...r,
     matches: r.matches.map((m) => ({
       ...m,
-      is_locked: isMatchLocked(m.utc_date, m.status),
+      is_locked: isMatchLocked(m.utc_date, m.status, m.home_team, m.away_team),
     })),
   }));
 }

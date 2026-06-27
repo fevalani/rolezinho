@@ -1,0 +1,61 @@
+// Mapeamento nome do time (API football-data.org) → escudo local (public/crests/)
+// Fallback: se o time não estiver aqui, usa a URL da API ou o placeholder.
+const TEAM_CREST_MAP: Record<string, string> = {
+  "Algeria": "/crests/algeria.svg",
+  "Argentina": "/crests/argentina.png",
+  "Australia": "/crests/australia.svg",
+  "Austria": "/crests/austria.svg",
+  "Belgium": "/crests/belgium.svg",
+  "Bosnia-Herzegovina": "/crests/bosnia_herzegovina.png",
+  "Brazil": "/crests/brazil.svg",
+  "Canada": "/crests/canada.svg",
+  "Cape Verde Islands": "/crests/cape_verde_islands.png",
+  "Colombia": "/crests/colombia.svg",
+  "Congo DR": "/crests/congo_dr.png",
+  "Croatia": "/crests/croatia.svg",
+  "Curaçao": "/crests/curacao.svg",
+  "Czechia": "/crests/czechia.svg",
+  "Ecuador": "/crests/ecuador.svg",
+  "Egypt": "/crests/egypt.svg",
+  "England": "/crests/england.svg",
+  "France": "/crests/france.svg",
+  "Germany": "/crests/germany.svg",
+  "Ghana": "/crests/ghana.svg",
+  "Haiti": "/crests/haiti.svg",
+  "Iran": "/crests/iran.svg",
+  "Iraq": "/crests/iraq.svg",
+  "Ivory Coast": "/crests/ivory_coast.svg",
+  "Japan": "/crests/japan.svg",
+  "Jordan": "/crests/jordan.png",
+  "Mexico": "/crests/mexico.svg",
+  "Morocco": "/crests/morocco.svg",
+  "Netherlands": "/crests/netherlands.svg",
+  "New Zealand": "/crests/new_zealand.svg",
+  "Norway": "/crests/norway.svg",
+  "Panama": "/crests/panama.svg",
+  "Paraguay": "/crests/paraguay.svg",
+  "Portugal": "/crests/portugal.svg",
+  "Qatar": "/crests/qatar.svg",
+  "Saudi Arabia": "/crests/saudi_arabia.svg",
+  "Scotland": "/crests/scotland.svg",
+  "Senegal": "/crests/senegal.svg",
+  "South Africa": "/crests/south_africa.svg",
+  "South Korea": "/crests/south_korea.png",
+  "Spain": "/crests/spain.svg",
+  "Sweden": "/crests/sweden.svg",
+  "Switzerland": "/crests/switzerland.svg",
+  "Tunisia": "/crests/tunisia.svg",
+  "Turkey": "/crests/turkey.png",
+  "United States": "/crests/united_states.svg",
+  "Uruguay": "/crests/uruguay.svg",
+  "Uzbekistan": "/crests/uzbekistan.png",
+};
+
+// Retorna a URL do escudo local se disponível, senão a URL da API, senão null.
+export function getTeamCrest(
+  teamName: string | null | undefined,
+  apiCrest: string | null | undefined,
+): string | null {
+  if (!teamName) return apiCrest ?? null;
+  return TEAM_CREST_MAP[teamName] ?? apiCrest ?? null;
+}

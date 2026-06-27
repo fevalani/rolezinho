@@ -109,7 +109,7 @@ async function fdFetch(path: string): Promise<SimpleResponse> {
   const url = import.meta.env.DEV
     ? `${FD_BASE_WEB}${path}`
     : `${FD_BASE_WEB}?path=${encodeURIComponent(path)}`;
-  return nativeFetch(url, {});
+  return nativeFetch(url, FD_KEY ? { "X-Auth-Token": FD_KEY } : {});
 }
 
 async function sofaFetch(path: string): Promise<SimpleResponse> {
@@ -123,7 +123,9 @@ async function sofaFetch(path: string): Promise<SimpleResponse> {
 // Mapeamento de stages para português
 const STAGE_LABELS: Record<string, string> = {
   GROUP_STAGE: "Fase de Grupos",
+  LAST_32: "Dezesseis-avos de Final",
   ROUND_OF_32: "Dezesseis-avos de Final",
+  LAST_16: "Oitavas de Final",
   ROUND_OF_16: "Oitavas de Final",
   QUARTER_FINALS: "Quartas de Final",
   SEMI_FINALS: "Semifinal",
@@ -147,9 +149,13 @@ export function toRoundLabel(
 }
 
 // Ordem dos stages para controle de visibilidade (knockout)
-// WC 2026 tem Round of 32 antes das Oitavas
+// WC 2026 usa LAST_32; outros campeonatos podem usar ROUND_OF_32
+// WC 2026 usa LAST_32 e LAST_16; outros campeonatos podem usar ROUND_OF_32/ROUND_OF_16.
+// Ambas as variantes são listadas para que a lógica de visibilidade funcione em qualquer caso.
 export const KNOCKOUT_STAGE_ORDER = [
+  "LAST_32",
   "ROUND_OF_32",
+  "LAST_16",
   "ROUND_OF_16",
   "QUARTER_FINALS",
   "SEMI_FINALS",

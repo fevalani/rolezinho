@@ -7,8 +7,8 @@ const NOTIFICATION_ID = 1;
 
 interface MatchReminder {
   id: string;
-  home_team: string;
-  away_team: string;
+  home_team: string | null;
+  away_team: string | null;
   utc_date: string;
   status: string;
   my_prediction: object | null;

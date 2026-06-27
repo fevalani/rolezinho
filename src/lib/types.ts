@@ -232,11 +232,11 @@ export const APP_FEATURES: Feature[] = [
   },
   {
     id: "letreco",
-    name: "Letreco",
-    icon: "🟩",
+    name: "LetraFolia",
+    icon: "🎉",
     path: "/letreco",
     enabled: true,
-    description: "A palavra do dia da turma — 5 tentativas, mais pontos quem acerta antes",
+    description: "Palavras do dia — Letreco (5 letras) e Letroso (6–10 letras)",
   },
   {
     id: "ficha",

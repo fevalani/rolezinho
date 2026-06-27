@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { BolaoStatsTab } from "./BolaoStatsTab";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "@/components/Avatar";
@@ -41,8 +42,50 @@ import {
   type BolaoSnapshot,
   subscribeBolao,
 } from "./bolaoService";
+import { getTeamCrest } from "./teamCrests";
 
-type Tab = "palpites" | "classificacao" | "info" | "admin";
+function TeamCrestImg({
+  team,
+  crest,
+  size = "sm",
+}: {
+  team: string | null | undefined;
+  crest: string | null | undefined;
+  size?: "xs" | "sm";
+}) {
+  const localSrc = team ? getTeamCrest(team, null) : null;
+  const preferred = localSrc ?? crest ?? null;
+  const [src, setSrc] = useState<string | null>(preferred);
+
+  // Sincroniza quando props mudam (ex: HMR ou match TBD que foi definido)
+  useEffect(() => {
+    setSrc(localSrc ?? crest ?? null);
+  }, [localSrc, crest]);
+
+  const cls = size === "xs" ? "w-4 h-4" : "w-5 h-5";
+
+  if (!src) {
+    return (
+      <span className={`${cls} shrink-0 flex items-center justify-center text-[var(--text-muted)] text-[0.6rem]`}>
+        🛡️
+      </span>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt=""
+      className={`${cls} object-contain shrink-0`}
+      onError={() => {
+        // fallback: arquivo local → URL da CDN → placeholder
+        if (src !== crest && crest) setSrc(crest);
+        else setSrc(null);
+      }}
+    />
+  );
+}
+
+type Tab = "palpites" | "classificacao" | "stats" | "info" | "admin";
 
 interface ParticipantPrediction {
   user_id: string;
@@ -125,9 +168,12 @@ function MatchCard({
 
   const isFinished = match.status === "FINISHED";
   const hasResult = match.score_home !== null && match.score_away !== null;
-  // Palpites travados mas resultado ainda não fechado = partida ao vivo (ou
-  // a poucos instantes do início) — é quando vale espiar o palpite dos outros.
-  const isLive = match.is_locked && !isFinished;
+  const isTbd = !match.home_team || match.home_team === "A definir"
+    || !match.away_team || match.away_team === "A definir";
+  // Só revela palpites dos outros quando a partida JÁ COMEÇOU (utc_date no passado).
+  // Partidas futuras travadas (TBD ou dentro de 1 min do início) ficam ocultas.
+  const isStarted = Date.now() >= new Date(match.utc_date).getTime();
+  const isLive = match.is_locked && !isFinished && !isTbd && isStarted;
 
   const handleAdminSave = () => {
     const h = parseInt(adminHome);
@@ -172,16 +218,9 @@ function MatchCard({
         <div className="flex items-center gap-2">
           {/* Casa */}
           <div className="flex-1 flex items-center gap-1.5 min-w-0">
-            {match.home_crest && (
-              <img
-                src={match.home_crest}
-                alt=""
-                className="w-4 h-4 object-contain shrink-0"
-                onError={(e) => (e.currentTarget.style.display = "none")}
-              />
-            )}
+            <TeamCrestImg team={match.home_team} crest={match.home_crest} size="xs" />
             <span className="text-xs text-[var(--text-secondary)] truncate">
-              {match.home_team}
+              {match.home_team ?? "A definir"}
             </span>
           </div>
 
@@ -195,16 +234,9 @@ function MatchCard({
           {/* Visitante */}
           <div className="flex-1 flex items-center justify-end gap-1.5 min-w-0">
             <span className="text-xs text-[var(--text-secondary)] truncate text-right">
-              {match.away_team}
+              {match.away_team ?? "A definir"}
             </span>
-            {match.away_crest && (
-              <img
-                src={match.away_crest}
-                alt=""
-                className="w-4 h-4 object-contain shrink-0"
-                onError={(e) => (e.currentTarget.style.display = "none")}
-              />
-            )}
+            <TeamCrestImg team={match.away_team} crest={match.away_crest} size="xs" />
           </div>
         </div>
 
@@ -257,7 +289,12 @@ function MatchCard({
           {formatDate(match.utc_date)}
         </span>
         <div className="flex items-center gap-1.5">
-          {match.is_locked && !isFinished && (
+          {match.is_locked && !isFinished && isTbd && (
+            <span className="text-[0.6rem] text-[var(--text-muted)] bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] px-1.5 py-0.5 rounded-md font-medium">
+              Aguardando
+            </span>
+          )}
+          {match.is_locked && !isFinished && !isTbd && (
             <span className="text-[0.6rem] text-orange-400 bg-[rgba(251,146,60,0.1)] border border-[rgba(251,146,60,0.2)] px-1.5 py-0.5 rounded-md font-medium">
               Encerrado
             </span>
@@ -290,16 +327,9 @@ function MatchCard({
       <div className="flex items-center gap-2">
         {/* Casa */}
         <div className="flex-1 flex items-center gap-2 min-w-0">
-          {match.home_crest && (
-            <img
-              src={match.home_crest}
-              alt=""
-              className="w-5 h-5 object-contain shrink-0"
-              onError={(e) => (e.currentTarget.style.display = "none")}
-            />
-          )}
+          <TeamCrestImg team={match.home_team} crest={match.home_crest} />
           <span className="text-xs text-[var(--text-primary)] font-medium truncate">
-            {match.home_team}
+            {match.home_team ?? "A definir"}
           </span>
         </div>
 
@@ -400,16 +430,9 @@ function MatchCard({
         {/* Visitante */}
         <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
           <span className="text-xs text-[var(--text-primary)] font-medium truncate text-right">
-            {match.away_team}
+            {match.away_team ?? "A definir"}
           </span>
-          {match.away_crest && (
-            <img
-              src={match.away_crest}
-              alt=""
-              className="w-5 h-5 object-contain shrink-0"
-              onError={(e) => (e.currentTarget.style.display = "none")}
-            />
-          )}
+          <TeamCrestImg team={match.away_team} crest={match.away_crest} />
         </div>
       </div>
 
@@ -689,16 +712,12 @@ function LeaderboardTable({
                               className="flex items-center gap-2 px-4 py-2 border-t border-[rgba(255,255,255,0.03)]"
                             >
                               <div className="flex-1 flex items-center gap-1 min-w-0">
-                                {pred.home_crest && (
-                                  <img
-                                    src={pred.home_crest}
-                                    alt=""
-                                    className="w-3.5 h-3.5 object-contain shrink-0"
-                                    onError={(e) =>
-                                      (e.currentTarget.style.display = "none")
-                                    }
-                                  />
-                                )}
+                                <img
+                                  src={getTeamCrest(pred.home_team, pred.home_crest) ?? undefined}
+                                  alt=""
+                                  className="w-3.5 h-3.5 object-contain shrink-0"
+                                  onError={(e) => (e.currentTarget.style.display = "none")}
+                                />
                                 <span className="text-[0.65rem] text-[var(--text-primary)] truncate">
                                   {pred.home_team}
                                 </span>
@@ -708,16 +727,12 @@ function LeaderboardTable({
                                 <span className="text-[0.65rem] text-[var(--text-primary)] truncate">
                                   {pred.away_team}
                                 </span>
-                                {pred.away_crest && (
-                                  <img
-                                    src={pred.away_crest}
-                                    alt=""
-                                    className="w-3.5 h-3.5 object-contain shrink-0"
-                                    onError={(e) =>
-                                      (e.currentTarget.style.display = "none")
-                                    }
-                                  />
-                                )}
+                                <img
+                                  src={getTeamCrest(pred.away_team, pred.away_crest) ?? undefined}
+                                  alt=""
+                                  className="w-3.5 h-3.5 object-contain shrink-0"
+                                  onError={(e) => (e.currentTarget.style.display = "none")}
+                                />
                               </div>
 
                               <div className="flex items-center gap-1.5 shrink-0">
@@ -1364,6 +1379,7 @@ export function BolaoDetailPage() {
           [
             ["palpites", "Palpites"],
             ["classificacao", "Classificação"],
+            ["stats", "Stats"],
             ["info", "Info"],
             ...(canManageScoring ? [["admin", "Admin"]] : []),
           ] as [Tab, string][]
@@ -1524,6 +1540,18 @@ export function BolaoDetailPage() {
             />
           </div>
         </div>
+      )}
+
+      {/* ── Stats ── */}
+      {activeTab === "stats" && (
+        <BolaoStatsTab
+          allUserPredictions={allUserPredictions}
+          leaderboard={leaderboard}
+          roundLeaderboards={roundLeaderboards}
+          members={members}
+          pool={pool}
+          currentUserId={user?.id ?? null}
+        />
       )}
 
       {/* ── Info ── */}
