@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { normalize } from "./letrosoLogic";
 import type {
   GameStatus,
   LetrosoGame,
@@ -6,6 +7,19 @@ import type {
   LetrosoOverallEntry,
 } from "./letrosoTypes";
 import type { OverallEntry } from "./letrecoTypes";
+
+// ─── Validação server-side ───────────────────────────────────────────
+
+export async function validateLetrosoWord(word: string): Promise<boolean> {
+  const w = normalize(word);
+  try {
+    const { data, error } = await supabase.rpc("validate_letroso_word", { p_word: w });
+    if (error) return false;
+    return data === true;
+  } catch {
+    return false;
+  }
+}
 
 // Tabela: letroso_games
 // MIGRATION PENDENTE — criar via supabase/letroso_migration.sql

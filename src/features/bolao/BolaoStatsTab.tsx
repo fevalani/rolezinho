@@ -217,6 +217,7 @@ export function BolaoStatsTab({
 }: Props) {
   const [hiddenLines, setHiddenLines] = useState<Set<string>>(new Set());
   const [isScrolling, setIsScrolling] = useState(false);
+  const [efficiencyMode, setEfficiencyMode] = useState<"participated" | "total">("participated");
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleChartScroll = () => {
@@ -238,6 +239,16 @@ export function BolaoStatsTab({
   const efficiency = useMemo(
     () => computeEfficiency(allUserPredictions, leaderboard, pool),
     [allUserPredictions, leaderboard, pool],
+  );
+
+  const sortedEfficiency = useMemo(
+    () =>
+      [...efficiency].sort((a, b) =>
+        efficiencyMode === "participated"
+          ? b.pctParticipated - a.pctParticipated
+          : b.pct - a.pct,
+      ),
+    [efficiency, efficiencyMode],
   );
 
   const heroes = useMemo(
@@ -387,29 +398,50 @@ export function BolaoStatsTab({
 
       {/* ── 3. Aproveitamento ── */}
       <Section title="Aproveitamento">
+        {/* Toggle de modo */}
+        <div className="flex rounded-lg overflow-hidden border border-[rgba(255,255,255,0.08)] self-start">
+          {(["participated", "total"] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setEfficiencyMode(mode)}
+              className={`px-3 py-1.5 text-[0.65rem] font-medium transition-colors ${
+                efficiencyMode === mode
+                  ? "bg-[rgba(201,165,90,0.18)] text-[var(--gold)]"
+                  : "bg-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              }`}
+            >
+              {mode === "participated" ? "Palpites efetuados" : "Total de jogos"}
+            </button>
+          ))}
+        </div>
+
         <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.06)] rounded-xl p-3 space-y-2.5">
-          {efficiency.length === 0 ? (
+          {sortedEfficiency.length === 0 ? (
             <p className="text-xs text-[var(--text-muted)] text-center py-2">Sem dados</p>
           ) : (
-            efficiency.map((e, i) => (
-              <div key={e.userId}>
-                <div className="flex items-center gap-2 mb-1">
-                  <Avatar url={e.avatarUrl} name={e.displayName} size="xs" />
-                  <span className="text-xs text-[var(--text-primary)] flex-1 truncate">{e.displayName}</span>
-                  <span className="text-xs font-bold text-[var(--gold)]">{e.pct}%</span>
-                  <span className="text-[0.6rem] text-[var(--text-muted)]">{e.pts}/{e.max}pts</span>
+            sortedEfficiency.map((e, i) => {
+              const pct = efficiencyMode === "participated" ? e.pctParticipated : e.pct;
+              const denominator = efficiencyMode === "participated" ? e.participatedMax : e.max;
+              return (
+                <div key={e.userId}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Avatar url={e.avatarUrl} name={e.displayName} size="xs" />
+                    <span className="text-xs text-[var(--text-primary)] flex-1 truncate">{e.displayName}</span>
+                    <span className="text-xs font-bold text-[var(--gold)]">{pct}%</span>
+                    <span className="text-[0.6rem] text-[var(--text-muted)]">{e.pts}/{denominator}pts</span>
+                  </div>
+                  <div className="h-1.5 bg-[rgba(255,255,255,0.06)] rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${pct}%`,
+                        background: i === 0 ? "var(--gold)" : "rgba(201,165,90,0.45)",
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="h-1.5 bg-[rgba(255,255,255,0.06)] rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${e.pct}%`,
-                      background: i === 0 ? "var(--gold)" : "rgba(201,165,90,0.45)",
-                    }}
-                  />
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </Section>

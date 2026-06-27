@@ -5,7 +5,6 @@ import {
   getLetrosoWordOfDay,
   getLetrosoGameDate,
   normalize,
-  isValidLetrosoWord,
   scoreLetrosoGuess,
   aggregateLetrosoKeyStatuses,
   letrosoPointsFor,
@@ -15,6 +14,7 @@ import {
   getLetrosoTodayGame,
   saveLetrosoGame,
   getLetrosoDailyLeaderboard,
+  validateLetrosoWord,
 } from "./letrosoService";
 import type { GameStatus, LetrosoLeaderboardEntry, LetrosoTileStatus } from "./letrosoTypes";
 
@@ -406,6 +406,7 @@ export function LetrosoGame() {
   const [leaderboard, setLeaderboard] = useState<LetrosoLeaderboardEntry[]>([]);
   const [showLegend, setShowLegend] = useState(false);
   const [shareLabel, setShareLabel] = useState("Compartilhar resultado");
+  const [validating, setValidating] = useState(false);
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -455,15 +456,19 @@ export function LetrosoGame() {
   }, [user, gameDate, loadLeaderboard]);
 
   const submitGuess = useCallback(async () => {
-    if (!user || status !== "playing") return;
+    if (!user || status !== "playing" || validating) return;
     const word = normalize(currentInput);
-    if (word.length < 5) {
+    if (word.length < 3) {
       setShake(true);
-      flashToast("Mínimo 5 letras");
+      flashToast("Mínimo 3 letras");
       setTimeout(() => setShake(false), 450);
       return;
     }
-    if (!isValidLetrosoWord(word)) {
+    setValidating(true);
+    flashToast("Verificando...");
+    const valid = await validateLetrosoWord(word);
+    setValidating(false);
+    if (!valid) {
       setShake(true);
       flashToast("Palavra não encontrada");
       setTimeout(() => setShake(false), 450);
@@ -493,7 +498,7 @@ export function LetrosoGame() {
         loadLeaderboard();
       }, word.length * 120 + 200);
     }
-  }, [user, status, currentInput, guesses, answer, gameDate, flashToast, loadLeaderboard]);
+  }, [user, status, validating, currentInput, guesses, answer, gameDate, flashToast, loadLeaderboard]);
 
   const handleKey = useCallback(
     (k: string) => {
@@ -589,7 +594,7 @@ export function LetrosoGame() {
             Palavra do dia · {gameDate.split("-").reverse().join("/")}
           </p>
           <p className="text-[0.65rem] text-[var(--text-muted)] opacity-60">
-            5 a 10 letras · tentativas ilimitadas
+            3 a 10 letras · tentativas ilimitadas
           </p>
         </div>
         <div className="flex gap-2">

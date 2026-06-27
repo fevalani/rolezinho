@@ -32,6 +32,9 @@ export interface EfficiencyEntry extends StatUser {
   pts: number;
   max: number;
   pct: number;
+  participated: number;
+  participatedMax: number;
+  pctParticipated: number;
 }
 
 export interface RoundHero {
@@ -230,14 +233,22 @@ export function computeEfficiency(
   const maxPossible = finishedMatchIds.size * maxPerMatch;
 
   return leaderboard
-    .map((e) => ({
-      userId: e.user_id,
-      displayName: e.display_name,
-      avatarUrl: e.avatar_url,
-      pts: e.total_points,
-      max: maxPossible,
-      pct: maxPossible > 0 ? Math.round((e.total_points / maxPossible) * 100) : 0,
-    }))
+    .map((e) => {
+      const userPreds = allUserPredictions.get(e.user_id) ?? [];
+      const participated = userPreds.filter((p) => hasResult(p) && p.points_earned !== null).length;
+      const participatedMax = participated * maxPerMatch;
+      return {
+        userId: e.user_id,
+        displayName: e.display_name,
+        avatarUrl: e.avatar_url,
+        pts: e.total_points,
+        max: maxPossible,
+        pct: maxPossible > 0 ? Math.round((e.total_points / maxPossible) * 100) : 0,
+        participated,
+        participatedMax,
+        pctParticipated: participatedMax > 0 ? Math.round((e.total_points / participatedMax) * 100) : 0,
+      };
+    })
     .sort((a, b) => b.pct - a.pct);
 }
 

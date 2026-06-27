@@ -1,5 +1,4 @@
 import wordsRaw from "./words_letroso.txt?raw";
-import dictionaryRaw from "./dictionary.txt?raw";
 import { normalize } from "./letrecoLogic";
 import type { LetrosoTileStatus } from "./letrosoTypes";
 
@@ -24,24 +23,9 @@ export const LETROSO_WORDS: string[] = Array.from(
     wordsRaw
       .split(/\r?\n/)
       .map((w) => normalize(w))
-      .filter((w) => w.length >= 5 && w.length <= 10),
+      .filter((w) => w.length >= 3 && w.length <= 10),
   ),
 );
-
-// ─── Dicionário de validação de palpites ─────────────────────────────
-// Aceita qualquer palavra do pool de respostas + dictionary.txt (5-10 letras)
-
-const VALID_GUESSES = new Set<string>();
-for (const w of LETROSO_WORDS) VALID_GUESSES.add(w);
-for (const line of dictionaryRaw.split(/\r?\n/)) {
-  const w = normalize(line);
-  if (w.length >= 5 && w.length <= 10) VALID_GUESSES.add(w);
-}
-
-export function isValidLetrosoWord(word: string): boolean {
-  const w = normalize(word);
-  return w.length >= 5 && w.length <= 10 && VALID_GUESSES.has(w);
-}
 
 // ─── Palavra do dia ──────────────────────────────────────────────────
 
