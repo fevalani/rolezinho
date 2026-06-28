@@ -354,44 +354,12 @@ export async function upsertInteraction(
 // Realtime
 // ══════════════════════════════════════════════════════════════
 
-export async function fetchPostMeta(
-  userId: string,
-  itemId: string,
-): Promise<{ authorName: string; itemTitle: string; itemType: string } | null> {
-  const [profileRes, itemRes] = await Promise.all([
-    supabase.from("profiles").select("display_name").eq("id", userId).single(),
-    supabase.from("cultura_items").select("title, type").eq("id", itemId).single(),
-  ]);
-  if (!profileRes.data || !itemRes.data) return null;
-  return {
-    authorName: profileRes.data.display_name,
-    itemTitle: itemRes.data.title,
-    itemType: itemRes.data.type,
-  };
-}
-
-export function subscribeCultura(
-  onRefresh: () => void,
-  onInsert?: (row: Record<string, unknown>) => void,
-) {
+export function subscribeCultura(onRefresh: () => void) {
   return supabase
     .channel("cultura_realtime")
     .on(
       "postgres_changes",
-      { event: "INSERT", schema: "public", table: "cultura_posts" },
-      (payload) => {
-        onRefresh();
-        onInsert?.(payload.new as Record<string, unknown>);
-      },
-    )
-    .on(
-      "postgres_changes",
-      { event: "UPDATE", schema: "public", table: "cultura_posts" },
-      onRefresh,
-    )
-    .on(
-      "postgres_changes",
-      { event: "DELETE", schema: "public", table: "cultura_posts" },
+      { event: "*", schema: "public", table: "cultura_posts" },
       onRefresh,
     )
     .on(

@@ -72,7 +72,7 @@ export function AppShell() {
             onClick={() => setMenuOpen(false)}
           />
           <nav
-            className="fixed top-0 right-0 bottom-0 w-[300px] max-w-[82vw] bg-[var(--bg-deep)] border-l border-[rgba(201,165,90,0.08)] z-[101] flex flex-col animate-[slideFromRight_0.3s_ease-out]"
+            className="fixed top-0 left-0 bottom-0 w-[300px] max-w-[82vw] bg-[var(--bg-deep)] border-r border-[rgba(201,165,90,0.08)] z-[101] flex flex-col animate-[slideFromLeft_0.3s_ease-out]"
             style={{
               paddingTop: "var(--safe-top)",
               paddingBottom: "var(--safe-bottom)",
