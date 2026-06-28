@@ -118,3 +118,40 @@ export async function scheduleMusicReminder(): Promise<void> {
 
   sessionStorage.setItem(SESSION_KEY, "1");
 }
+
+// ─── Cultura new-post notification ────────────────────────────
+
+export async function notifyCulturaIndicacao(
+  authorName: string,
+  itemTitle: string,
+  itemType: string,
+  personalRating: number | null,
+): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+
+  const { display } = await LocalNotifications.requestPermissions();
+  if (display !== "granted") return;
+
+  const typeEmoji: Record<string, string> = {
+    movie: "🎬",
+    series: "📺",
+    book: "📚",
+    album: "🎵",
+  };
+  const emoji = typeEmoji[itemType] ?? "🎭";
+  const ratingStr = personalRating ? ` · ★ ${personalRating}/5` : "";
+
+  await LocalNotifications.schedule({
+    notifications: [
+      {
+        id: 20000 + (Date.now() % 10000),
+        title: `${emoji} ${authorName} indicou no Cultura`,
+        body: `"${itemTitle}"${ratingStr}`,
+        schedule: { at: new Date(Date.now() + 500) },
+        sound: undefined,
+        actionTypeId: "",
+        extra: null,
+      },
+    ],
+  });
+}

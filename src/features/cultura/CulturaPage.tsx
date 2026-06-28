@@ -2,6 +2,8 @@
 /* eslint-disable @typescript-eslint/no-unused-expressions */
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Capacitor } from "@capacitor/core";
+import { LocalNotifications } from "@capacitor/local-notifications";
 import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import {
@@ -12,6 +14,7 @@ import {
 } from "./culturaApi";
 import {
   fetchAllPosts,
+  fetchPostMeta,
   createPost,
   deletePost,
   upsertItem,
@@ -23,6 +26,7 @@ import {
   type CulturaPost,
   type WeekGroup,
 } from "./culturaService";
+import { notifyCulturaIndicacao } from "@/lib/notificationService";
 
 // ══════════════════════════════════════════════════════════════
 // Star Rating
@@ -737,6 +741,12 @@ export function CulturaPage() {
     setTimeout(() => setToast(""), 3000);
   };
 
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      LocalNotifications.requestPermissions();
+    }
+  }, []);
+
   const load = useCallback(async () => {
     const data = await fetchAllPosts(user?.id);
     setPosts(data);
@@ -749,11 +759,27 @@ export function CulturaPage() {
 
   // Realtime
   useEffect(() => {
-    const ch = subscribeCultura(() => load());
+    const ch = subscribeCultura(
+      () => load(),
+      async (row) => {
+        if (row.user_id === user?.id) return;
+        const meta = await fetchPostMeta(
+          row.user_id as string,
+          row.item_id as string,
+        );
+        if (!meta) return;
+        await notifyCulturaIndicacao(
+          meta.authorName,
+          meta.itemTitle,
+          meta.itemType,
+          row.personal_rating as number | null,
+        );
+      },
+    );
     return () => {
       ch.unsubscribe();
     };
-  }, [load]);
+  }, [load, user?.id]);
 
   // Derived state
   // allUsers from ALL posts (not filtered) so carousel is always visible
