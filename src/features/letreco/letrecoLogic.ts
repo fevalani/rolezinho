@@ -4,6 +4,7 @@
 
 import wordsRaw from "./words.txt?raw";
 import dictionaryRaw from "./dictionary.txt?raw";
+import cedilha5Raw from "./cedilha_5.txt?raw";
 import type { LetterStatus } from "./letrecoTypes";
 
 /** Tamanho da palavra (padrão do gênero) */
@@ -25,6 +26,36 @@ export function normalize(word: string): string {
     .replace(/[̀-ͯ]/g, "")
     .toUpperCase()
     .replace(/[^A-Z]/g, "");
+}
+
+/** Formas com cedilha conhecidas (maiúsculas, sem outros acentos). */
+const CEDILHA_SET: Set<string> = new Set(
+  cedilha5Raw.split(/\r?\n/).filter((w) => w.length > 0),
+);
+
+/**
+ * Dado um palavra normalizada (sem acentos), retorna a forma com cedilha
+ * se ela existir no dicionário — ex.: "POCAS" → "POÇAS".
+ * Testa combinações de C→Ç (preferindo menos substituições primeiro).
+ * Se nenhuma variante for conhecida, devolve a entrada sem alteração.
+ */
+export function findCedilhaForm(word: string): string {
+  const positions: number[] = [];
+  for (let i = 0; i < word.length; i++) {
+    if (word[i] === "C") positions.push(i);
+  }
+  if (positions.length === 0) return word;
+
+  const total = 1 << positions.length;
+  for (let mask = 1; mask < total; mask++) {
+    const chars = word.split("");
+    for (let b = 0; b < positions.length; b++) {
+      if (mask & (1 << b)) chars[positions[b]] = "Ç";
+    }
+    const variant = chars.join("");
+    if (CEDILHA_SET.has(variant)) return variant;
+  }
+  return word;
 }
 
 /**

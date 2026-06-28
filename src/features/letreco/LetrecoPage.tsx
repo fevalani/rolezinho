@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import { LetrosoGame } from "./LetrosoGame";
-import { getCombinedOverallLeaderboard } from "./letrosoService";
+import { getLetrosoOverallEntries } from "./letrosoService";
 import {
   WORD_LENGTH,
   MAX_ATTEMPTS,
@@ -16,6 +16,7 @@ import {
   aggregateKeyStatuses,
   pointsFor,
   buildShareText,
+  findCedilhaForm,
 } from "./letrecoLogic";
 import {
   getTodayGame,
@@ -23,6 +24,7 @@ import {
   getDailyLeaderboard,
   getUserStats,
   getApprovedWords,
+  getOverallLeaderboard,
   verifyWordInDictionary,
   suggestWord,
 } from "./letrecoService";
@@ -113,7 +115,7 @@ function Grid({
       const isCursor = editable && c === cursor;
 
       if (submitted) {
-        letter = submitted[c] ?? "";
+        letter = findCedilhaForm(submitted)[c] ?? "";
         cls = tileClasses(statuses![c]);
         extra = "letreco-flip";
       } else if (isCurrent) {
@@ -462,9 +464,12 @@ export function LetrecoPage() {
   const openOverall = useCallback(async () => {
     setShowOverall(true);
     setOverall(null);
-    const lb = await getCombinedOverallLeaderboard();
+    const lb =
+      gameMode === "letroso"
+        ? await getLetrosoOverallEntries()
+        : await getOverallLeaderboard();
     setOverall(lb);
-  }, []);
+  }, [gameMode]);
 
   // Carrega a partida do dia
   useEffect(() => {
@@ -871,7 +876,7 @@ export function LetrecoPage() {
                   <p className="text-sm text-[var(--text-secondary)] mt-1">
                     A palavra era{" "}
                     <span className="font-bold text-[var(--gold)] tracking-widest">
-                      {answer}
+                      {findCedilhaForm(answer)}
                     </span>
                   </p>
                 </>
@@ -955,7 +960,10 @@ export function LetrecoPage() {
         </>
       )}
 
-      {/* Modal de ranking geral (acumulado) */}
+      {/* Fim do modo Letreco */}
+      </>}
+
+      {/* Modal de ranking geral (acumulado) — fora dos blocos de modo */}
       {showOverall && (
         <>
           <div
@@ -968,7 +976,7 @@ export function LetrecoPage() {
                 className="text-lg font-bold text-[var(--gold)]"
                 style={{ fontFamily: "var(--font-display)" }}
               >
-                Ranking geral 🏆
+                {gameMode === "letroso" ? "Ranking Letroso 🔠" : "Ranking Letreco 🟩"}
               </h2>
               <button
                 onClick={() => setShowOverall(false)}
@@ -978,7 +986,7 @@ export function LetrecoPage() {
               </button>
             </div>
             <p className="text-xs text-[var(--text-muted)] mb-4">
-              Pontuação acumulada de todos os dias
+              {gameMode === "letroso" ? "Letroso" : "Letreco"} · pontuação acumulada de todos os dias
             </p>
 
             {overall ? (
@@ -991,9 +999,6 @@ export function LetrecoPage() {
           </div>
         </>
       )}
-
-      {/* Fim do modo Letreco */}
-      </>}
     </div>
   );
 }
