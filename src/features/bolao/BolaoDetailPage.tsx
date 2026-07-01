@@ -17,12 +17,14 @@ import {
   recalculateAllPoints,
   updatePoolScoringModel,
   updatePoolVariationMode,
+  updatePoolGoalBase,
   fetchKnockoutStages,
   updatePoolStageMultipliers,
   computePositionVariations,
   leavePool,
   SCORING_MODELS,
   VARIATION_MODES,
+  GOAL_BASE_LABELS,
   getScoringDisplay,
   toRoundLabel,
   CUSTOM_SCORING_CATEGORIES,
@@ -30,6 +32,7 @@ import {
   type ScoringModel,
   type PresetScoringModel,
   type VariationMode,
+  type GoalBase,
   type CustomScoringConfig,
   type StageMultipliers,
   type BolaoPool,
@@ -816,6 +819,8 @@ export function BolaoDetailPage() {
     useState<StageMultipliers>({});
   const [knockoutStages, setKnockoutStages] = useState<string[]>([]);
   const [changingMultipliers, setChangingMultipliers] = useState(false);
+  const [adminGoalBase, setAdminGoalBase] = useState<GoalBase>("extra_time");
+  const [changingGoalBase, setChangingGoalBase] = useState(false);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -905,6 +910,7 @@ export function BolaoDetailPage() {
         setAdminCustomConfig(snap.pool.scoring_config ?? DEFAULT_CUSTOM_CONFIG);
         setAdminVariationMode(snap.pool.variation_mode);
         setAdminStageMultipliers(snap.pool.stage_multipliers ?? {});
+        setAdminGoalBase(snap.pool.goal_base ?? "extra_time");
       }
       if (autoSelectRound && !userPickedRoundRef.current) {
         setSelectedRoundIdx(computeCurrentRoundIdx(rounds));
@@ -1251,6 +1257,19 @@ export function BolaoDetailPage() {
     } else {
       revalidate();
       showToast("Multiplicadores de fase salvos e pontos recalculados ✓");
+    }
+  };
+
+  const handleGoalBaseChange = async () => {
+    if (!poolId || changingGoalBase) return;
+    setChangingGoalBase(true);
+    const { error } = await updatePoolGoalBase(poolId, adminGoalBase);
+    setChangingGoalBase(false);
+    if (error) {
+      showToast(`Erro: ${error}`);
+    } else {
+      revalidate();
+      showToast(`Base de gols: ${GOAL_BASE_LABELS[adminGoalBase].label} ✓`);
     }
   };
 
@@ -2013,6 +2032,71 @@ export function BolaoDetailPage() {
               </>
             )}
           </div>
+
+          {/* Base de Gols — somente admin, pois zera e recalcula tudo */}
+          {isAdmin && (
+            <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex flex-col gap-3">
+              <div>
+                <p className="text-xs text-[var(--text-muted)] font-medium uppercase tracking-wide">
+                  Base de Gols
+                </p>
+                <p className="text-[0.65rem] text-[var(--text-muted)] mt-0.5">
+                  Atual:{" "}
+                  <span className="text-[var(--gold)]">
+                    {pool && GOAL_BASE_LABELS[pool.goal_base ?? "extra_time"].label}
+                  </span>
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {(Object.keys(GOAL_BASE_LABELS) as GoalBase[]).map((base) => (
+                  <button
+                    key={base}
+                    onClick={() => setAdminGoalBase(base)}
+                    className={`w-full text-left px-3 py-3 rounded-xl border transition-all ${
+                      adminGoalBase === base
+                        ? "bg-[rgba(201,165,90,0.08)] border-[rgba(201,165,90,0.35)]"
+                        : "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
+                    }`}
+                  >
+                    <p
+                      className={`text-sm font-semibold mb-0.5 ${adminGoalBase === base ? "text-[var(--gold)]" : "text-[var(--text-primary)]"}`}
+                    >
+                      {GOAL_BASE_LABELS[base].label}
+                    </p>
+                    <p className="text-[0.6rem] text-[var(--text-muted)]">
+                      {GOAL_BASE_LABELS[base].description}
+                    </p>
+                  </button>
+                ))}
+              </div>
+
+              {adminGoalBase !== (pool?.goal_base ?? "extra_time") && (
+                <p className="text-[0.65rem] text-orange-400 bg-[rgba(251,146,60,0.08)] border border-[rgba(251,146,60,0.2)] rounded-lg px-3 py-2">
+                  Ao salvar, todas as pontuações serão zeradas e recalculadas
+                  com a nova base de gols.
+                </p>
+              )}
+
+              <button
+                onClick={handleGoalBaseChange}
+                disabled={
+                  changingGoalBase ||
+                  adminGoalBase === (pool?.goal_base ?? "extra_time")
+                }
+                className="w-full py-3 rounded-xl font-semibold text-sm bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] hover:bg-[rgba(201,165,90,0.2)] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+              >
+                {changingGoalBase ? (
+                  <>
+                    <span className="spinner" style={{ width: 14, height: 14 }} />
+                    Recalculando…
+                  </>
+                ) : (
+                  "Salvar base de gols"
+                )}
+              </button>
+            </div>
+          )}
 
           {isAdmin && (
             <p className="text-[0.65rem] text-[var(--text-muted)] text-center px-2">

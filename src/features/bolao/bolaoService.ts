@@ -21,6 +21,18 @@ export { toRoundLabel };
 export type PresetScoringModel = "classic" | "extended" | "simplified";
 export type ScoringModel = PresetScoringModel | "custom";
 
+// ── Base de gols para pontuação ──────────────────────────────
+// 'regular'    = placar ao fim dos 90min (sem prorrogação)
+// 'extra_time' = placar após prorrogação, se houver (padrão)
+// 'penalty'    = extra_time + gols de pênaltis somados ao placar
+export type GoalBase = "regular" | "extra_time" | "penalty";
+
+export const GOAL_BASE_LABELS: Record<GoalBase, { label: string; description: string }> = {
+  regular:    { label: "90min", description: "Apenas os gols dos 90 minutos regulamentares, sem prorrogação." },
+  extra_time: { label: "90min + prorrogação", description: "Inclui gols da prorrogação quando houver. Resultado oficial do jogo." },
+  penalty:    { label: "90min + prorrogação + pênaltis", description: "Soma os gols convertidos nos pênaltis ao placar final." },
+};
+
 // ── Variação de posição na classificação ─────────────────────
 // "off"   = desativado (nenhuma seta)
 // "round" = compara com a classificação antes da última rodada
@@ -154,8 +166,15 @@ export interface BolaoMatch {
   stage: string;
   utc_date: string;
   status: string;
+  /** Placar após prorrogação (sem pênaltis). Valor exibido na UI. */
   score_home: number | null;
   score_away: number | null;
+  /** Placar somente dos 90min. Null quando não houve prorrogação (igual a score_home). */
+  score_regular_home: number | null;
+  score_regular_away: number | null;
+  /** Gols convertidos nos pênaltis (ex: 5 e 3). Null quando não houve disputa. */
+  score_pen_home: number | null;
+  score_pen_away: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -174,6 +193,7 @@ export interface BolaoPool {
   scoring_config: CustomScoringConfig | null;
   variation_mode: VariationMode;
   stage_multipliers: StageMultipliers;
+  goal_base: GoalBase;
 }
 
 export interface BolaoPoolMember {
@@ -389,24 +409,49 @@ async function syncMatches(
     .select("id", { count: "exact", head: true })
     .eq("championship_id", championship.id);
 
-  const rows = fdMatches.map((m) => ({
-    championship_id: championship.id,
-    fd_match_id: m.id,
-    // Mata-mata TBD: API retorna name=null até os classificados serem definidos.
-    // Normaliza variações de nome entre SofaScore e FD para manter consistência.
-    home_team: normalizeTeamName(m.homeTeam.name),
-    home_crest: m.homeTeam.crest ?? null,
-    away_team: normalizeTeamName(m.awayTeam.name),
-    away_crest: m.awayTeam.crest ?? null,
-    round_label: toRoundLabel(m.stage, m.matchday),
-    round_number: m.matchday ?? null,
-    stage: m.stage,
-    utc_date: m.utcDate,
-    status: m.status,
-    score_home: m.score.fullTime.home ?? null,
-    score_away: m.score.fullTime.away ?? null,
-    updated_at: new Date().toISOString(),
-  }));
+  const rows = fdMatches.map((m) => {
+    const ftHome = m.score.fullTime.home ?? null;
+    const ftAway = m.score.fullTime.away ?? null;
+    const rtHome = m.score.regularTime?.home ?? null;
+    const rtAway = m.score.regularTime?.away ?? null;
+    const etDeltaHome = m.score.extraTime?.home ?? null;
+    const etDeltaAway = m.score.extraTime?.away ?? null;
+    const penHome = m.score.penalties?.home ?? null;
+    const penAway = m.score.penalties?.away ?? null;
+    const hadET = m.score.duration === "EXTRA_TIME" || m.score.duration === "PENALTY_SHOOTOUT";
+
+    // Placar dos 90min: quando houve ET/pênaltis, fullTime já inclui tudo
+    // (inclusive gols de pênaltis), então o placar de 90min vem de regularTime.
+    const baseHome = hadET ? (rtHome ?? ftHome) : ftHome;
+    const baseAway = hadET ? (rtAway ?? ftAway) : ftAway;
+
+    // score_home/away = placar após prorrogação (sem pênaltis)
+    const scoreHome = hadET && etDeltaHome !== null && baseHome !== null ? baseHome + etDeltaHome : baseHome;
+    const scoreAway = hadET && etDeltaAway !== null && baseAway !== null ? baseAway + etDeltaAway : baseAway;
+
+    return {
+      championship_id: championship.id,
+      fd_match_id: m.id,
+      // Mata-mata TBD: API retorna name=null até os classificados serem definidos.
+      // Normaliza variações de nome entre SofaScore e FD para manter consistência.
+      home_team: normalizeTeamName(m.homeTeam.name),
+      home_crest: m.homeTeam.crest ?? null,
+      away_team: normalizeTeamName(m.awayTeam.name),
+      away_crest: m.awayTeam.crest ?? null,
+      round_label: toRoundLabel(m.stage, m.matchday),
+      round_number: m.matchday ?? null,
+      stage: m.stage,
+      utc_date: m.utcDate,
+      status: m.status,
+      score_home: scoreHome,
+      score_away: scoreAway,
+      score_regular_home: hadET ? baseHome : null,
+      score_regular_away: hadET ? baseAway : null,
+      score_pen_home: penHome,
+      score_pen_away: penAway,
+      updated_at: new Date().toISOString(),
+    };
+  });
 
   // Antes de upsert por fd_match_id, detecta registros com o mesmo
   // time+dia mas fd_match_id diferente (resíduo de import anterior via SofaScore).
@@ -518,6 +563,7 @@ export async function fetchAllPools(userId: string): Promise<BolaoPool[]> {
       scoring_config: (p.scoring_config ?? null) as CustomScoringConfig | null,
       variation_mode: (p.variation_mode ?? "off") as VariationMode,
       stage_multipliers: (p.stage_multipliers ?? {}) as StageMultipliers,
+      goal_base: (p.goal_base ?? "extra_time") as GoalBase,
     };
   });
 }
@@ -549,6 +595,7 @@ export async function fetchPoolById(
     scoring_config: (data.scoring_config ?? null) as CustomScoringConfig | null,
     variation_mode: (data.variation_mode ?? "off") as VariationMode,
     stage_multipliers: (data.stage_multipliers ?? {}) as StageMultipliers,
+    goal_base: (data.goal_base ?? "extra_time") as GoalBase,
   };
 }
 
@@ -847,28 +894,31 @@ export async function syncPoolResults(poolId: string, force = false): Promise<nu
       match.utc_date,
     );
     if (!result || result.status !== "FINISHED") continue;
+    if (result.home === null || result.away === null) continue;
 
     await supabase
       .from("bolao_matches")
       .update({
         score_home: result.home,
         score_away: result.away,
+        score_regular_home: result.regularHome,
+        score_regular_away: result.regularAway,
+        score_pen_home: result.penaltyHome,
+        score_pen_away: result.penaltyAway,
         status: "FINISHED",
         updated_at: new Date().toISOString(),
       })
       .eq("id", match.id);
 
-    if (result.home !== null && result.away !== null) {
-      await scoreMatchPredictions(match.id, result.home, result.away);
-    }
-
+    // Função SQL lê o placar do banco e aplica o goal_base de cada bolão
+    await scoreMatchPredictions(match.id);
     updated++;
   }
 
   // 2. Partidas já FINISHED com placar mas palpites sem pontuação — rescore
   const { data: finishedMatches } = await supabase
     .from("bolao_matches")
-    .select("id, score_home, score_away")
+    .select("id")
     .eq("championship_id", pool.championship_id)
     .eq("status", "FINISHED")
     .not("score_home", "is", null)
@@ -882,7 +932,7 @@ export async function syncPoolResults(poolId: string, force = false): Promise<nu
       .is("points_earned", null);
 
     if ((count ?? 0) > 0) {
-      await scoreMatchPredictions(match.id, match.score_home!, match.score_away!);
+      await scoreMatchPredictions(match.id);
       updated++;
     }
   }
@@ -946,18 +996,25 @@ export async function setMatchResultManually(
   scoreHome: number,
   scoreAway: number,
 ): Promise<{ error: string | null }> {
+  // Entrada manual: admin define o placar como quiser. Zera breakdown para
+  // que o goal_base 'regular' caia em score_home (sem prorrogação separada).
   const { error } = await supabase
     .from("bolao_matches")
     .update({
       score_home: scoreHome,
       score_away: scoreAway,
+      score_regular_home: null,
+      score_regular_away: null,
+      score_pen_home: null,
+      score_pen_away: null,
       status: "FINISHED",
       updated_at: new Date().toISOString(),
     })
     .eq("id", matchId);
 
   if (error) return { error: error.message };
-  await scoreMatchPredictions(matchId, scoreHome, scoreAway);
+  // Função SQL lê o placar do banco e aplica goal_base de cada bolão
+  await scoreMatchPredictions(matchId);
   return { error: null };
 }
 
@@ -974,7 +1031,7 @@ export async function recalculateAllPoints(
 
   const { data: finishedMatches } = await supabase
     .from("bolao_matches")
-    .select("id, score_home, score_away")
+    .select("id")
     .eq("championship_id", pool.championship_id)
     .eq("status", "FINISHED")
     .not("score_home", "is", null)
@@ -982,10 +1039,30 @@ export async function recalculateAllPoints(
 
   let updated = 0;
   for (const match of finishedMatches ?? []) {
-    await scoreMatchPredictions(match.id, match.score_home!, match.score_away!, poolId);
+    // Função SQL lê placar do banco e aplica goal_base do bolão
+    await scoreMatchPredictions(match.id, poolId);
     updated++;
   }
   return { updated, error: null };
+}
+
+export async function updatePoolGoalBase(
+  poolId: string,
+  goalBase: GoalBase,
+): Promise<{ error: string | null }> {
+  const { error: updateErr } = await supabase.rpc("update_pool_goal_base", {
+    p_pool_id: poolId,
+    p_goal_base: goalBase,
+  });
+  if (updateErr) return { error: updateErr.message };
+
+  const { error: resetErr } = await supabase.rpc("reset_pool_scores", {
+    p_pool_id: poolId,
+  });
+  if (resetErr) return { error: resetErr.message };
+
+  const { error: calcErr } = await recalculateAllPoints(poolId);
+  return { error: calcErr };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1121,14 +1198,12 @@ export async function updatePoolStageMultipliers(
 
 async function scoreMatchPredictions(
   matchId: string,
-  realHome: number,
-  realAway: number,
   poolId?: string,
 ): Promise<void> {
+  // A função SQL lê o placar de bolao_matches e aplica o goal_base de cada bolão,
+  // eliminando a necessidade de passar gols por parâmetro.
   const { error } = await supabase.rpc("score_match_predictions", {
     p_match_id: matchId,
-    p_real_home: realHome,
-    p_real_away: realAway,
     p_pool_id: poolId ?? null,
   });
 
@@ -1449,6 +1524,7 @@ export function snapshotSignature(s: BolaoSnapshot): string {
   return [
     s.pool?.scoring_model,
     s.pool?.variation_mode,
+    s.pool?.goal_base,
     s.pool?.member_count,
     ...matches,
     ...board,

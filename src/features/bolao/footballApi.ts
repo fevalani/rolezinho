@@ -15,8 +15,34 @@ export interface FDMatch {
   stage: string;
   matchday: number | null;
   score: {
+    /** Placar final "oficial" da API. Em jogos REGULAR é o placar de 90min.
+     *  Em jogos com prorrogação/pênaltis, a API inclui TUDO aqui (90min + ET + pênaltis) —
+     *  não usar como placar de 90min nesses casos, usar regularTime. */
     fullTime: { home: number | null; away: number | null };
+    /** Placar ao fim dos 90min regulamentares. Só vem preenchido quando houve
+     *  prorrogação e/ou pênaltis (duration !== "REGULAR"). */
+    regularTime?: { home: number | null; away: number | null } | null;
+    /** Gols marcados APENAS na prorrogação (delta, não cumulativo). Null quando não houve. */
+    extraTime?: { home: number | null; away: number | null } | null;
+    /** Gols convertidos na disputa de pênaltis. Null quando não houve. */
+    penalties?: { home: number | null; away: number | null } | null;
+    /** "REGULAR" | "EXTRA_TIME" | "PENALTY_SHOOTOUT" */
+    duration?: string | null;
   };
+}
+
+/** Resultado detalhado retornado pelas funções de fetch de resultado. */
+export interface MatchScoreResult {
+  /** Placar após prorrogação (sem gols de pênaltis). Valor que fica em score_home/away no banco. */
+  home: number | null;
+  away: number | null;
+  /** Placar apenas aos 90min, diferente de home/away somente quando houve prorrogação. */
+  regularHome: number | null;
+  regularAway: number | null;
+  /** Gols da disputa de pênaltis (ex: 5-3). Null quando não houve. */
+  penaltyHome: number | null;
+  penaltyAway: number | null;
+  status: string;
 }
 
 export const CHAMPIONSHIPS_CONFIG: Record<
@@ -199,18 +225,50 @@ async function fetchMatchesFD(
 
 async function fetchMatchResultFD(
   fdMatchId: number,
-): Promise<{ home: number | null; away: number | null; status: string } | null> {
+): Promise<MatchScoreResult | null> {
   if (!FD_KEY) return null;
   try {
     const res = await fdFetch(`/matches/${fdMatchId}`);
     if (!res.ok) return null;
     const data = await res.json() as {
-      score?: { fullTime?: { home?: number | null; away?: number | null } };
+      score?: {
+        fullTime?: { home?: number | null; away?: number | null };
+        regularTime?: { home?: number | null; away?: number | null } | null;
+        extraTime?: { home?: number | null; away?: number | null } | null;
+        penalties?: { home?: number | null; away?: number | null } | null;
+        duration?: string | null;
+      };
       status?: string;
     };
+
+    const ftHome = data.score?.fullTime?.home ?? null;
+    const ftAway = data.score?.fullTime?.away ?? null;
+    const rtHome = data.score?.regularTime?.home ?? null;
+    const rtAway = data.score?.regularTime?.away ?? null;
+    // delta de gols na prorrogação (não cumulativo)
+    const etDeltaHome = data.score?.extraTime?.home ?? null;
+    const etDeltaAway = data.score?.extraTime?.away ?? null;
+    const penHome = data.score?.penalties?.home ?? null;
+    const penAway = data.score?.penalties?.away ?? null;
+    const duration = data.score?.duration ?? null;
+
+    const hadET = duration === "EXTRA_TIME" || duration === "PENALTY_SHOOTOUT";
+    // Placar dos 90min: quando houve ET/pênaltis, a API já inclui tudo em
+    // fullTime, então o placar de 90min real vem de regularTime, não de fullTime.
+    const baseHome = hadET ? (rtHome ?? ftHome) : ftHome;
+    const baseAway = hadET ? (rtAway ?? ftAway) : ftAway;
+    const etHome = hadET && etDeltaHome !== null && baseHome !== null ? baseHome + etDeltaHome : null;
+    const etAway = hadET && etDeltaAway !== null && baseAway !== null ? baseAway + etDeltaAway : null;
+
     return {
-      home: data.score?.fullTime?.home ?? null,
-      away: data.score?.fullTime?.away ?? null,
+      // score_home/away no banco = placar após prorrogação (sem pênaltis)
+      home: etHome ?? baseHome,
+      away: etAway ?? baseAway,
+      // score_regular = 90min somente, preenchido só quando houve prorrogação
+      regularHome: hadET ? baseHome : null,
+      regularAway: hadET ? baseAway : null,
+      penaltyHome: penHome,
+      penaltyAway: penAway,
       status: data.status ?? "UNKNOWN",
     };
   } catch {
@@ -220,14 +278,22 @@ async function fetchMatchResultFD(
 
 // ─── SofaScore fallback ──────────────────────────────────────
 
+interface SofaScore {
+  current?: number | null;
+  /** Placar ao fim dos 90min (sem prorrogação). Disponível via API RapidAPI. */
+  normaltime?: number | null;
+  /** Gols convertidos na disputa de pênaltis. */
+  penalties?: number | null;
+}
+
 interface SofaEvent {
   id: number;
   homeTeam: { name: string };
   awayTeam: { name: string };
   startTimestamp: number;
   status: { type: string };
-  homeScore?: { current?: number };
-  awayScore?: { current?: number };
+  homeScore?: SofaScore;
+  awayScore?: SofaScore;
 }
 
 function normalizeTeamName(s: string): string {
@@ -242,7 +308,7 @@ async function fetchMatchResultSofa(
   homeTeam: string,
   awayTeam: string,
   utcDate: string,
-): Promise<{ home: number | null; away: number | null; status: string } | null> {
+): Promise<MatchScoreResult | null> {
   if (!RAPIDAPI_KEY) return null;
   const dateStr = utcDate.slice(0, 10);
   try {
@@ -271,10 +337,27 @@ async function fetchMatchResultSofa(
     if (!match) return null;
 
     const finished = match.status.type === "finished";
+    if (!finished) {
+      return { home: null, away: null, regularHome: null, regularAway: null, penaltyHome: null, penaltyAway: null, status: match.status.type.toUpperCase() };
+    }
+
+    const curHome = match.homeScore?.current ?? null;
+    const curAway = match.awayScore?.current ?? null;
+    // normaltime = placar 90min; se disponível e diferente de current, houve prorrogação
+    const ntHome = match.homeScore?.normaltime ?? null;
+    const ntAway = match.awayScore?.normaltime ?? null;
+    const penHome = match.homeScore?.penalties ?? null;
+    const penAway = match.awayScore?.penalties ?? null;
+
+    const hadET = ntHome !== null && ntHome !== curHome;
     return {
-      home: finished ? (match.homeScore?.current ?? null) : null,
-      away: finished ? (match.awayScore?.current ?? null) : null,
-      status: finished ? "FINISHED" : match.status.type.toUpperCase(),
+      home: curHome,  // current = placar após prorrogação (sem pênaltis)
+      away: curAway,
+      regularHome: hadET ? ntHome : null,
+      regularAway: hadET ? ntAway : null,
+      penaltyHome: penHome,
+      penaltyAway: penAway,
+      status: "FINISHED",
     };
   } catch {
     return null;
@@ -295,7 +378,7 @@ async function fetchMatchResultSportsDB(
   homeTeam: string,
   awayTeam: string,
   utcDate: string,
-): Promise<{ home: number | null; away: number | null; status: string } | null> {
+): Promise<MatchScoreResult | null> {
   const dateStr = utcDate.slice(0, 10);
   const path = `/eventsday.php?d=${dateStr}&s=Soccer`;
   try {
@@ -331,10 +414,28 @@ async function fetchMatchResultSportsDB(
     const home = match.intHomeScore !== null && match.intHomeScore !== "" ? parseInt(match.intHomeScore) : null;
     const away = match.intAwayScore !== null && match.intAwayScore !== "" ? parseInt(match.intAwayScore) : null;
 
+    if (!finished) {
+      return { home: null, away: null, regularHome: null, regularAway: null, penaltyHome: null, penaltyAway: null, status: "TIMED" };
+    }
+
+    // Quando status é "pen", o TheSportsDB retorna o placar da disputa de
+    // pênaltis em intHomeScore/Away, não o placar regulamentar. Como não temos
+    // como separar os valores confiável­mente, descartamos o score desta fonte
+    // para jogos decididos nos pênaltis e deixamos o FD/SofaScore resolver.
+    if (st === "pen") {
+      return { home: null, away: null, regularHome: null, regularAway: null, penaltyHome: null, penaltyAway: null, status: "FINISHED" };
+    }
+
+    // "aet" = após prorrogação: intHomeScore já inclui gols da prorrogação.
+    // Não temos o placar de 90min separado nesta fonte.
     return {
-      home: finished ? home : null,
-      away: finished ? away : null,
-      status: finished ? "FINISHED" : "TIMED",
+      home,
+      away,
+      regularHome: null,
+      regularAway: null,
+      penaltyHome: null,
+      penaltyAway: null,
+      status: "FINISHED",
     };
   } catch {
     return null;
@@ -349,8 +450,8 @@ interface SofaTournamentEvent {
   awayTeam: { id: number; name: string };
   startTimestamp: number;
   status: { type: string; code: number };
-  homeScore?: { current?: number | null };
-  awayScore?: { current?: number | null };
+  homeScore?: SofaScore;
+  awayScore?: SofaScore;
   roundInfo?: { round?: number; name?: string };
   tournament?: {
     name?: string;
@@ -396,6 +497,20 @@ function sofaEventToFDMatch(e: SofaTournamentEvent): FDMatch {
     }
   }
 
+  // SofaScore: current = placar após prorrogação (sem pênaltis), normaltime = 90min
+  const curHome = finished ? (e.homeScore?.current ?? null) : null;
+  const curAway = finished ? (e.awayScore?.current ?? null) : null;
+  const ntHome = finished ? (e.homeScore?.normaltime ?? null) : null;
+  const ntAway = finished ? (e.awayScore?.normaltime ?? null) : null;
+  const penHome = finished ? (e.homeScore?.penalties ?? null) : null;
+  const penAway = finished ? (e.awayScore?.penalties ?? null) : null;
+
+  // hadET: normaltime existe e é diferente de current → houve prorrogação
+  const hadET = ntHome !== null && ntHome !== curHome;
+  // etDeltaHome: gols SOMENTE na prorrogação (delta p/ montar o FDMatch.score)
+  const etDeltaHome = hadET && curHome !== null && ntHome !== null ? curHome - ntHome : null;
+  const etDeltaAway = hadET && curAway !== null && ntAway !== null ? curAway - ntAway : null;
+
   return {
     id: e.id,
     homeTeam: { name: e.homeTeam.name, crest: null },
@@ -405,10 +520,14 @@ function sofaEventToFDMatch(e: SofaTournamentEvent): FDMatch {
     stage,
     matchday,
     score: {
+      // fullTime = placar de 90min (como no FD); current do SofaScore = após prorrogação
       fullTime: {
-        home: finished ? (e.homeScore?.current ?? null) : null,
-        away: finished ? (e.awayScore?.current ?? null) : null,
+        home: hadET ? ntHome : curHome,
+        away: hadET ? ntAway : curAway,
       },
+      extraTime: hadET && etDeltaHome !== null ? { home: etDeltaHome, away: etDeltaAway ?? null } : null,
+      penalties: penHome !== null ? { home: penHome, away: penAway ?? null } : null,
+      duration: penHome !== null ? "PENALTY_SHOOTOUT" : (hadET ? "EXTRA_TIME" : "REGULAR"),
     },
   };
 }
@@ -657,7 +776,7 @@ function parseLanceHTML(html: string): LanceParsedMatch[] {
 async function fetchMatchResultLance(
   homeTeam: string,
   awayTeam: string,
-): Promise<{ home: number | null; away: number | null; status: string } | null> {
+): Promise<MatchScoreResult | null> {
   try {
     if (!lanceCacheData || Date.now() - lanceCacheTs > LANCE_CACHE_TTL) {
       const html = await fetchLanceHTML();
@@ -684,7 +803,16 @@ async function fetchMatchResultLance(
     if (!found) return null;
 
     console.log(`[Lance] Resultado encontrado: ${found.home} ${found.scoreHome}×${found.scoreAway} ${found.away}`);
-    return { home: found.scoreHome, away: found.scoreAway, status: "FINISHED" };
+    // Lance.com.br exibe o placar após prorrogação; não temos detalhamento de pênaltis.
+    return {
+      home: found.scoreHome,
+      away: found.scoreAway,
+      regularHome: null,
+      regularAway: null,
+      penaltyHome: null,
+      penaltyAway: null,
+      status: "FINISHED",
+    };
   } catch (err) {
     console.error("[Lance] Erro ao buscar resultado:", err);
     return null;
@@ -709,15 +837,20 @@ export async function fetchMatchResult(
   homeTeam: string,
   awayTeam: string,
   utcDate: string,
-): Promise<{ home: number | null; away: number | null; status: string } | null> {
+): Promise<MatchScoreResult | null> {
+  // Cada fallback tenta preservar o detalhamento (regular/ET/penalty).
+  // O FD é a fonte mais confiável; SofaScore e TheSportsDB são fallbacks.
+  // Lance.com.br é o último recurso (scraping, sem detalhamento).
   const primary = await fetchMatchResultFD(fdMatchId);
-  if (primary) return primary;
+  if (primary && (primary.home !== null || primary.status !== "UNKNOWN")) return primary;
 
   const sofa = await fetchMatchResultSofa(homeTeam, awayTeam, utcDate);
-  if (sofa) return sofa;
+  if (sofa && sofa.home !== null) return sofa;
 
   const sportsdb = await fetchMatchResultSportsDB(homeTeam, awayTeam, utcDate);
-  if (sportsdb) return sportsdb;
+  // TheSportsDB retorna {home:null} para jogos decididos nos pênaltis (corrigido acima)
+  // mas retorna status "FINISHED" — se home não é null, usamos.
+  if (sportsdb && sportsdb.home !== null) return sportsdb;
 
   // Fallback final: Lance.com.br (scraping SSR — principalmente para Copa do Mundo)
   return fetchMatchResultLance(homeTeam, awayTeam);
