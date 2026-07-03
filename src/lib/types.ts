@@ -232,11 +232,11 @@ export const APP_FEATURES: Feature[] = [
   },
   {
     id: "letreco",
-    name: "LetraFolia",
-    icon: "🎉",
+    name: "Jogos Diários",
+    icon: "🧩",
     path: "/letreco",
     enabled: true,
-    description: "Palavras do dia — Letreco (5 letras) e Letroso (6–10 letras)",
+    description: "Desafios do dia — Letreco, Letroso e Sudoku",
   },
   {
     id: "ficha",

@@ -3,6 +3,8 @@ import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import { LetrosoGame } from "./LetrosoGame";
 import { getLetrosoOverallEntries } from "./letrosoService";
+import { SudokuGame } from "./SudokuGame";
+import { getSudokuOverallEntries } from "./sudokuService";
 import {
   WORD_LENGTH,
   MAX_ATTEMPTS,
@@ -374,7 +376,7 @@ function OverallLeaderboard({
 // ─── Página ───────────────────────────────────────────────────
 
 type Tab = "ranking" | "stats";
-type GameMode = "letreco" | "letroso";
+type GameMode = "letreco" | "letroso" | "sudoku";
 
 export function LetrecoPage() {
   const { user } = useAuth();
@@ -467,7 +469,9 @@ export function LetrecoPage() {
     const lb =
       gameMode === "letroso"
         ? await getLetrosoOverallEntries()
-        : await getOverallLeaderboard();
+        : gameMode === "sudoku"
+          ? await getSudokuOverallEntries()
+          : await getOverallLeaderboard();
     setOverall(lb);
   }, [gameMode]);
 
@@ -482,17 +486,13 @@ export function LetrecoPage() {
         setGuesses(game.guesses);
         setStatus(game.status);
         setScore(game.score);
-        if (game.status !== "playing") {
-          setShowResult(true);
-          loadResultData();
-        }
       }
       setLoading(false);
     })();
     return () => {
       active = false;
     };
-  }, [user, gameDate, loadResultData]);
+  }, [user, gameDate]);
 
   const submitGuess = useCallback(async () => {
     if (!user || status !== "playing") return;
@@ -721,10 +721,10 @@ export function LetrecoPage() {
             className="text-xl font-bold text-[var(--gold)]"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            LetraFolia 🎉
+            Jogos Diários 🧩
           </h1>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            Jogos de palavras da turma
+            Desafios do dia da turma
           </p>
         </div>
         <button
@@ -741,6 +741,7 @@ export function LetrecoPage() {
           [
             ["letreco", "🟩 Letreco", "5 letras"],
             ["letroso", "🔠 Letroso", "6–10 letras"],
+            ["sudoku", "🧩 Sudoku", "tempo + erros"],
           ] as const
         ).map(([mode, label, sub]) => (
           <button
@@ -777,6 +778,9 @@ export function LetrecoPage() {
 
       {/* Modo Letroso */}
       {gameMode === "letroso" && <LetrosoGame />}
+
+      {/* Modo Sudoku */}
+      {gameMode === "sudoku" && <SudokuGame />}
 
       {/* ── Modo Letreco (conteúdo original abaixo) ── */}
       {gameMode === "letreco" && <>
@@ -976,7 +980,11 @@ export function LetrecoPage() {
                 className="text-lg font-bold text-[var(--gold)]"
                 style={{ fontFamily: "var(--font-display)" }}
               >
-                {gameMode === "letroso" ? "Ranking Letroso 🔠" : "Ranking Letreco 🟩"}
+                {gameMode === "letroso"
+                  ? "Ranking Letroso 🔠"
+                  : gameMode === "sudoku"
+                    ? "Ranking Sudoku 🧩"
+                    : "Ranking Letreco 🟩"}
               </h2>
               <button
                 onClick={() => setShowOverall(false)}
@@ -986,7 +994,8 @@ export function LetrecoPage() {
               </button>
             </div>
             <p className="text-xs text-[var(--text-muted)] mb-4">
-              {gameMode === "letroso" ? "Letroso" : "Letreco"} · pontuação acumulada de todos os dias
+              {gameMode === "letroso" ? "Letroso" : gameMode === "sudoku" ? "Sudoku" : "Letreco"} ·
+              pontuação acumulada de todos os dias
             </p>
 
             {overall ? (

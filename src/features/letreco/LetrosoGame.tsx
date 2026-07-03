@@ -445,15 +445,11 @@ export function LetrosoGame() {
         setStatus(game.status);
         setScore(game.score);
         setCurrentInput("");
-        if (game.status !== "playing") {
-          setShowResult(true);
-          loadLeaderboard();
-        }
       }
       setLoading(false);
     })();
     return () => { active = false; };
-  }, [user, gameDate, loadLeaderboard]);
+  }, [user, gameDate]);
 
   const submitGuess = useCallback(async () => {
     if (!user || status !== "playing" || validating) return;
