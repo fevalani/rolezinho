@@ -1,7 +1,7 @@
 {
   "name": "rolezinho",
   "private": true,
-  "version": "0.0.47",
+  "version": "0.0.49",
   "type": "module",
   "scripts": {
     "dev": "vite",
