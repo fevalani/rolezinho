@@ -436,7 +436,6 @@ export function SudokuGame() {
             const c = i % 9;
             const given = isGivenCell(puzzle, i);
             const value = board[i];
-            const editable = !given && value === "0" && status === "playing";
             const cellNotes = notes[i];
             const isSelected = selected === i;
             const selRow = selected !== null ? Math.floor(selected / 9) : null;
@@ -459,9 +458,9 @@ export function SudokuGame() {
             return (
               <button
                 key={i}
-                onClick={() => editable && setSelected(i)}
-                disabled={!editable}
-                className={`aspect-square flex items-center justify-center text-sm sm:text-base font-bold select-none transition-colors ${bg} ${
+                onClick={() => status === "playing" && setSelected(i)}
+                disabled={status !== "playing"}
+                className={`aspect-square flex items-center justify-center text-xl sm:text-2xl font-bold select-none transition-colors ${bg} ${
                   given ? "text-[var(--text-primary)]" : "text-[var(--gold)]"
                 }`}
                 style={{
