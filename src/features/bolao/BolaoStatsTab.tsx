@@ -1,4 +1,4 @@
-import { type CSSProperties, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import {
   LineChart,
   Line,
@@ -31,6 +31,64 @@ const LINE_COLORS = [
   "#C9A55A", "#60A5FA", "#34D399", "#F87171", "#A78BFA",
   "#FBBF24", "#F472B6", "#2DD4BF", "#FB923C", "#94A3B8",
 ];
+
+// ─── Zoom por pinça (pinch-to-zoom) ───────────────────────────────
+const ZOOM_MIN = 0.6;
+const ZOOM_MAX = 4;
+
+function usePinchZoom() {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(1);
+  const scaleRef = useRef(1);
+  const pinchRef = useRef<{ startDist: number; startScale: number } | null>(null);
+
+  useEffect(() => {
+    scaleRef.current = scale;
+  }, [scale]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const getDistance = (touches: TouchList) =>
+      Math.hypot(
+        touches[0].clientX - touches[1].clientX,
+        touches[0].clientY - touches[1].clientY,
+      );
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        pinchRef.current = { startDist: getDistance(e.touches), startScale: scaleRef.current };
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && pinchRef.current) {
+        e.preventDefault();
+        const ratio = getDistance(e.touches) / pinchRef.current.startDist;
+        const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, pinchRef.current.startScale * ratio));
+        setScale(next);
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinchRef.current = null;
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd);
+    el.addEventListener("touchcancel", onTouchEnd);
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, []);
+
+  return { ref, scale, reset: () => setScale(1) };
+}
 
 // ─── Componentes auxiliares ──────────────────────────────────────
 
@@ -84,15 +142,18 @@ function ScoreTypeCard({ emoji, title, entries }: ScoreTypeCardProps) {
 }
 
 // ─── Tooltip customizado para o gráfico ──────────────────────────
-function EvolutionTooltip({ active, payload, label, members }: {
+function EvolutionTooltip({ active, payload, label, members, mode }: {
   active?: boolean;
   payload?: { color: string; dataKey: string; value: number }[];
   label?: string;
   members: BolaoPoolMember[];
+  mode: "position" | "score";
 }) {
   if (!active || !payload || payload.length === 0) return null;
   const profileMap = new Map(members.map((m) => [m.user_id, m.profile]));
-  const sorted = [...payload].sort((a, b) => a.value - b.value);
+  const sorted = [...payload].sort((a, b) =>
+    mode === "position" ? a.value - b.value : b.value - a.value,
+  );
   return (
     <div className="bg-[var(--bg-elevated)] border border-[rgba(255,255,255,0.12)] rounded-lg p-2.5 text-xs shadow-xl">
       <p className="text-[var(--text-muted)] mb-1.5">Jogo {label}</p>
@@ -104,7 +165,9 @@ function EvolutionTooltip({ active, payload, label, members }: {
             <span className="text-[var(--text-secondary)] truncate max-w-[100px]">
               {prof?.display_name ?? item.dataKey}
             </span>
-            <span className="font-bold text-[var(--text-primary)] ml-auto pl-2">{item.value}º</span>
+            <span className="font-bold text-[var(--text-primary)] ml-auto pl-2">
+              {mode === "position" ? `${item.value}º` : `${item.value} pts`}
+            </span>
           </div>
         );
       })}
@@ -218,7 +281,9 @@ export function BolaoStatsTab({
   const [hiddenLines, setHiddenLines] = useState<Set<string>>(new Set());
   const [isScrolling, setIsScrolling] = useState(false);
   const [efficiencyMode, setEfficiencyMode] = useState<"participated" | "total">("participated");
+  const [evolutionMode, setEvolutionMode] = useState<"position" | "score">("position");
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { ref: pinchZoomRef, scale: zoomScale, reset: resetZoom } = usePinchZoom();
 
   const handleChartScroll = () => {
     setIsScrolling(true);
@@ -226,10 +291,12 @@ export function BolaoStatsTab({
     scrollTimerRef.current = setTimeout(() => setIsScrolling(false), 200);
   };
 
-  const positionData = useMemo(
+  const evolution = useMemo(
     () => computePositionEvolution(allUserPredictions, members),
     [allUserPredictions, members],
   );
+
+  const evolutionData = evolutionMode === "position" ? evolution.positions : evolution.scores;
 
   const scoreTypes = useMemo(
     () => computeScoreTypeRankings(allUserPredictions, members),
@@ -282,18 +349,43 @@ export function BolaoStatsTab({
     });
   };
 
-  const hasData = positionData.length > 0;
+  const hasData = evolutionData.length > 0;
 
   return (
     <div className="space-y-6 px-4 pb-8 pt-2">
-      {/* ── 1. Evolução de Posição ── */}
-      <Section title="Evolução de Posição">
+      {/* ── 1. Evolução de Posição / Pontuação ── */}
+      <Section title="Evolução">
+        {/* Toggle de modo */}
+        <div className="flex rounded-lg overflow-hidden border border-[rgba(255,255,255,0.08)] self-start">
+          {(["position", "score"] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setEvolutionMode(mode)}
+              className={`px-3 py-1.5 text-[0.65rem] font-medium transition-colors ${
+                evolutionMode === mode
+                  ? "bg-[rgba(201,165,90,0.18)] text-[var(--gold)]"
+                  : "bg-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              }`}
+            >
+              {mode === "position" ? "Posição" : "Pontuação"}
+            </button>
+          ))}
+        </div>
+
         {!hasData ? (
           <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.06)] rounded-xl p-6 text-center">
             <p className="text-xs text-[var(--text-muted)]">Nenhuma partida encerrada ainda.</p>
           </div>
         ) : (
-          <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.06)] rounded-xl p-3">
+          <div className="relative bg-[var(--bg-card)] border border-[rgba(255,255,255,0.06)] rounded-xl p-3">
+            {zoomScale > 1.03 && (
+              <button
+                onClick={resetZoom}
+                className="absolute top-2 right-2 z-10 px-2 py-0.5 rounded-full bg-[var(--bg-elevated)] border border-[rgba(255,255,255,0.15)] text-[0.6rem] text-[var(--text-secondary)]"
+              >
+                {Math.round(zoomScale * 100)}% ↺
+              </button>
+            )}
             {/* Legenda clicável */}
             <div className="flex flex-wrap gap-1.5 mb-3">
               {members.map((m, i) => {
@@ -318,20 +410,31 @@ export function BolaoStatsTab({
 
             <div className="flex">
               {/* Eixo Y fixo — não scrollável */}
-              <div className="shrink-0" style={{ width: 20 }}>
+              <div className="shrink-0" style={{ width: evolutionMode === "position" ? 20 : 28 }}>
                 <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={positionData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+                  <LineChart data={evolutionData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
                     <XAxis dataKey="matchIdx" hide />
-                    <YAxis
-                      reversed
-                      domain={[1, members.length]}
-                      ticks={Array.from({ length: members.length }, (_, i) => i + 1)}
-                      width={20}
-                      tick={{ fontSize: 8, fill: "var(--text-muted)" }}
-                      tickLine={false}
-                      axisLine={false}
-                      tickFormatter={(v) => `${v}º`}
-                    />
+                    {evolutionMode === "position" ? (
+                      <YAxis
+                        reversed
+                        domain={[1, members.length]}
+                        ticks={Array.from({ length: members.length }, (_, i) => i + 1)}
+                        width={20}
+                        tick={{ fontSize: 8, fill: "var(--text-muted)" }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(v) => `${v}º`}
+                      />
+                    ) : (
+                      <YAxis
+                        domain={["dataMin", "dataMax"]}
+                        width={28}
+                        tick={{ fontSize: 8, fill: "var(--text-muted)" }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(v) => `${v}`}
+                      />
+                    )}
                     {members[0] && (
                       <Line dataKey={members[0].user_id} strokeWidth={0} dot={false} />
                     )}
@@ -339,25 +442,33 @@ export function BolaoStatsTab({
                 </ResponsiveContainer>
               </div>
 
-              {/* Dados scrolláveis */}
+              {/* Dados scrolláveis (pinça para dar zoom) */}
               <div
+                ref={pinchZoomRef}
                 className="overflow-x-auto scrollbar-none flex-1"
+                style={{ touchAction: "pan-x" }}
                 onScroll={handleChartScroll}
               >
                 <div
                   className="chart-scroll-inner"
-                  style={{ '--chart-min-width': `${Math.max(280, positionData.length * 24)}px` } as CSSProperties}
+                  style={{ '--chart-min-width': `${Math.max(280, evolutionData.length * 24 * zoomScale)}px` } as CSSProperties}
                 >
                   <ResponsiveContainer width="100%" height={200}>
-                    <LineChart data={positionData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                    <LineChart data={evolutionData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
                       <XAxis
                         dataKey="matchIdx"
                         tick={{ fontSize: 9, fill: "var(--text-muted)" }}
                         tickLine={false}
                         axisLine={false}
                       />
-                      <YAxis hide reversed domain={[1, members.length]} />
-                      {!isScrolling && <Tooltip content={<EvolutionTooltip members={members} />} />}
+                      {evolutionMode === "position" ? (
+                        <YAxis hide reversed domain={[1, members.length]} />
+                      ) : (
+                        <YAxis hide domain={["dataMin", "dataMax"]} />
+                      )}
+                      {!isScrolling && (
+                        <Tooltip content={<EvolutionTooltip members={members} mode={evolutionMode} />} />
+                      )}
                       {members.map((m, i) => (
                         <Line
                           key={m.user_id}

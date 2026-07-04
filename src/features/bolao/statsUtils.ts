@@ -48,6 +48,11 @@ export interface PositionPoint {
   [userId: string]: number | string;
 }
 
+export interface PositionEvolutionResult {
+  positions: PositionPoint[];
+  scores: PositionPoint[];
+}
+
 export interface MatchInsights {
   mostControversial: { label: string; uniquePreds: number } | null;
   mostConsensus: { label: string; topPred: string; count: number } | null;
@@ -110,7 +115,7 @@ function classifyPred(p: UserPredictionDetail): "exact" | "draw" | "winnerGoals"
 export function computePositionEvolution(
   allUserPredictions: Map<string, UserPredictionDetail[]>,
   members: BolaoPoolMember[],
-): PositionPoint[] {
+): PositionEvolutionResult {
   // Reúne todas as partidas com resultado, ordenadas por data
   const matchSet = new Map<string, { utc_date: string; label: string }>();
   for (const preds of allUserPredictions.values()) {
@@ -128,7 +133,7 @@ export function computePositionEvolution(
     (a, b) => new Date(a[1].utc_date).getTime() - new Date(b[1].utc_date).getTime(),
   );
 
-  if (sortedMatches.length === 0) return [];
+  if (sortedMatches.length === 0) return { positions: [], scores: [] };
 
   // Acumula pontos por usuário partida a partida
   const accPts = new Map<string, number>(members.map((m) => [m.user_id, 0]));
@@ -137,7 +142,8 @@ export function computePositionEvolution(
     predByUserMatch.set(userId, new Map(preds.map((p) => [p.match_id, p])));
   }
 
-  const points: PositionPoint[] = [];
+  const positions: PositionPoint[] = [];
+  const scores: PositionPoint[] = [];
 
   sortedMatches.forEach(([matchId], idx) => {
     for (const userId of accPts.keys()) {
@@ -145,18 +151,22 @@ export function computePositionEvolution(
       accPts.set(userId, (accPts.get(userId) ?? 0) + (pred?.points_earned ?? 0));
     }
 
+    const scorePoint: PositionPoint = { matchIdx: idx + 1, label: `#${idx + 1}` };
+    for (const [userId, pts] of accPts) scorePoint[userId] = pts;
+    scores.push(scorePoint);
+
     // Calcula posições — desempate por pontos (1 = primeiro)
     const sorted = [...accPts.entries()].sort((a, b) => b[1] - a[1]);
-    const point: PositionPoint = { matchIdx: idx + 1, label: `#${idx + 1}` };
+    const posPoint: PositionPoint = { matchIdx: idx + 1, label: `#${idx + 1}` };
     let pos = 1;
     for (let i = 0; i < sorted.length; i++) {
       if (i > 0 && sorted[i][1] < sorted[i - 1][1]) pos = i + 1;
-      point[sorted[i][0]] = pos;
+      posPoint[sorted[i][0]] = pos;
     }
-    points.push(point);
+    positions.push(posPoint);
   });
 
-  return points;
+  return { positions, scores };
 }
 
 // ─── 2. Rankings por tipo de pontuação ───────────────────────────
