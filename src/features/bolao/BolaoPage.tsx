@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
+import { useBetaMode } from "@/lib/useBetaMode";
+import { hapticTap, hapticSuccess } from "@/lib/haptics";
 import {
   fetchAllPools,
   createPool,
@@ -10,6 +12,26 @@ import {
   type ChampionshipCode,
   type PresetScoringModel,
 } from "./bolaoService";
+
+// ─── Skeleton (modo beta) ────────────────────────────────────
+
+function PoolCardSkeleton() {
+  return (
+    <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex flex-col gap-3">
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl skeleton shrink-0" />
+        <div className="flex-1 min-w-0 flex flex-col gap-2 justify-center">
+          <div className="h-3.5 w-2/3 rounded-md skeleton" />
+          <div className="h-2.5 w-1/3 rounded-md skeleton" />
+        </div>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="h-2.5 w-24 rounded-md skeleton" />
+        <div className="h-6 w-20 rounded-lg skeleton" />
+      </div>
+    </div>
+  );
+}
 
 // ─── Pool Card ────────────────────────────────────────────────
 
@@ -66,9 +88,11 @@ function PoolCard({
 // ─── Create Pool Modal ────────────────────────────────────────
 
 function CreatePoolModal({
+  isBeta,
   onClose,
   onCreated,
 }: {
+  isBeta: boolean;
   onClose: () => void;
   onCreated: (poolId: string) => void;
 }) {
@@ -98,7 +122,10 @@ function CreatePoolModal({
       setError(err);
       return;
     }
-    if (data) onCreated(data);
+    if (data) {
+      if (isBeta) hapticSuccess();
+      onCreated(data);
+    }
   };
 
   return (
@@ -107,7 +134,11 @@ function CreatePoolModal({
         className="fixed inset-0 bg-black/65 backdrop-blur-sm z-[100] animate-[fadeIn_0.2s_ease-out]"
         onClick={onClose}
       />
-      <div className="fixed bottom-0 left-0 right-0 z-[101] bg-[var(--bg-deep)] rounded-t-2xl p-6 pb-[calc(1.5rem+var(--safe-bottom))] animate-[slideUp_0.3s_ease-out] max-w-lg mx-auto">
+      <div
+        className={`fixed bottom-0 left-0 right-0 z-[101] rounded-t-2xl p-6 pb-[calc(1.5rem+var(--safe-bottom))] animate-[slideUp_0.3s_ease-out] max-w-lg mx-auto ${
+          isBeta ? "glass-panel" : "bg-[var(--bg-deep)]"
+        }`}
+      >
         <div className="flex items-center justify-between mb-5">
           <h2
             className="text-lg font-bold text-[var(--gold)]"
@@ -224,6 +255,7 @@ function CreatePoolModal({
 export function BolaoPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const isBeta = useBetaMode();
   const [pools, setPools] = useState<BolaoPool[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -271,7 +303,10 @@ export function BolaoPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowCreate(true)}
+          onClick={() => {
+            if (isBeta) hapticTap();
+            setShowCreate(true);
+          }}
           className="px-4 py-2 rounded-xl text-xs font-semibold bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] hover:bg-[rgba(201,165,90,0.2)] transition-all"
         >
           + Criar bolão
@@ -279,9 +314,16 @@ export function BolaoPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center pt-16">
-          <div className="spinner" />
-        </div>
+        isBeta ? (
+          <div className="px-4 flex flex-col gap-3">
+            <PoolCardSkeleton />
+            <PoolCardSkeleton />
+          </div>
+        ) : (
+          <div className="flex items-center justify-center pt-16">
+            <div className="spinner" />
+          </div>
+        )
       ) : (
         <div className="px-4 flex flex-col gap-6">
           {/* Meus bolões */}
@@ -308,7 +350,10 @@ export function BolaoPage() {
                   <PoolCard
                     key={pool.id}
                     pool={pool}
-                    onView={() => navigate(`/bolao/${pool.id}`)}
+                    onView={() => {
+                      if (isBeta) hapticTap();
+                      navigate(`/bolao/${pool.id}`);
+                    }}
                   />
                 ))}
               </div>
@@ -339,6 +384,7 @@ export function BolaoPage() {
 
       {showCreate && (
         <CreatePoolModal
+          isBeta={isBeta}
           onClose={() => setShowCreate(false)}
           onCreated={(id) => {
             setShowCreate(false);

@@ -55,6 +55,38 @@
   --radius-lg: 16px;
 }
 
+/* Tema claro — troca as custom properties de cor; como quase toda a UI usa
+   var(--bg-*)/var(--text-*)/var(--gold*) em vez de hex fixo, isso retema o
+   app inteiro a partir de um único lugar. Telas com sombras/bordas em preto
+   ou branco fixo (rgba(0,0,0,x) / rgba(255,255,255,x) direto no componente,
+   fora dessas variáveis) não se adaptam sozinhas — ficam mais sutis aqui. */
+:root[data-theme="light"] {
+  --bg-abyss: #edeae1;
+  --bg-deep: #ffffff;
+  --bg-primary: #f7f5ee;
+  --bg-card: #ffffff;
+  --bg-elevated: #f2eee3;
+  --bg-hover: #e9e3d3;
+
+  --gold-dark: #8a7328;
+  --gold: #a3822f;
+  --gold-bright: #c9a55a;
+  --gold-glow: #e8c86e;
+
+  --text-primary: #211f1a;
+  --text-secondary: #5c564c;
+  --text-muted: #8f8878;
+
+  --red: #b23b3b;
+  --green: #2f8f5c;
+  --blue: #3568ad;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.12);
+  --shadow-gold: 0 0 24px rgba(163, 130, 47, 0.15);
+}
+
 *,
 *::before,
 *::after {
@@ -594,4 +626,48 @@ body::before {
 .input-field option {
   background: var(--bg-deep);
   color: var(--text-primary);
+}
+
+/* ─── Modo Beta ─────────────────────────────────
+   Ligado via toggle na Home (grade de 3 colunas). Ativa tratamentos
+   visuais "modernos" só pra quem optou — o resto do app fica intacto. */
+:root[data-beta="true"] {
+  --font-display: "Space Grotesk", "Cinzel Decorative", serif;
+}
+
+/* Transição suave ao trocar de tema claro/escuro (só no beta, pra não mudar
+   o comportamento de quem está na versão estável) */
+[data-beta="true"] body {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+/* Glassmorphism — painéis translúcidos com blur, usado em modais/bottom
+   sheets do modo beta. */
+.glass-panel {
+  background: color-mix(in srgb, var(--bg-card) 72%, transparent);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid color-mix(in srgb, var(--gold) 18%, transparent);
+}
+
+/* Skeleton loader — placeholder animado enquanto uma lista carrega */
+.skeleton {
+  background: linear-gradient(
+    100deg,
+    var(--bg-elevated) 30%,
+    var(--bg-hover) 50%,
+    var(--bg-elevated) 70%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.4s ease-in-out infinite;
+}
+@keyframes skeletonShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }

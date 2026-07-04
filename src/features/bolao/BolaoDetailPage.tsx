@@ -27,6 +27,7 @@ import {
   GOAL_BASE_LABELS,
   getScoringDisplay,
   toRoundLabel,
+  KNOCKOUT_STAGE_ORDER,
   CUSTOM_SCORING_CATEGORIES,
   DEFAULT_CUSTOM_CONFIG,
   type ScoringModel,
@@ -1304,10 +1305,47 @@ export function BolaoDetailPage() {
   };
 
   const currentRound = rounds[selectedRoundIdx] ?? null;
+
+  // Rótulos de rodada que correspondem a fases eliminatórias (mata-mata)
+  const knockoutRoundLabels = useMemo(
+    () =>
+      new Set(
+        rounds
+          .filter((r) => KNOCKOUT_STAGE_ORDER.includes(r.stage))
+          .map((r) => r.label),
+      ),
+    [rounds],
+  );
+
+  // Soma as classificações de todas as rodadas de mata-mata num único placar
+  const knockoutLeaderboard = useMemo(() => {
+    const totals = new Map<string, LeaderboardEntry>();
+    for (const rl of roundLeaderboards) {
+      if (!knockoutRoundLabels.has(rl.round_label)) continue;
+      for (const entry of rl.entries) {
+        const existing = totals.get(entry.user_id);
+        if (existing) {
+          existing.total_points += entry.total_points;
+          existing.predictions_made += entry.predictions_made;
+          existing.exact_scores += entry.exact_scores;
+        } else {
+          totals.set(entry.user_id, { ...entry });
+        }
+      }
+    }
+    return [...totals.values()].sort((a, b) => b.total_points - a.total_points);
+  }, [roundLeaderboards, knockoutRoundLabels]);
+
+  const hasKnockoutRounds = roundLeaderboards.some((rl) =>
+    knockoutRoundLabels.has(rl.round_label),
+  );
+
   const currentLeaderboard =
     selectedLeaderRoundIdx === -1
       ? leaderboard
-      : (roundLeaderboards[selectedLeaderRoundIdx]?.entries ?? []);
+      : selectedLeaderRoundIdx === -2
+        ? knockoutLeaderboard
+        : (roundLeaderboards[selectedLeaderRoundIdx]?.entries ?? []);
 
   if (loading) {
     return (
@@ -1532,6 +1570,18 @@ export function BolaoDetailPage() {
             >
               Geral
             </button>
+            {hasKnockoutRounds && (
+              <button
+                onClick={() => setSelectedLeaderRoundIdx(-2)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                  selectedLeaderRoundIdx === -2
+                    ? "bg-[rgba(201,165,90,0.15)] text-[var(--gold)] border-[rgba(201,165,90,0.35)]"
+                    : "bg-[var(--bg-elevated)] text-[var(--text-muted)] border-[rgba(255,255,255,0.06)]"
+                }`}
+              >
+                Mata-mata
+              </button>
+            )}
             {roundLeaderboards.map((r, i) => (
               <button
                 key={r.round_label}

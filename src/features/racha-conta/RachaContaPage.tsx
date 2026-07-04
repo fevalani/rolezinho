@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/AuthContext";
+import { useBetaMode } from "@/lib/useBetaMode";
 import type {
   Group,
   GroupMember,
@@ -1998,6 +1999,7 @@ function GroupDetail({
 
 export function RachaContaPage() {
   const { profile } = useAuth();
+  const isBeta = useBetaMode();
   const myProfileId = profile?.id ?? "";
 
   const [groups, setGroups] = useState<Group[]>([]);
@@ -2054,16 +2056,43 @@ export function RachaContaPage() {
   }, 0);
 
   if (loading) {
+    if (!isBeta) {
+      return (
+        <div
+          style={{
+            minHeight: "60vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div className="spinner" />
+        </div>
+      );
+    }
+
     return (
-      <div
-        style={{
-          minHeight: "60vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <div className="spinner" />
+      <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: 16,
+              borderRadius: 12,
+              background: "#0f0f23",
+              border: "1px solid #2d2d4e",
+            }}
+          >
+            <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0 }} />
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="skeleton" style={{ width: "60%", height: 14, borderRadius: 6 }} />
+              <div className="skeleton" style={{ width: "35%", height: 10, borderRadius: 6 }} />
+            </div>
+          </div>
+        ))}
       </div>
     );
   }

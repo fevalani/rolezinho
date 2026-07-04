@@ -32,7 +32,12 @@ interface AuthContextValue {
     updates: Partial<
       Pick<
         Profile,
-        "display_name" | "avatar_url" | "birthday" | "hidden_features"
+        | "display_name"
+        | "avatar_url"
+        | "birthday"
+        | "hidden_features"
+        | "theme"
+        | "home_layout"
       >
     >,
   ) => Promise<void>;
@@ -133,6 +138,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, [fetchProfile, syncAppVersion]);
 
+  // Aplica o tema (claro/escuro) no documento inteiro via atributo — o CSS
+  // troca as custom properties de cor num único lugar (global.css).
+  useEffect(() => {
+    document.documentElement.dataset.theme = profile?.theme ?? "dark";
+  }, [profile?.theme]);
+
+  // Flag de modo beta (ver useBetaMode) — liga tratamentos visuais globais
+  // via CSS puro (fonte, transição de tema) sem precisar de classe por componente.
+  useEffect(() => {
+    document.documentElement.dataset.beta =
+      profile?.home_layout === "grid" ? "true" : "false";
+  }, [profile?.home_layout]);
+
   const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -172,7 +190,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updates: Partial<
         Pick<
           Profile,
-          "display_name" | "avatar_url" | "birthday" | "hidden_features"
+          | "display_name"
+          | "avatar_url"
+          | "birthday"
+          | "hidden_features"
+          | "theme"
+          | "home_layout"
         >
       >,
     ) => {

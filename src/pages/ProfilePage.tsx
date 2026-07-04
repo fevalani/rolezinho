@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { getInitials } from "@/lib/utils";
-import { APP_FEATURES } from "@/lib/types";
+import { APP_FEATURES, type ThemeMode } from "@/lib/types";
 
 const EMOJI_AVATARS = [
   "🧙",
@@ -69,6 +69,15 @@ export function ProfilePage() {
     profile?.hidden_features ?? [],
   );
   const [savingHome, setSavingHome] = useState(false);
+
+  // Aparência
+  const [changingTheme, setChangingTheme] = useState(false);
+  const handleThemeChange = async (mode: ThemeMode) => {
+    if (mode === (profile?.theme ?? "dark")) return;
+    setChangingTheme(true);
+    await updateProfile({ theme: mode });
+    setChangingTheme(false);
+  };
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -410,6 +419,42 @@ export function ProfilePage() {
         <button onClick={handleSave} disabled={saving} className={btnGold}>
           {saving ? "Salvando..." : "Salvar perfil"}
         </button>
+
+        <div className={divider} />
+
+        {/* Aparência */}
+        <div className="flex flex-col gap-3">
+          <h2
+            className="text-xs text-(--text-muted) uppercase tracking-widest font-semibold"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Aparência
+          </h2>
+          <p className="text-xs text-(--text-muted) -mt-1">
+            Escolha o tema de visualização do app.
+          </p>
+          <div className="flex gap-2">
+            {(
+              [
+                ["dark", "🌙 Escuro"],
+                ["light", "☀️ Claro"],
+              ] as [ThemeMode, string][]
+            ).map(([mode, label]) => (
+              <button
+                key={mode}
+                onClick={() => handleThemeChange(mode)}
+                disabled={changingTheme}
+                className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium border transition-all ${
+                  (profile?.theme ?? "dark") === mode
+                    ? "bg-[rgba(201,165,90,0.12)] border-(--gold) text-(--gold)"
+                    : "bg-(--bg-card) border-[rgba(201,165,90,0.1)] text-(--text-primary) hover:border-[rgba(201,165,90,0.25)]"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className={divider} />
 

@@ -2,6 +2,9 @@
 // Auth / User
 // ═══════════════════════════════════════════
 
+export type ThemeMode = "dark" | "light";
+export type HomeLayout = "list" | "grid";
+
 export interface Profile {
   id: string;
   email: string;
@@ -9,6 +12,8 @@ export interface Profile {
   avatar_url: string | null;
   hidden_features: string[];
   birthday: string | null;
+  theme: ThemeMode;
+  home_layout: HomeLayout;
   created_at: string;
   updated_at: string;
 }
@@ -237,6 +242,14 @@ export const APP_FEATURES: Feature[] = [
     path: "/letreco",
     enabled: true,
     description: "Desafios do dia — Letreco, Letroso e Sudoku",
+  },
+  {
+    id: "ranking",
+    name: "Ranking de Campeões",
+    icon: "🏆",
+    path: "/ranking",
+    enabled: true,
+    description: "Tabelas de classificação com pontuação personalizada",
   },
   {
     id: "ficha",

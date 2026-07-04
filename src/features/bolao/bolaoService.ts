@@ -15,7 +15,7 @@ import { getTeamCrest } from "./teamCrests";
 // ══════════════════════════════════════════════════════════════
 
 export type { ChampionshipCode };
-export { toRoundLabel };
+export { toRoundLabel, KNOCKOUT_STAGE_ORDER };
 
 // ── Modelos de pontuação ─────────────────────────────────────
 export type PresetScoringModel = "classic" | "extended" | "simplified";

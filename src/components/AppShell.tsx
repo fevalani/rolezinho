@@ -1,16 +1,35 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
+import { useBetaMode } from "@/lib/useBetaMode";
+import { hapticTap } from "@/lib/haptics";
 import { APP_FEATURES } from "@/lib/types";
 import { Avatar } from "@/components/Avatar";
 
 export function AppShell() {
   const { profile, signOut } = useAuth();
+  const isBeta = useBetaMode();
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
+  const [scrolled, setScrolled] = useState(false);
+
+  // Header condensado ao rolar — só no modo beta, o resto do app não muda.
+  // `condensed` já ignora `scrolled` quando isBeta é false, então não precisa
+  // resetar o state ao desligar o beta.
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el || !isBeta) return;
+    const onScroll = () => setScrolled(el.scrollTop > 8);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [isBeta]);
+
+  const condensed = isBeta && scrolled;
 
   const handleNav = (path: string) => {
+    if (isBeta) hapticTap();
     setMenuOpen(false);
     navigate(path);
   };
@@ -19,8 +38,14 @@ export function AppShell() {
     <div className="page">
       {/* ── Header ── */}
       <header
-        className="flex items-center gap-3 px-4 py-2.5 bg-[var(--bg-deep)] border-b border-[rgba(201,165,90,0.06)] sticky top-0 z-50"
-        style={{ paddingTop: "calc(10px + var(--safe-top))" }}
+        className={`flex items-center gap-3 px-4 sticky top-0 z-50 transition-all duration-300 ${
+          condensed
+            ? "py-1.5 glass-panel shadow-[0_4px_20px_rgba(0,0,0,0.15)]"
+            : "py-2.5 bg-[var(--bg-deep)] border-b border-[rgba(201,165,90,0.06)]"
+        }`}
+        style={{
+          paddingTop: `calc(${condensed ? 6 : 10}px + var(--safe-top))`,
+        }}
       >
         <button
           onClick={() => setMenuOpen(true)}
@@ -36,10 +61,14 @@ export function AppShell() {
           <img
             src="/images/rolezinho-roots.jpeg"
             alt=""
-            className="w-7 h-7 rounded-full object-cover border border-[rgba(201,165,90,0.2)]"
+            className={`rounded-full object-cover border border-[rgba(201,165,90,0.2)] transition-all duration-300 ${
+              condensed ? "w-5 h-5" : "w-7 h-7"
+            }`}
           />
           <span
-            className="text-[1.05rem] font-bold text-(--gold) tracking-wide"
+            className={`font-bold text-(--gold) tracking-wide transition-all duration-300 ${
+              condensed ? "text-[0.85rem]" : "text-[1.05rem]"
+            }`}
             style={{ fontFamily: "var(--font-display)" }}
           >
             Rolezinho Roots
@@ -60,7 +89,7 @@ export function AppShell() {
       </header>
 
       {/* ── Content ── */}
-      <main className="flex-1 overflow-y-auto">
+      <main ref={mainRef} className="flex-1 overflow-y-auto">
         <Outlet />
       </main>
 
