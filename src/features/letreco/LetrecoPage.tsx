@@ -5,6 +5,8 @@ import { LetrosoGame } from "./LetrosoGame";
 import { getLetrosoOverallEntries } from "./letrosoService";
 import { SudokuGame } from "./SudokuGame";
 import { getSudokuOverallEntries } from "./sudokuService";
+import { Word500Game } from "./Word500Game";
+import { getWord500OverallEntries } from "./word500Service";
 import {
   WORD_LENGTH,
   MAX_ATTEMPTS,
@@ -376,7 +378,7 @@ function OverallLeaderboard({
 // ─── Página ───────────────────────────────────────────────────
 
 type Tab = "ranking" | "stats";
-type GameMode = "letreco" | "letroso" | "sudoku";
+type GameMode = "letreco" | "letroso" | "sudoku" | "word500";
 
 export function LetrecoPage() {
   const { user } = useAuth();
@@ -471,7 +473,9 @@ export function LetrecoPage() {
         ? await getLetrosoOverallEntries()
         : gameMode === "sudoku"
           ? await getSudokuOverallEntries()
-          : await getOverallLeaderboard();
+          : gameMode === "word500"
+            ? await getWord500OverallEntries()
+            : await getOverallLeaderboard();
     setOverall(lb);
   }, [gameMode]);
 
@@ -742,6 +746,7 @@ export function LetrecoPage() {
             ["letreco", "🟩 Letreco", "5 letras"],
             ["letroso", "🔠 Letroso", "6–10 letras"],
             ["sudoku", "🧩 Sudoku", "tempo + erros"],
+            ["word500", "🎯 Word500", "8 tentativas"],
           ] as const
         ).map(([mode, label, sub]) => (
           <button
@@ -781,6 +786,9 @@ export function LetrecoPage() {
 
       {/* Modo Sudoku */}
       {gameMode === "sudoku" && <SudokuGame />}
+
+      {/* Modo Word500 */}
+      {gameMode === "word500" && <Word500Game />}
 
       {/* ── Modo Letreco (conteúdo original abaixo) ── */}
       {gameMode === "letreco" && <>
@@ -984,7 +992,9 @@ export function LetrecoPage() {
                   ? "Ranking Letroso 🔠"
                   : gameMode === "sudoku"
                     ? "Ranking Sudoku 🧩"
-                    : "Ranking Letreco 🟩"}
+                    : gameMode === "word500"
+                      ? "Ranking Word500 🎯"
+                      : "Ranking Letreco 🟩"}
               </h2>
               <button
                 onClick={() => setShowOverall(false)}
@@ -994,8 +1004,14 @@ export function LetrecoPage() {
               </button>
             </div>
             <p className="text-xs text-[var(--text-muted)] mb-4">
-              {gameMode === "letroso" ? "Letroso" : gameMode === "sudoku" ? "Sudoku" : "Letreco"} ·
-              pontuação acumulada de todos os dias
+              {gameMode === "letroso"
+                ? "Letroso"
+                : gameMode === "sudoku"
+                  ? "Sudoku"
+                  : gameMode === "word500"
+                    ? "Word500"
+                    : "Letreco"}{" "}
+              · pontuação acumulada de todos os dias
             </p>
 
             {overall ? (

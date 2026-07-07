@@ -241,7 +241,7 @@ export const APP_FEATURES: Feature[] = [
     icon: "🧩",
     path: "/letreco",
     enabled: true,
-    description: "Desafios do dia — Letreco, Letroso e Sudoku",
+    description: "Desafios do dia — Letreco, Letroso, Sudoku e Word500",
   },
   {
     id: "ranking",
