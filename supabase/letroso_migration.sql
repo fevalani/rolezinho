@@ -3,7 +3,7 @@
 
 create table if not exists public.letroso_games (
   id           uuid primary key default gen_random_uuid(),
-  user_id      uuid not null references auth.users(id) on delete cascade,
+  user_id      uuid not null references public.profiles(id) on delete cascade,
   game_date    date not null,
   guesses      text[] not null default '{}',
   status       text not null default 'playing' check (status in ('playing', 'won', 'lost')),
