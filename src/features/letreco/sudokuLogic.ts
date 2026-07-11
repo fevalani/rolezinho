@@ -216,6 +216,41 @@ export function applyGuess(
   return { board: next, correct: true };
 }
 
+// ─── Peers e validação de regras (linha/coluna/bloco 3x3) ─────────────
+
+export function getPeers(index: number): number[] {
+  const r = Math.floor(index / 9);
+  const c = index % 9;
+  const boxRow = Math.floor(r / 3) * 3;
+  const boxCol = Math.floor(c / 3) * 3;
+  const peers = new Set<number>();
+  for (let i = 0; i < 9; i++) {
+    peers.add(r * 9 + i);
+    peers.add(i * 9 + c);
+  }
+  for (let rr = 0; rr < 3; rr++) {
+    for (let cc = 0; cc < 3; cc++) {
+      peers.add((boxRow + rr) * 9 + (boxCol + cc));
+    }
+  }
+  peers.delete(index);
+  return Array.from(peers);
+}
+
+/** Índices das células da mesma linha/coluna/bloco 3x3 que já contêm o dígito. */
+export function findConflictingPeers(board: string, index: number, digit: number): number[] {
+  const target = String(digit);
+  return getPeers(index).filter((p) => board[p] === target);
+}
+
+/** Se as 9 ocorrências de um dígito já foram preenchidas no tabuleiro. */
+export function isDigitComplete(board: string, digit: number): boolean {
+  const target = String(digit);
+  let count = 0;
+  for (const ch of board) if (ch === target) count++;
+  return count >= 9;
+}
+
 // ─── Compartilhamento ───────────────────────────────────────────────────
 
 export function buildSudokuShareText(

@@ -411,6 +411,28 @@ export function Word500Game() {
     const newStatus: GameStatus = won ? "won" : lost ? "lost" : "playing";
     const newScore = won ? word500PointsFor(newGuesses.length) : 0;
 
+    // Quando a contagem só deixa uma cor possível pra linha inteira (acerto
+    // total, nenhuma letra em comum, ou anagrama sem nenhuma posição certa),
+    // preenche a marcação sozinho — não faz sentido pedir pro jogador clicar
+    // 5x pra chegar numa dedução que o próprio placar já entrega.
+    const rowCounts = scoreGuessCounts(guess, answer);
+    const rowIndex = newGuesses.length - 1;
+    const autoMark: CellMark | null =
+      rowCounts.green === WORD_LENGTH
+        ? "green"
+        : rowCounts.red === WORD_LENGTH
+          ? "red"
+          : rowCounts.yellow === WORD_LENGTH
+            ? "yellow"
+            : null;
+    if (autoMark) {
+      setMarks((prev) => {
+        const next = { ...prev };
+        for (let c = 0; c < WORD_LENGTH; c++) next[`${rowIndex}-${c}`] = autoMark;
+        return next;
+      });
+    }
+
     setGuesses(newGuesses);
     setCells(new Array(WORD_LENGTH).fill(""));
     setCursor(0);

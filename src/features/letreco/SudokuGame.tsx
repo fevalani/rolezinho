@@ -10,6 +10,9 @@ import {
   sudokuPointsFor,
   formatElapsed,
   buildSudokuShareText,
+  getPeers,
+  findConflictingPeers,
+  isDigitComplete,
   SUDOKU_DIFFICULTIES,
   SUDOKU_DIFFICULTY_ORDER,
 } from "./sudokuLogic";
@@ -165,6 +168,7 @@ export function SudokuGame() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<number | null>(null);
   const [flashIndex, setFlashIndex] = useState<number | null>(null);
+  const [flashConflicts, setFlashConflicts] = useState<number[]>([]);
   const [showResult, setShowResult] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [pencilMode, setPencilMode] = useState(false);
@@ -175,10 +179,12 @@ export function SudokuGame() {
   const startedAtIso = useRef<string>("");
   const startedAtMs = useRef<number>(0);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const conflictTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
     () => () => {
       if (flashTimer.current) clearTimeout(flashTimer.current);
+      if (conflictTimer.current) clearTimeout(conflictTimer.current);
     },
     [],
   );
@@ -300,12 +306,41 @@ export function SudokuGame() {
     });
   }, []);
 
+  /** Remove o dígito das anotações de todas as células da mesma linha/coluna/bloco 3x3. */
+  const clearDigitFromPeerNotes = useCallback((cell: number, digit: number) => {
+    setNotes((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const peer of getPeers(cell)) {
+        const arr = next[peer];
+        if (arr && arr.includes(digit)) {
+          const filtered = arr.filter((d) => d !== digit);
+          if (filtered.length === 0) delete next[peer];
+          else next[peer] = filtered;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, []);
+
   const handleNumber = useCallback(
     (digit: number) => {
       if (status !== "playing" || selected === null || !user || !difficulty) return;
       if (isGivenCell(puzzle, selected) || board[selected] !== "0") return;
+      if (isDigitComplete(board, digit)) return;
 
       if (pencilMode) {
+        const alreadyNoted = (notes[selected] ?? []).includes(digit);
+        if (!alreadyNoted) {
+          const conflicts = findConflictingPeers(board, selected, digit);
+          if (conflicts.length > 0) {
+            setFlashConflicts(conflicts);
+            if (conflictTimer.current) clearTimeout(conflictTimer.current);
+            conflictTimer.current = setTimeout(() => setFlashConflicts([]), 450);
+            return;
+          }
+        }
         toggleNote(selected, digit);
         return;
       }
@@ -324,6 +359,7 @@ export function SudokuGame() {
 
       setBoard(nextBoard);
       clearNotes(selected);
+      clearDigitFromPeerNotes(selected, digit);
 
       if (isBoardComplete(nextBoard)) {
         const finalElapsed = Math.floor((Date.now() - startedAtMs.current) / 1000);
@@ -353,8 +389,10 @@ export function SudokuGame() {
       persist,
       loadLeaderboard,
       pencilMode,
+      notes,
       toggleNote,
       clearNotes,
+      clearDigitFromPeerNotes,
     ],
   );
 
@@ -451,7 +489,7 @@ export function SudokuGame() {
 
             let bg = "bg-transparent";
             if (isSelected) bg = "bg-[rgba(201,165,90,0.28)]";
-            else if (flashIndex === i) bg = "bg-[rgba(196,64,64,0.35)]";
+            else if (flashIndex === i || flashConflicts.includes(i)) bg = "bg-[rgba(196,64,64,0.35)]";
             else if (sameDigit) bg = "bg-[rgba(201,165,90,0.16)]";
             else if (inPeer) bg = "bg-[rgba(255,255,255,0.04)]";
 
@@ -504,20 +542,23 @@ export function SudokuGame() {
               ✏️ Rascunho {pencilMode ? "ativo" : "desligado"}
             </button>
             <div className="flex justify-center gap-1.5 flex-wrap max-w-[420px] mx-auto w-full">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
-                <button
-                  key={d}
-                  onClick={() => handleNumber(d)}
-                  disabled={selected === null}
-                  className={`w-10 h-10 rounded-md text-base font-bold border active:scale-95 disabled:opacity-40 transition-all ${
-                    pencilMode
-                      ? "bg-transparent text-[var(--gold)] border-[rgba(201,165,90,0.4)]"
-                      : "bg-[var(--bg-elevated)] text-[var(--text-primary)] border-[rgba(255,255,255,0.08)]"
-                  }`}
-                >
-                  {d}
-                </button>
-              ))}
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => {
+                const complete = isDigitComplete(board, d);
+                return (
+                  <button
+                    key={d}
+                    onClick={() => handleNumber(d)}
+                    disabled={selected === null || complete}
+                    className={`w-10 h-10 rounded-md text-base font-bold border active:scale-95 disabled:opacity-40 transition-all ${
+                      pencilMode
+                        ? "bg-transparent text-[var(--gold)] border-[rgba(201,165,90,0.4)]"
+                        : "bg-[var(--bg-elevated)] text-[var(--text-primary)] border-[rgba(255,255,255,0.08)]"
+                    }`}
+                  >
+                    {d}
+                  </button>
+                );
+              })}
             </div>
           </div>
         ) : (
