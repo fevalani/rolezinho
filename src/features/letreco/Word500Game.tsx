@@ -243,15 +243,15 @@ function RulesLegend() {
         </span>
       </div>
       <p className="text-[var(--text-muted)] pt-1">
-        Cruze as contagens entre as tentativas para deduzir a palavra. O jogo não
-        revela sozinho nenhuma letra — quem decide é você.
+        Cruze as contagens entre as tentativas para deduzir a palavra. O jogo
+        não revela sozinho nenhuma letra — quem decide é você.
       </p>
       <p className="text-[var(--text-muted)] pt-1">
         Toque numa letra de uma tentativa já enviada pra marcar sua própria
         dedução: cicla entre neutro → 🟩 → 🟨 → 🟥. É só um lembrete visual seu,
         o jogo não confirma nem corrige essas marcações — mas assim que você
-        marcar alguma ocorrência de vermelho, aquela letra fica cinza no
-        teclado também.
+        marcar alguma ocorrência de vermelho, aquela letra fica cinza no teclado
+        também.
       </p>
     </div>
   );
@@ -322,7 +322,9 @@ export function Word500Game() {
   // Modo ranqueado (persiste, 1 partida/dia) vs treino (efêmero, ilimitado,
   // palavra de um pool diferente do ranqueado — nunca spoila a do dia).
   const [ranked, setRanked] = useState(true);
-  const [practiceAnswer, setPracticeAnswer] = useState(() => getWord500PracticeWord());
+  const [practiceAnswer, setPracticeAnswer] = useState(() =>
+    getWord500PracticeWord(),
+  );
   const answer = ranked ? rankedAnswer : practiceAnswer;
   const rankedSnapshot = useRef<{
     guesses: string[];
@@ -476,7 +478,8 @@ export function Word500Game() {
     if (autoMark) {
       setMarks((prev) => {
         const next = { ...prev };
-        for (let c = 0; c < WORD_LENGTH; c++) next[`${rowIndex}-${c}`] = autoMark;
+        for (let c = 0; c < WORD_LENGTH; c++)
+          next[`${rowIndex}-${c}`] = autoMark;
         return next;
       });
     }
@@ -505,7 +508,17 @@ export function Word500Game() {
         loadLeaderboard();
       }, 900);
     }
-  }, [user, status, cells, guesses, answer, gameDate, ranked, flashToast, loadLeaderboard]);
+  }, [
+    user,
+    status,
+    cells,
+    guesses,
+    answer,
+    gameDate,
+    ranked,
+    flashToast,
+    loadLeaderboard,
+  ]);
 
   const cycleMark = useCallback((row: number, col: number) => {
     const key = `${row}-${col}`;
@@ -654,7 +667,8 @@ export function Word500Game() {
           </p>
           {!ranked && (
             <p className="text-[0.6rem] text-[var(--gold)] opacity-80 mt-0.5">
-              🎓 Modo treino — não conta pro ranking, pode jogar quantas vezes quiser
+              🎓 Modo treino — não conta pro ranking, pode jogar quantas vezes
+              quiser
             </p>
           )}
         </div>
@@ -668,7 +682,10 @@ export function Word500Game() {
 
         {showMenu && (
           <>
-            <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setShowMenu(false)}
+            />
             <div className="absolute right-4 top-full mt-1 z-50 w-56 rounded-xl border border-[rgba(255,255,255,0.1)] bg-[var(--bg-elevated)] shadow-lg p-2 flex flex-col gap-1.5">
               <button
                 onClick={() => {
@@ -682,7 +699,7 @@ export function Word500Game() {
 
               <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.04)]">
                 <span className="text-xs font-semibold text-[var(--text-secondary)]">
-                  {ranked ? "Ranqueado" : "Treino"}
+                  {"Treino"}
                 </span>
                 <button
                   role="switch"

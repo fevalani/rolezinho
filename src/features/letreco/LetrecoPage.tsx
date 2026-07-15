@@ -670,19 +670,16 @@ export function LetrecoPage() {
   }, []);
 
   // Clicar numa célula seleciona o cursor e abre o teclado nativo
-  const handleCellClick = useCallback(
-    (index: number) => {
-      setCursor(index);
-      const el = inputRef.current;
-      if (el) {
-        el.value = INPUT_SENTINEL;
-        // .focus() dentro do gesto do toque é o que faz o teclado nativo subir
-        el.focus({ preventScroll: true });
-        el.setSelectionRange(INPUT_SENTINEL.length, INPUT_SENTINEL.length);
-      }
-    },
-    [],
-  );
+  const handleCellClick = useCallback((index: number) => {
+    setCursor(index);
+    const el = inputRef.current;
+    if (el) {
+      el.value = INPUT_SENTINEL;
+      // .focus() dentro do gesto do toque é o que faz o teclado nativo subir
+      el.focus({ preventScroll: true });
+      el.setSelectionRange(INPUT_SENTINEL.length, INPUT_SENTINEL.length);
+    }
+  }, []);
 
   // Entrada vinda do teclado NATIVO (mobile) através do input oculto.
   // Comparamos o valor com a sentinela: letras acrescentadas → digita;
@@ -820,7 +817,8 @@ export function LetrecoPage() {
             </p>
             {!ranked && (
               <p className="text-[0.6rem] text-[var(--gold)] opacity-80 mt-0.5">
-                🎓 Modo treino — não conta pro ranking, pode jogar quantas vezes quiser
+                🎓 Modo treino — não conta pro ranking, pode jogar quantas vezes
+                quiser
               </p>
             )}
           </div>
@@ -834,11 +832,14 @@ export function LetrecoPage() {
 
           {showMenu && (
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowMenu(false)}
+              />
               <div className="absolute right-4 top-full mt-1 z-50 w-56 rounded-xl border border-[rgba(255,255,255,0.1)] bg-[var(--bg-elevated)] shadow-lg p-2 flex flex-col gap-1.5">
                 <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.04)]">
                   <span className="text-xs font-semibold text-[var(--text-secondary)]">
-                    {ranked ? "Ranqueado" : "Treino"}
+                    {"Treino"}
                   </span>
                   <button
                     role="switch"
@@ -848,7 +849,9 @@ export function LetrecoPage() {
                       setShowMenu(false);
                     }}
                     className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ${
-                      ranked ? "bg-[rgba(255,255,255,0.15)]" : "bg-[var(--green)]"
+                      ranked
+                        ? "bg-[rgba(255,255,255,0.15)]"
+                        : "bg-[var(--green)]"
                     }`}
                   >
                     <span
@@ -898,16 +901,16 @@ export function LetrecoPage() {
       {gameMode === "word500" && <Word500Game />}
 
       {/* ── Modo Letreco (conteúdo original abaixo) ── */}
-      {gameMode === "letreco" && <>
+      {gameMode === "letreco" && (
+        <>
+          {/* Toast */}
+          {toast && (
+            <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[rgba(255,255,255,0.1)] text-sm font-semibold text-[var(--text-primary)] shadow-lg anim-fade">
+              {toast}
+            </div>
+          )}
 
-      {/* Toast */}
-      {toast && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[rgba(255,255,255,0.1)] text-sm font-semibold text-[var(--text-primary)] shadow-lg anim-fade">
-          {toast}
-        </div>
-      )}
-
-      {/* Input que abre o teclado nativo ao clicar numa célula.
+          {/* Input que abre o teclado nativo ao clicar numa célula.
           IMPORTANTE: o WebView do Android só sobe o IME para um input
           "de verdade" — focável e com área real. Por isso NÃO usamos
           aria-hidden / tabIndex=-1 / pointer-events-none / tamanho 1px
@@ -915,181 +918,182 @@ export function LetrecoPage() {
           e suprimir o teclado). Ele fica invisível por opacity-0 e atrás
           do fundo da página (-z-10), sem atrapalhar o toque nas células;
           fontSize 16px evita o zoom automático ao focar. */}
-      <input
-        ref={inputRef}
-        defaultValue={INPUT_SENTINEL}
-        onInput={handleNativeInput}
-        onKeyDown={handleNativeKeyDown}
-        onFocus={resetInput}
-        readOnly={status !== "playing"}
-        autoCapitalize="characters"
-        autoComplete="off"
-        autoCorrect="off"
-        spellCheck={false}
-        inputMode="text"
-        enterKeyHint="enter"
-        style={{ fontSize: 16, caretColor: "transparent" }}
-        className="absolute -z-10 opacity-0 left-0 top-0 w-40 h-12 border-0 bg-transparent"
-      />
-
-      {/* Jogo */}
-      <div className="flex-1 flex flex-col gap-6 px-4 py-4">
-        <Grid
-          guesses={guesses}
-          cells={cells}
-          cursor={cursor}
-          active={status === "playing"}
-          answer={answer}
-          shake={shake}
-          onCellClick={handleCellClick}
-        />
-
-        {/* Palpite recusado que parece palavra → oferece adicionar ao dicionário */}
-        {status === "playing" && suggestable && (
-          <div className="flex items-center justify-center gap-2 -mt-2 anim-fade">
-            <span className="text-xs text-[var(--text-muted)]">
-              <span className="font-bold text-[var(--text-secondary)] tracking-widest">
-                {suggestable}
-              </span>{" "}
-              não está na lista
-            </span>
-            <button
-              onClick={handleSuggestWord}
-              disabled={suggesting}
-              className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[rgba(201,165,90,0.15)] text-[var(--gold)] border border-[rgba(201,165,90,0.35)] hover:bg-[rgba(201,165,90,0.25)] transition-all active:scale-95 disabled:opacity-60"
-            >
-              {suggesting ? "Verificando…" : "+ Adicionar palavra"}
-            </button>
-          </div>
-        )}
-
-        {status === "playing" ? (
-          <Keyboard
-            keyStatuses={keyStatuses}
-            onKey={handleKey}
-            disabled={false}
+          <input
+            ref={inputRef}
+            defaultValue={INPUT_SENTINEL}
+            onInput={handleNativeInput}
+            onKeyDown={handleNativeKeyDown}
+            onFocus={resetInput}
+            readOnly={status !== "playing"}
+            autoCapitalize="characters"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            inputMode="text"
+            enterKeyHint="enter"
+            style={{ fontSize: 16, caretColor: "transparent" }}
+            className="absolute -z-10 opacity-0 left-0 top-0 w-40 h-12 border-0 bg-transparent"
           />
-        ) : (
-          <div className="flex flex-col items-center gap-3 max-w-[480px] mx-auto w-full">
-            <div
-              className={`w-full text-center rounded-xl py-4 px-4 border ${
-                status === "won"
-                  ? "bg-[rgba(58,186,122,0.1)] border-[rgba(58,186,122,0.3)]"
-                  : "bg-[rgba(196,64,64,0.1)] border-[rgba(196,64,64,0.3)]"
-              }`}
-            >
-              {status === "won" ? (
-                <>
-                  <p className="text-lg font-bold text-[var(--green)]">
-                    Acertou! +{score} pts 🎉
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)] mt-1">
-                    Em {guesses.length} de {MAX_ATTEMPTS} tentativas
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-lg font-bold text-[var(--red)]">
-                    Não foi dessa vez 😕
-                  </p>
-                  <p className="text-sm text-[var(--text-secondary)] mt-1">
-                    A palavra era{" "}
-                    <span className="font-bold text-[var(--gold)] tracking-widest">
-                      {findCedilhaForm(answer)}
-                    </span>
-                  </p>
-                </>
-              )}
-            </div>
-            {ranked ? (
-              <button
-                onClick={() => {
-                  setShowResult(true);
-                  loadResultData();
-                }}
-                className="text-sm text-[var(--gold)] underline underline-offset-2"
-              >
-                Ver placar do dia
-              </button>
-            ) : (
-              <button
-                onClick={startPracticeRound}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] transition-all"
-              >
-                🔁 Nova palavra
-              </button>
-            )}
-          </div>
-        )}
-      </div>
 
-      {/* Modal de resultado */}
-      {showResult && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/65 backdrop-blur-sm z-[100] animate-[fadeIn_0.2s_ease-out]"
-            onClick={() => setShowResult(false)}
-          />
-          <div className="fixed bottom-0 left-0 right-0 z-[101] bg-[var(--bg-deep)] rounded-t-2xl p-5 pb-[calc(1.5rem+var(--safe-bottom))] animate-[slideUp_0.3s_ease-out] max-w-lg mx-auto max-h-[88dvh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h2
-                className="text-lg font-bold text-[var(--gold)]"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                {status === "won" ? "Mandou bem! 🟩" : "Resultado de hoje"}
-              </h2>
-              <button
-                onClick={() => setShowResult(false)}
-                className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-              >
-                ✕
-              </button>
-            </div>
+          {/* Jogo */}
+          <div className="flex-1 flex flex-col gap-6 px-4 py-4">
+            <Grid
+              guesses={guesses}
+              cells={cells}
+              cursor={cursor}
+              active={status === "playing"}
+              answer={answer}
+              shake={shake}
+              onCellClick={handleCellClick}
+            />
 
-            <button
-              onClick={handleShare}
-              className="w-full mb-4 py-3 rounded-xl font-semibold text-sm bg-[rgba(201,165,90,0.15)] text-[var(--gold)] border border-[rgba(201,165,90,0.3)] hover:bg-[rgba(201,165,90,0.25)] transition-all"
-            >
-              📋 {shareLabel}
-            </button>
-
-            {/* Tabs */}
-            <div className="flex gap-2 mb-4">
-              {(
-                [
-                  { id: "ranking", label: "Placar do dia" },
-                  { id: "stats", label: "Minhas stats" },
-                ] as const
-              ).map((t) => (
+            {/* Palpite recusado que parece palavra → oferece adicionar ao dicionário */}
+            {status === "playing" && suggestable && (
+              <div className="flex items-center justify-center gap-2 -mt-2 anim-fade">
+                <span className="text-xs text-[var(--text-muted)]">
+                  <span className="font-bold text-[var(--text-secondary)] tracking-widest">
+                    {suggestable}
+                  </span>{" "}
+                  não está na lista
+                </span>
                 <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                    tab === t.id
-                      ? "bg-[rgba(201,165,90,0.15)] border-[rgba(201,165,90,0.4)] text-[var(--gold)]"
-                      : "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.07)] text-[var(--text-secondary)]"
+                  onClick={handleSuggestWord}
+                  disabled={suggesting}
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[rgba(201,165,90,0.15)] text-[var(--gold)] border border-[rgba(201,165,90,0.35)] hover:bg-[rgba(201,165,90,0.25)] transition-all active:scale-95 disabled:opacity-60"
+                >
+                  {suggesting ? "Verificando…" : "+ Adicionar palavra"}
+                </button>
+              </div>
+            )}
+
+            {status === "playing" ? (
+              <Keyboard
+                keyStatuses={keyStatuses}
+                onKey={handleKey}
+                disabled={false}
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-3 max-w-[480px] mx-auto w-full">
+                <div
+                  className={`w-full text-center rounded-xl py-4 px-4 border ${
+                    status === "won"
+                      ? "bg-[rgba(58,186,122,0.1)] border-[rgba(58,186,122,0.3)]"
+                      : "bg-[rgba(196,64,64,0.1)] border-[rgba(196,64,64,0.3)]"
                   }`}
                 >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-
-            {tab === "ranking" ? (
-              <Leaderboard entries={leaderboard} meId={user?.id} />
-            ) : stats ? (
-              <StatsView stats={stats} />
-            ) : (
-              <div className="flex justify-center py-6">
-                <div className="spinner" />
+                  {status === "won" ? (
+                    <>
+                      <p className="text-lg font-bold text-[var(--green)]">
+                        Acertou! +{score} pts 🎉
+                      </p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">
+                        Em {guesses.length} de {MAX_ATTEMPTS} tentativas
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-lg font-bold text-[var(--red)]">
+                        Não foi dessa vez 😕
+                      </p>
+                      <p className="text-sm text-[var(--text-secondary)] mt-1">
+                        A palavra era{" "}
+                        <span className="font-bold text-[var(--gold)] tracking-widest">
+                          {findCedilhaForm(answer)}
+                        </span>
+                      </p>
+                    </>
+                  )}
+                </div>
+                {ranked ? (
+                  <button
+                    onClick={() => {
+                      setShowResult(true);
+                      loadResultData();
+                    }}
+                    className="text-sm text-[var(--gold)] underline underline-offset-2"
+                  >
+                    Ver placar do dia
+                  </button>
+                ) : (
+                  <button
+                    onClick={startPracticeRound}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] transition-all"
+                  >
+                    🔁 Nova palavra
+                  </button>
+                )}
               </div>
             )}
           </div>
+
+          {/* Modal de resultado */}
+          {showResult && (
+            <>
+              <div
+                className="fixed inset-0 bg-black/65 backdrop-blur-sm z-[100] animate-[fadeIn_0.2s_ease-out]"
+                onClick={() => setShowResult(false)}
+              />
+              <div className="fixed bottom-0 left-0 right-0 z-[101] bg-[var(--bg-deep)] rounded-t-2xl p-5 pb-[calc(1.5rem+var(--safe-bottom))] animate-[slideUp_0.3s_ease-out] max-w-lg mx-auto max-h-[88dvh] overflow-y-auto">
+                <div className="flex items-center justify-between mb-4">
+                  <h2
+                    className="text-lg font-bold text-[var(--gold)]"
+                    style={{ fontFamily: "var(--font-display)" }}
+                  >
+                    {status === "won" ? "Mandou bem! 🟩" : "Resultado de hoje"}
+                  </h2>
+                  <button
+                    onClick={() => setShowResult(false)}
+                    className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <button
+                  onClick={handleShare}
+                  className="w-full mb-4 py-3 rounded-xl font-semibold text-sm bg-[rgba(201,165,90,0.15)] text-[var(--gold)] border border-[rgba(201,165,90,0.3)] hover:bg-[rgba(201,165,90,0.25)] transition-all"
+                >
+                  📋 {shareLabel}
+                </button>
+
+                {/* Tabs */}
+                <div className="flex gap-2 mb-4">
+                  {(
+                    [
+                      { id: "ranking", label: "Placar do dia" },
+                      { id: "stats", label: "Minhas stats" },
+                    ] as const
+                  ).map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setTab(t.id)}
+                      className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                        tab === t.id
+                          ? "bg-[rgba(201,165,90,0.15)] border-[rgba(201,165,90,0.4)] text-[var(--gold)]"
+                          : "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.07)] text-[var(--text-secondary)]"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                {tab === "ranking" ? (
+                  <Leaderboard entries={leaderboard} meId={user?.id} />
+                ) : stats ? (
+                  <StatsView stats={stats} />
+                ) : (
+                  <div className="flex justify-center py-6">
+                    <div className="spinner" />
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Fim do modo Letreco */}
         </>
       )}
-
-      {/* Fim do modo Letreco */}
-      </>}
 
       {/* Modal de ranking geral (acumulado) — fora dos blocos de modo */}
       {showOverall && (

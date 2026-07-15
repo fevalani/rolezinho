@@ -17,7 +17,11 @@ import {
   getLetrosoDailyLeaderboard,
   validateLetrosoWord,
 } from "./letrosoService";
-import type { GameStatus, LetrosoLeaderboardEntry, LetrosoTileStatus } from "./letrosoTypes";
+import type {
+  GameStatus,
+  LetrosoLeaderboardEntry,
+  LetrosoTileStatus,
+} from "./letrosoTypes";
 
 const INPUT_SENTINEL = ".";
 
@@ -152,7 +156,10 @@ function LetrosoGrid({
   onTapInput: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-1.5 mx-auto w-full" style={{ maxWidth: 380 }}>
+    <div
+      className="flex flex-col gap-1.5 mx-auto w-full"
+      style={{ maxWidth: 380 }}
+    >
       {/* Linhas submetidas */}
       {guesses.map((guess, r) => {
         const statuses = scoreLetrosoGuess(guess, answer);
@@ -224,7 +231,10 @@ function LetrosoGrid({
                     className={[
                       "w-8 h-8 flex items-center justify-center border-2 font-bold uppercase select-none letreco-pop",
                       tileFontSize(currentInput.length),
-                      s.bg, s.border, s.text, s.radius,
+                      s.bg,
+                      s.border,
+                      s.text,
+                      s.radius,
                     ].join(" ")}
                   >
                     {letter}
@@ -245,12 +255,18 @@ function LetrosoGrid({
 
 // ─── Teclado ──────────────────────────────────────────────────────
 
-function keyClasses(status: "correct" | "present" | "absent" | undefined): string {
+function keyClasses(
+  status: "correct" | "present" | "absent" | undefined,
+): string {
   switch (status) {
-    case "correct": return "bg-[var(--green)] text-white border-[var(--green)]";
-    case "present": return "bg-[var(--gold)] text-[var(--bg-abyss)] border-[var(--gold)]";
-    case "absent":  return "bg-[var(--bg-deep)] text-[var(--text-muted)] border-[rgba(255,255,255,0.04)]";
-    default:        return "bg-[var(--bg-elevated)] text-[var(--text-primary)] border-[rgba(255,255,255,0.08)]";
+    case "correct":
+      return "bg-[var(--green)] text-white border-[var(--green)]";
+    case "present":
+      return "bg-[var(--gold)] text-[var(--bg-abyss)] border-[var(--gold)]";
+    case "absent":
+      return "bg-[var(--bg-deep)] text-[var(--text-muted)] border-[rgba(255,255,255,0.04)]";
+    default:
+      return "bg-[var(--bg-elevated)] text-[var(--text-primary)] border-[rgba(255,255,255,0.08)]";
   }
 }
 
@@ -295,39 +311,59 @@ function Keyboard({
 function FeedbackLegend() {
   return (
     <div className="bg-[var(--bg-card)] border border-[rgba(255,255,255,0.06)] rounded-xl p-3 text-xs space-y-1.5">
-      <p className="font-semibold text-[var(--text-secondary)] text-[0.65rem] uppercase tracking-wide mb-2">Como funciona o feedback</p>
+      <p className="font-semibold text-[var(--text-secondary)] text-[0.65rem] uppercase tracking-wide mb-2">
+        Como funciona o feedback
+      </p>
       {[
-        { color: "bg-[var(--green)] rounded-md", label: "Letra certa, sozinha" },
+        {
+          color: "bg-[var(--green)] rounded-md",
+          label: "Letra certa, sozinha",
+        },
         {
           color: "flex",
           isBlock: true,
           label: "Bloco unido = letras consecutivas na palavra",
         },
         {
-          color: "flex ring-2 ring-[var(--green)] ring-offset-1 ring-offset-[var(--bg-abyss)]",
+          color:
+            "flex ring-2 ring-[var(--green)] ring-offset-1 ring-offset-[var(--bg-abyss)]",
           isBlock: true,
           isCap: true,
           label: "Cápsula = início e fim da palavra descobertos",
         },
-        { color: "bg-[var(--gold)] rounded-md", label: "Letra existe, posição errada" },
-        { color: "bg-[var(--bg-elevated)] rounded-md", label: "Letra não está na palavra" },
+        {
+          color: "bg-[var(--gold)] rounded-md",
+          label: "Letra existe, posição errada",
+        },
+        {
+          color: "bg-[var(--bg-elevated)] rounded-md",
+          label: "Letra não está na palavra",
+        },
       ].map((item, i) => (
         <div key={i} className="flex items-center gap-2">
           {item.isBlock ? (
             <div className={item.color}>
-              {["w", item.isCap ? "·" : "x", item.isCap ? "·" : "y", "z"].map((l, j, arr) => (
-                <div
-                  key={j}
-                  className={`w-5 h-5 flex items-center justify-center border-2 border-[var(--green)] bg-[var(--green)] text-white text-[0.55rem] font-bold uppercase ${
-                    j === 0 ? "rounded-l-sm" : j === arr.length - 1 ? "rounded-r-sm" : "rounded-none"
-                  } ${j > 0 ? "-ml-0.5" : ""} ${item.isCap && (j === 1 || j === 2) ? "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.1)] text-[var(--text-muted)]" : ""}`}
-                >
-                  {l === "·" ? "" : l}
-                </div>
-              ))}
+              {["w", item.isCap ? "·" : "x", item.isCap ? "·" : "y", "z"].map(
+                (l, j, arr) => (
+                  <div
+                    key={j}
+                    className={`w-5 h-5 flex items-center justify-center border-2 border-[var(--green)] bg-[var(--green)] text-white text-[0.55rem] font-bold uppercase ${
+                      j === 0
+                        ? "rounded-l-sm"
+                        : j === arr.length - 1
+                          ? "rounded-r-sm"
+                          : "rounded-none"
+                    } ${j > 0 ? "-ml-0.5" : ""} ${item.isCap && (j === 1 || j === 2) ? "bg-[var(--bg-elevated)] border-[rgba(255,255,255,0.1)] text-[var(--text-muted)]" : ""}`}
+                  >
+                    {l === "·" ? "" : l}
+                  </div>
+                ),
+              )}
             </div>
           ) : (
-            <div className={`w-5 h-5 shrink-0 border-2 border-transparent ${item.color}`} />
+            <div
+              className={`w-5 h-5 shrink-0 border-2 border-transparent ${item.color}`}
+            />
           )}
           <span className="text-[var(--text-muted)]">{item.label}</span>
         </div>
@@ -381,7 +417,9 @@ function LetrosoLeaderboard({
                   : "Não acertou"}
               </p>
             </div>
-            <span className="text-sm font-bold text-[var(--gold)] shrink-0">{e.score} pts</span>
+            <span className="text-sm font-bold text-[var(--gold)] shrink-0">
+              {e.score} pts
+            </span>
           </div>
         );
       })}
@@ -400,7 +438,9 @@ export function LetrosoGame() {
   // palavra diferente da do dia dentro do mesmo pool — Letroso não tem
   // outro pool de palavras 6-10 letras no projeto).
   const [ranked, setRanked] = useState(true);
-  const [practiceAnswer, setPracticeAnswer] = useState(() => getLetrosoPracticeWord());
+  const [practiceAnswer, setPracticeAnswer] = useState(() =>
+    getLetrosoPracticeWord(),
+  );
   const answer = ranked ? rankedAnswer : practiceAnswer;
   const rankedSnapshot = useRef<{
     guesses: string[];
@@ -462,7 +502,9 @@ export function LetrosoGame() {
       }
       setLoading(false);
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [user, gameDate]);
 
   const startPracticeRound = useCallback(() => {
@@ -532,10 +574,13 @@ export function LetrosoGame() {
     }
 
     if (newStatus === "won" && ranked) {
-      setTimeout(() => {
-        setShowResult(true);
-        loadLeaderboard();
-      }, word.length * 120 + 200);
+      setTimeout(
+        () => {
+          setShowResult(true);
+          loadLeaderboard();
+        },
+        word.length * 120 + 200,
+      );
     }
   }, [
     user,
@@ -597,7 +642,10 @@ export function LetrosoGame() {
 
   const handleNativeKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") { handleKey("ENTER"); e.preventDefault(); }
+      if (e.key === "Enter") {
+        handleKey("ENTER");
+        e.preventDefault();
+      }
     },
     [handleKey],
   );
@@ -616,7 +664,12 @@ export function LetrosoGame() {
   }, [handleKey]);
 
   const handleShare = async () => {
-    const text = buildLetrosoShareText(guesses, answer, status === "won", gameDate);
+    const text = buildLetrosoShareText(
+      guesses,
+      answer,
+      status === "won",
+      gameDate,
+    );
     try {
       if (navigator.share) await navigator.share({ text });
       else {
@@ -624,7 +677,9 @@ export function LetrosoGame() {
         setShareLabel("Copiado! ✓");
         setTimeout(() => setShareLabel("Compartilhar resultado"), 2000);
       }
-    } catch { /* cancelled */ }
+    } catch {
+      /* cancelled */
+    }
   };
 
   if (loading) {
@@ -648,7 +703,8 @@ export function LetrosoGame() {
           </p>
           {!ranked && (
             <p className="text-[0.6rem] text-[var(--gold)] opacity-80 mt-0.5">
-              🎓 Modo treino — não conta pro ranking, pode jogar quantas vezes quiser
+              🎓 Modo treino — não conta pro ranking, pode jogar quantas vezes
+              quiser
             </p>
           )}
         </div>
@@ -662,7 +718,10 @@ export function LetrosoGame() {
 
         {showMenu && (
           <>
-            <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setShowMenu(false)}
+            />
             <div className="absolute right-4 top-full mt-1 z-50 w-56 rounded-xl border border-[rgba(255,255,255,0.1)] bg-[var(--bg-elevated)] shadow-lg p-2 flex flex-col gap-1.5">
               <button
                 onClick={() => {
@@ -676,7 +735,7 @@ export function LetrosoGame() {
 
               <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.04)]">
                 <span className="text-xs font-semibold text-[var(--text-secondary)]">
-                  {ranked ? "Ranqueado" : "Treino"}
+                  {"Treino"}
                 </span>
                 <button
                   role="switch"
@@ -768,7 +827,11 @@ export function LetrosoGame() {
         />
 
         {status === "playing" ? (
-          <Keyboard keyStatuses={keyStatuses} onKey={handleKey} disabled={false} />
+          <Keyboard
+            keyStatuses={keyStatuses}
+            onKey={handleKey}
+            disabled={false}
+          />
         ) : (
           <div className="flex flex-col items-center gap-3 max-w-[480px] mx-auto w-full">
             <div
@@ -784,22 +847,30 @@ export function LetrosoGame() {
                     Mandou bem! +{score} pts 🎉
                   </p>
                   <p className="text-xs text-[var(--text-muted)] mt-1">
-                    Em {guesses.length} tentativa{guesses.length === 1 ? "" : "s"}
+                    Em {guesses.length} tentativa
+                    {guesses.length === 1 ? "" : "s"}
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="text-lg font-bold text-[var(--red)]">Não foi dessa vez 😕</p>
+                  <p className="text-lg font-bold text-[var(--red)]">
+                    Não foi dessa vez 😕
+                  </p>
                   <p className="text-sm text-[var(--text-secondary)] mt-1">
                     A palavra era{" "}
-                    <span className="font-bold text-[var(--gold)] tracking-widest">{answer}</span>
+                    <span className="font-bold text-[var(--gold)] tracking-widest">
+                      {answer}
+                    </span>
                   </p>
                 </>
               )}
             </div>
             {ranked ? (
               <button
-                onClick={() => { setShowResult(true); loadLeaderboard(); }}
+                onClick={() => {
+                  setShowResult(true);
+                  loadLeaderboard();
+                }}
                 className="text-sm text-[var(--gold)] underline underline-offset-2"
               >
                 Ver placar do dia
@@ -846,11 +917,10 @@ export function LetrosoGame() {
               📋 {shareLabel}
             </button>
 
-            <p className="text-xs text-[var(--text-muted)] mb-3">Placar do dia</p>
-            <LetrosoLeaderboard
-              entries={leaderboard}
-              meId={user?.id}
-            />
+            <p className="text-xs text-[var(--text-muted)] mb-3">
+              Placar do dia
+            </p>
+            <LetrosoLeaderboard entries={leaderboard} meId={user?.id} />
           </div>
         </>
       )}

@@ -252,7 +252,9 @@ export function SudokuGame() {
           setElapsedSeconds(game.elapsed_seconds);
         }
         try {
-          const raw = localStorage.getItem(`sudoku-notes:${user.id}:${gameDate}`);
+          const raw = localStorage.getItem(
+            `sudoku-notes:${user.id}:${gameDate}`,
+          );
           if (raw) setNotes(JSON.parse(raw));
         } catch {
           /* localStorage indisponível — segue sem rascunho salvo */
@@ -271,7 +273,8 @@ export function SudokuGame() {
   useEffect(() => {
     if (!notesStorageKey || !difficulty || !ranked) return;
     try {
-      if (Object.keys(notes).length === 0) localStorage.removeItem(notesStorageKey);
+      if (Object.keys(notes).length === 0)
+        localStorage.removeItem(notesStorageKey);
       else localStorage.setItem(notesStorageKey, JSON.stringify(notes));
     } catch {
       /* localStorage indisponível — rascunho fica só na sessão atual */
@@ -398,7 +401,17 @@ export function SudokuGame() {
       }
       return !wasRanked;
     });
-  }, [puzzle, solution, board, mistakes, status, score, elapsedSeconds, notes, startPracticeRound]);
+  }, [
+    puzzle,
+    solution,
+    board,
+    mistakes,
+    status,
+    score,
+    elapsedSeconds,
+    notes,
+    startPracticeRound,
+  ]);
 
   const toggleNote = useCallback((cell: number, digit: number) => {
     setNotes((prev) => {
@@ -575,7 +588,8 @@ export function SudokuGame() {
           </p>
           {!ranked && (
             <p className="text-[0.6rem] text-[var(--gold)] opacity-80 mt-0.5">
-              🎓 Modo treino — não conta pro ranking, pode jogar quantas vezes quiser
+              🎓 Modo treino — não conta pro ranking, pode jogar quantas vezes
+              quiser
             </p>
           )}
         </div>
@@ -589,7 +603,10 @@ export function SudokuGame() {
 
         {showMenu && (
           <>
-            <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setShowMenu(false)}
+            />
             <div className="absolute right-4 top-full mt-1 z-50 w-56 rounded-xl border border-[rgba(255,255,255,0.1)] bg-[var(--bg-elevated)] shadow-lg p-2 flex flex-col gap-1.5">
               <button
                 onClick={() => {
@@ -603,7 +620,7 @@ export function SudokuGame() {
 
               <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.04)]">
                 <span className="text-xs font-semibold text-[var(--text-secondary)]">
-                  {ranked ? "Ranqueado" : "Treino"}
+                  {"Treino"}
                 </span>
                 <button
                   role="switch"
@@ -669,7 +686,9 @@ export function SudokuGame() {
             aria-checked={notesBlockMode}
             onClick={() => setNotesBlockMode((v) => !v)}
             className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ${
-              notesBlockMode ? "bg-[var(--green)]" : "bg-[rgba(255,255,255,0.15)]"
+              notesBlockMode
+                ? "bg-[var(--green)]"
+                : "bg-[rgba(255,255,255,0.15)]"
             }`}
           >
             <span
