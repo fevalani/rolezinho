@@ -6,6 +6,7 @@ import {
   WORD500_MAX_ATTEMPTS,
   getWord500WordOfDay,
   getWord500GameDate,
+  getWord500PracticeWord,
   normalize,
   isValidWord,
   scoreGuessCounts,
@@ -14,6 +15,7 @@ import {
 } from "./word500Logic";
 import {
   getWord500TodayGame,
+  saveWord500Game,
   getWord500DailyLeaderboard,
 } from "./word500Service";
 import type { GameStatus, Word500LeaderboardEntry } from "./word500Types";
@@ -314,8 +316,20 @@ function Word500Leaderboard({
 
 export function Word500Game() {
   const { user } = useAuth();
-  const answer = useMemo(() => getWord500WordOfDay(), []);
+  const rankedAnswer = useMemo(() => getWord500WordOfDay(), []);
   const gameDate = useMemo(() => getWord500GameDate(), []);
+
+  // Modo ranqueado (persiste, 1 partida/dia) vs treino (efêmero, ilimitado,
+  // palavra de um pool diferente do ranqueado — nunca spoila a do dia).
+  const [ranked, setRanked] = useState(true);
+  const [practiceAnswer, setPracticeAnswer] = useState(() => getWord500PracticeWord());
+  const answer = ranked ? rankedAnswer : practiceAnswer;
+  const rankedSnapshot = useRef<{
+    guesses: string[];
+    status: GameStatus;
+    score: number;
+    marks: Record<string, CellMark>;
+  } | null>(null);
 
   const [guesses, setGuesses] = useState<string[]>([]);
   const [cells, setCells] = useState<string[]>(() =>
@@ -329,11 +343,45 @@ export function Word500Game() {
   const [toast, setToast] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [showRules, setShowRules] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [leaderboard, setLeaderboard] = useState<Word500LeaderboardEntry[]>([]);
   const [shareLabel, setShareLabel] = useState("Compartilhar resultado");
   // Marcação pessoal (verde/amarelo/vermelho) nas letras já enviadas — só de
   // sessão, não persiste no Supabase (mesmo padrão das anotações do Sudoku).
   const [marks, setMarks] = useState<Record<string, CellMark>>({});
+
+  const startPracticeRound = useCallback(() => {
+    setPracticeAnswer(getWord500PracticeWord());
+    setGuesses([]);
+    setCells(new Array(WORD_LENGTH).fill(""));
+    setCursor(0);
+    setStatus("playing");
+    setScore(0);
+    setMarks({});
+    setShowResult(false);
+  }, []);
+
+  const toggleRanked = useCallback(() => {
+    setRanked((wasRanked) => {
+      if (wasRanked) {
+        // Saindo do ranqueado: guarda o progresso pra restaurar depois e
+        // entra num treino novo (efêmero, não mexe no que já foi salvo).
+        rankedSnapshot.current = { guesses, status, score, marks };
+        startPracticeRound();
+      } else {
+        // Voltando pro ranqueado: restaura o progresso salvo antes de sair.
+        const snap = rankedSnapshot.current;
+        setGuesses(snap?.guesses ?? []);
+        setCells(new Array(WORD_LENGTH).fill(""));
+        setCursor(0);
+        setStatus(snap?.status ?? "playing");
+        setScore(snap?.score ?? 0);
+        setMarks(snap?.marks ?? {});
+        setShowResult(false);
+      }
+      return !wasRanked;
+    });
+  }, [guesses, status, score, marks, startPracticeRound]);
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -439,29 +487,25 @@ export function Word500Game() {
     setStatus(newStatus);
     setScore(newScore);
 
-    // Modo teste (temporário): Word500 ainda não persiste no Supabase, de
-    // propósito, pra dar pra jogar várias vezes por dia sem contar pro
-    // ranking. Reativar `saveWord500Game` quando o jogo sair da fase de testes.
+    // Modo treino não persiste nem conta pro ranking — só o ranqueado grava.
+    if (ranked) {
+      await saveWord500Game(user.id, gameDate, {
+        guesses: newGuesses,
+        status: newStatus,
+        attempts: newGuesses.length,
+        score: newScore,
+      });
+    }
 
-    if (newStatus !== "playing") {
+    // Modal de resultado (placar/compartilhar) só faz sentido no ranqueado —
+    // treino mostra só o painel inline de acerto/erro.
+    if (newStatus !== "playing" && ranked) {
       setTimeout(() => {
         setShowResult(true);
         loadLeaderboard();
       }, 900);
     }
-  }, [user, status, cells, guesses, answer, flashToast, loadLeaderboard]);
-
-  // Modo teste (temporário): reinicia a partida do zero pra jogar de novo no
-  // mesmo dia — não salva nada, então nunca conta pro ranking.
-  const resetGame = useCallback(() => {
-    setGuesses([]);
-    setCells(new Array(WORD_LENGTH).fill(""));
-    setCursor(0);
-    setStatus("playing");
-    setScore(0);
-    setMarks({});
-    setShowResult(false);
-  }, []);
+  }, [user, status, cells, guesses, answer, gameDate, ranked, flashToast, loadLeaderboard]);
 
   const cycleMark = useCallback((row: number, col: number) => {
     const key = `${row}-${col}`;
@@ -600,7 +644,7 @@ export function Word500Game() {
   return (
     <div className="flex flex-col">
       {/* Cabeçalho */}
-      <div className="px-4 pb-3 flex items-center justify-between">
+      <div className="px-4 pb-3 flex items-center justify-between relative">
         <div>
           <p className="text-xs text-[var(--text-muted)]">
             Palavra do dia · {gameDate.split("-").reverse().join("/")}
@@ -608,35 +652,83 @@ export function Word500Game() {
           <p className="text-[0.65rem] text-[var(--text-muted)] opacity-60">
             5 letras · {WORD500_MAX_ATTEMPTS} tentativas · só contagens
           </p>
-          <p className="text-[0.6rem] text-[var(--gold)] opacity-80 mt-0.5">
-            🧪 Modo teste — pode jogar quantas vezes quiser, não conta pro ranking
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowRules((v) => !v)}
-            className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] border border-[rgba(255,255,255,0.08)] transition-all"
-          >
-            ℹ️ Regras
-          </button>
-          <button
-            onClick={resetGame}
-            className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] transition-all"
-          >
-            🔁 Nova partida
-          </button>
-          {status !== "playing" && (
-            <button
-              onClick={() => {
-                setShowResult(true);
-                loadLeaderboard();
-              }}
-              className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] transition-all"
-            >
-              📊 Resultado
-            </button>
+          {!ranked && (
+            <p className="text-[0.6rem] text-[var(--gold)] opacity-80 mt-0.5">
+              🎓 Modo treino — não conta pro ranking, pode jogar quantas vezes quiser
+            </p>
           )}
         </div>
+        <button
+          onClick={() => setShowMenu((v) => !v)}
+          aria-label="Mais opções"
+          className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl text-lg font-bold leading-none bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] border border-[rgba(255,255,255,0.08)] transition-all"
+        >
+          ⋯
+        </button>
+
+        {showMenu && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+            <div className="absolute right-4 top-full mt-1 z-50 w-56 rounded-xl border border-[rgba(255,255,255,0.1)] bg-[var(--bg-elevated)] shadow-lg p-2 flex flex-col gap-1.5">
+              <button
+                onClick={() => {
+                  setShowRules((v) => !v);
+                  setShowMenu(false);
+                }}
+                className="px-3 py-2 rounded-lg text-xs font-semibold text-left bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] transition-all"
+              >
+                ℹ️ Regras
+              </button>
+
+              <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.04)]">
+                <span className="text-xs font-semibold text-[var(--text-secondary)]">
+                  {ranked ? "Ranqueado" : "Treino"}
+                </span>
+                <button
+                  role="switch"
+                  aria-checked={!ranked}
+                  onClick={() => {
+                    toggleRanked();
+                    setShowMenu(false);
+                  }}
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ${
+                    ranked ? "bg-[rgba(255,255,255,0.15)]" : "bg-[var(--green)]"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${
+                      ranked ? "translate-x-0.5" : "translate-x-[1.375rem]"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {!ranked && (
+                <button
+                  onClick={() => {
+                    startPracticeRound();
+                    setShowMenu(false);
+                  }}
+                  className="px-3 py-2 rounded-lg text-xs font-semibold text-left bg-[rgba(201,165,90,0.12)] text-[var(--gold)] transition-all"
+                >
+                  🔁 Nova palavra
+                </button>
+              )}
+              {ranked && status !== "playing" && (
+                <button
+                  onClick={() => {
+                    setShowResult(true);
+                    loadLeaderboard();
+                    setShowMenu(false);
+                  }}
+                  className="px-3 py-2 rounded-lg text-xs font-semibold text-left bg-[rgba(201,165,90,0.12)] text-[var(--gold)] transition-all"
+                >
+                  📊 Resultado
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {showRules && (
@@ -720,7 +812,7 @@ export function Word500Game() {
                 </>
               )}
             </div>
-            <div className="flex items-center gap-4">
+            {ranked ? (
               <button
                 onClick={() => {
                   setShowResult(true);
@@ -730,13 +822,14 @@ export function Word500Game() {
               >
                 Ver placar do dia
               </button>
+            ) : (
               <button
-                onClick={resetGame}
+                onClick={startPracticeRound}
                 className="px-4 py-2 rounded-xl text-sm font-semibold bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] transition-all"
               >
-                🔁 Jogar de novo
+                🔁 Nova palavra
               </button>
-            </div>
+            )}
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import {
   getSudokuOfDay,
+  getSudokuPracticePuzzle,
   getSudokuGameDate,
   isGivenCell,
   isBoardComplete,
@@ -21,7 +22,11 @@ import {
   saveSudokuGame,
   getSudokuDailyLeaderboard,
 } from "./sudokuService";
-import type { GameStatus, SudokuDifficulty, SudokuLeaderboardEntry } from "./sudokuTypes";
+import type {
+  GameStatus,
+  SudokuDifficulty,
+  SudokuLeaderboardEntry,
+} from "./sudokuTypes";
 
 // ─── Leaderboard do dia ────────────────────────────────────────────
 
@@ -63,11 +68,13 @@ function SudokuLeaderboard({
                 {isMe && <span className="text-[var(--gold)]"> (você)</span>}
               </p>
               <p className="text-[0.65rem] text-[var(--text-muted)]">
-                {SUDOKU_DIFFICULTIES[e.difficulty].label} · ⏱️ {formatElapsed(e.elapsed_seconds)} · ❌{" "}
-                {e.mistakes}
+                {SUDOKU_DIFFICULTIES[e.difficulty].label} · ⏱️{" "}
+                {formatElapsed(e.elapsed_seconds)} · ❌ {e.mistakes}
               </p>
             </div>
-            <span className="text-sm font-bold text-[var(--gold)] shrink-0">{e.score} pts</span>
+            <span className="text-sm font-bold text-[var(--gold)] shrink-0">
+              {e.score} pts
+            </span>
           </div>
         );
       })}
@@ -89,13 +96,13 @@ function SudokuRules() {
         novo.
       </p>
       <p className="text-[var(--text-muted)]">
-        Começa com 1000 pts, -20 por minuto corrido, -40 por erro (mínimo 50
-        pts pra quem termina) — depois multiplica pela dificuldade escolhida.
+        Começa com 1000 pts, -20 por minuto corrido, -40 por erro (mínimo 50 pts
+        pra quem termina) — depois multiplica pela dificuldade escolhida.
       </p>
       <p className="text-[var(--text-muted)]">
         ✏️ <strong className="text-[var(--text-secondary)]">Rascunho</strong>:
-        liga o modo de anotar candidatos numa célula sem marcar valor
-        definitivo — não conta como erro nem preenche a célula.
+        liga o modo de anotar candidatos numa célula sem marcar valor definitivo
+        — não conta como erro nem preenche a célula.
       </p>
     </div>
   );
@@ -137,12 +144,16 @@ function DifficultyPicker({
               className="text-left px-4 py-3 rounded-xl border bg-[var(--bg-card)] border-[rgba(255,255,255,0.08)] hover:border-[rgba(201,165,90,0.4)] transition-all active:scale-[0.98]"
             >
               <div className="flex items-center justify-between">
-                <span className="font-bold text-[var(--text-primary)]">{cfg.label}</span>
+                <span className="font-bold text-[var(--text-primary)]">
+                  {cfg.label}
+                </span>
                 <span className="text-xs font-bold text-[var(--gold)]">
                   ×{cfg.scoreMultiplier.toFixed(2).replace(/\.?0+$/, "")}
                 </span>
               </div>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">{cfg.clues} pistas no tabuleiro</p>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                {cfg.clues} pistas no tabuleiro
+              </p>
             </button>
           );
         })}
@@ -171,10 +182,29 @@ export function SudokuGame() {
   const [flashConflicts, setFlashConflicts] = useState<number[]>([]);
   const [showResult, setShowResult] = useState(false);
   const [showRules, setShowRules] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [pencilMode, setPencilMode] = useState(false);
+  const [notesBlockMode, setNotesBlockMode] = useState(false);
   const [notes, setNotes] = useState<Record<number, number[]>>({});
   const [leaderboard, setLeaderboard] = useState<SudokuLeaderboardEntry[]>([]);
   const [shareLabel, setShareLabel] = useState("Compartilhar resultado");
+
+  // Modo ranqueado (persiste, 1 partida/dia) vs treino (efêmero, ilimitado,
+  // puzzle diferente do ranqueado do dia dentro do mesmo pool da dificuldade
+  // já escolhida — Sudoku não tem outro pool de puzzles no projeto).
+  const [ranked, setRanked] = useState(true);
+  const rankedSnapshot = useRef<{
+    puzzle: string;
+    solution: string;
+    board: string;
+    mistakes: number;
+    status: GameStatus;
+    score: number;
+    elapsedSeconds: number;
+    notes: Record<number, number[]>;
+    startedAtIso: string;
+    startedAtMs: number;
+  } | null>(null);
 
   const startedAtIso = useRef<string>("");
   const startedAtMs = useRef<number>(0);
@@ -193,6 +223,12 @@ export function SudokuGame() {
     const lb = await getSudokuDailyLeaderboard(gameDate);
     setLeaderboard(lb);
   }, [gameDate]);
+
+  // Chave de armazenamento local do rascunho — sobrevive a reload, outra aba ou trocar de app
+  const notesStorageKey = useMemo(
+    () => (user ? `sudoku-notes:${user.id}:${gameDate}` : null),
+    [user, gameDate],
+  );
 
   // Carrega a partida do dia (se já escolheu dificuldade hoje)
   useEffect(() => {
@@ -215,6 +251,12 @@ export function SudokuGame() {
         if (game.status === "won") {
           setElapsedSeconds(game.elapsed_seconds);
         }
+        try {
+          const raw = localStorage.getItem(`sudoku-notes:${user.id}:${gameDate}`);
+          if (raw) setNotes(JSON.parse(raw));
+        } catch {
+          /* localStorage indisponível — segue sem rascunho salvo */
+        }
       }
       setLoading(false);
     })();
@@ -223,10 +265,24 @@ export function SudokuGame() {
     };
   }, [user, gameDate]);
 
+  // Salva o rascunho a cada alteração, para não perder ao trocar de aba/app.
+  // Só sincroniza no ranqueado — anotações do treino são efêmeras e não
+  // podem sobrescrever o rascunho salvo da partida ranqueada do dia.
+  useEffect(() => {
+    if (!notesStorageKey || !difficulty || !ranked) return;
+    try {
+      if (Object.keys(notes).length === 0) localStorage.removeItem(notesStorageKey);
+      else localStorage.setItem(notesStorageKey, JSON.stringify(notes));
+    } catch {
+      /* localStorage indisponível — rascunho fica só na sessão atual */
+    }
+  }, [notes, notesStorageKey, difficulty, ranked]);
+
   // Cronômetro (recalcula a partir de started_at — sobrevive a reload)
   useEffect(() => {
     if (loading || status !== "playing" || !difficulty) return;
-    const tick = () => setElapsedSeconds(Math.floor((Date.now() - startedAtMs.current) / 1000));
+    const tick = () =>
+      setElapsedSeconds(Math.floor((Date.now() - startedAtMs.current) / 1000));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
@@ -266,8 +322,14 @@ export function SudokuGame() {
   );
 
   const persist = useCallback(
-    async (nextBoard: string, nextMistakes: number, nextStatus: GameStatus, nextScore: number) => {
-      if (!user || !difficulty) return;
+    async (
+      nextBoard: string,
+      nextMistakes: number,
+      nextStatus: GameStatus,
+      nextScore: number,
+    ) => {
+      // Modo treino não persiste nem conta pro ranking — só o ranqueado grava.
+      if (!user || !difficulty || !ranked) return;
       await saveSudokuGame(user.id, gameDate, {
         difficulty,
         board: nextBoard,
@@ -281,8 +343,62 @@ export function SudokuGame() {
         started_at: startedAtIso.current,
       });
     },
-    [user, gameDate, elapsedSeconds, difficulty],
+    [user, gameDate, elapsedSeconds, difficulty, ranked],
   );
+
+  const startPracticeRound = useCallback(() => {
+    if (!difficulty) return;
+    const { puzzle: p, solution: s } = getSudokuPracticePuzzle(difficulty);
+    startedAtIso.current = new Date().toISOString();
+    startedAtMs.current = Date.now();
+    setPuzzle(p);
+    setSolution(s);
+    setBoard(p);
+    setMistakes(0);
+    setStatus("playing");
+    setScore(0);
+    setElapsedSeconds(0);
+    setNotes({});
+    setSelected(null);
+    setShowResult(false);
+  }, [difficulty]);
+
+  const toggleRanked = useCallback(() => {
+    setRanked((wasRanked) => {
+      if (wasRanked) {
+        rankedSnapshot.current = {
+          puzzle,
+          solution,
+          board,
+          mistakes,
+          status,
+          score,
+          elapsedSeconds,
+          notes,
+          startedAtIso: startedAtIso.current,
+          startedAtMs: startedAtMs.current,
+        };
+        startPracticeRound();
+      } else {
+        const snap = rankedSnapshot.current;
+        if (snap) {
+          setPuzzle(snap.puzzle);
+          setSolution(snap.solution);
+          setBoard(snap.board);
+          setMistakes(snap.mistakes);
+          setStatus(snap.status);
+          setScore(snap.score);
+          setElapsedSeconds(snap.elapsedSeconds);
+          setNotes(snap.notes);
+          startedAtIso.current = snap.startedAtIso;
+          startedAtMs.current = snap.startedAtMs;
+        }
+        setSelected(null);
+        setShowResult(false);
+      }
+      return !wasRanked;
+    });
+  }, [puzzle, solution, board, mistakes, status, score, elapsedSeconds, notes, startPracticeRound]);
 
   const toggleNote = useCallback((cell: number, digit: number) => {
     setNotes((prev) => {
@@ -326,7 +442,8 @@ export function SudokuGame() {
 
   const handleNumber = useCallback(
     (digit: number) => {
-      if (status !== "playing" || selected === null || !user || !difficulty) return;
+      if (status !== "playing" || selected === null || !user || !difficulty)
+        return;
       if (isGivenCell(puzzle, selected) || board[selected] !== "0") return;
       if (isDigitComplete(board, digit)) return;
 
@@ -337,7 +454,10 @@ export function SudokuGame() {
           if (conflicts.length > 0) {
             setFlashConflicts(conflicts);
             if (conflictTimer.current) clearTimeout(conflictTimer.current);
-            conflictTimer.current = setTimeout(() => setFlashConflicts([]), 450);
+            conflictTimer.current = setTimeout(
+              () => setFlashConflicts([]),
+              450,
+            );
             return;
           }
         }
@@ -345,7 +465,12 @@ export function SudokuGame() {
         return;
       }
 
-      const { board: nextBoard, correct } = applyGuess(board, solution, selected, digit);
+      const { board: nextBoard, correct } = applyGuess(
+        board,
+        solution,
+        selected,
+        digit,
+      );
 
       if (!correct) {
         setFlashIndex(selected);
@@ -362,16 +487,21 @@ export function SudokuGame() {
       clearDigitFromPeerNotes(selected, digit);
 
       if (isBoardComplete(nextBoard)) {
-        const finalElapsed = Math.floor((Date.now() - startedAtMs.current) / 1000);
+        const finalElapsed = Math.floor(
+          (Date.now() - startedAtMs.current) / 1000,
+        );
         const finalScore = sudokuPointsFor(finalElapsed, mistakes, difficulty);
         setElapsedSeconds(finalElapsed);
         setScore(finalScore);
         setStatus("won");
         persist(nextBoard, mistakes, "won", finalScore);
-        setTimeout(() => {
-          setShowResult(true);
-          loadLeaderboard();
-        }, 500);
+        // Modal de resultado/placar só faz sentido no ranqueado.
+        if (ranked) {
+          setTimeout(() => {
+            setShowResult(true);
+            loadLeaderboard();
+          }, 500);
+        }
       } else {
         persist(nextBoard, mistakes, "playing", 0);
         setSelected(null);
@@ -390,6 +520,7 @@ export function SudokuGame() {
       loadLeaderboard,
       pencilMode,
       notes,
+      ranked,
       toggleNote,
       clearNotes,
       clearDigitFromPeerNotes,
@@ -397,7 +528,13 @@ export function SudokuGame() {
   );
 
   const handleShare = async () => {
-    const text = buildSudokuShareText(gameDate, difficulty ?? "medio", elapsedSeconds, mistakes, score);
+    const text = buildSudokuShareText(
+      gameDate,
+      difficulty ?? "medio",
+      elapsedSeconds,
+      mistakes,
+      score,
+    );
     try {
       if (navigator.share) {
         await navigator.share({ text });
@@ -426,35 +563,93 @@ export function SudokuGame() {
   return (
     <div className="flex flex-col">
       {/* Cabeçalho */}
-      <div className="px-4 pb-3 flex items-center justify-between">
+      <div className="px-4 pb-3 flex items-center justify-between relative">
         <div>
           <p className="text-xs text-[var(--text-muted)]">
             Sudoku do dia · {gameDate.split("-").reverse().join("/")} ·{" "}
             {SUDOKU_DIFFICULTIES[difficulty].label}
           </p>
           <p className="text-[0.65rem] text-[var(--text-muted)] opacity-60">
-            ⏱️ {formatElapsed(elapsedSeconds)} · ❌ {mistakes} erro{mistakes === 1 ? "" : "s"}
+            ⏱️ {formatElapsed(elapsedSeconds)} · ❌ {mistakes} erro
+            {mistakes === 1 ? "" : "s"}
           </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowRules((v) => !v)}
-            className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] border border-[rgba(255,255,255,0.08)] transition-all"
-          >
-            ℹ️ Regras
-          </button>
-          {status !== "playing" && (
-            <button
-              onClick={() => {
-                setShowResult(true);
-                loadLeaderboard();
-              }}
-              className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] transition-all"
-            >
-              📊 Resultado
-            </button>
+          {!ranked && (
+            <p className="text-[0.6rem] text-[var(--gold)] opacity-80 mt-0.5">
+              🎓 Modo treino — não conta pro ranking, pode jogar quantas vezes quiser
+            </p>
           )}
         </div>
+        <button
+          onClick={() => setShowMenu((v) => !v)}
+          aria-label="Mais opções"
+          className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl text-lg font-bold leading-none bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] border border-[rgba(255,255,255,0.08)] transition-all"
+        >
+          ⋯
+        </button>
+
+        {showMenu && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+            <div className="absolute right-4 top-full mt-1 z-50 w-56 rounded-xl border border-[rgba(255,255,255,0.1)] bg-[var(--bg-elevated)] shadow-lg p-2 flex flex-col gap-1.5">
+              <button
+                onClick={() => {
+                  setShowRules((v) => !v);
+                  setShowMenu(false);
+                }}
+                className="px-3 py-2 rounded-lg text-xs font-semibold text-left bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] transition-all"
+              >
+                ℹ️ Regras
+              </button>
+
+              <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.04)]">
+                <span className="text-xs font-semibold text-[var(--text-secondary)]">
+                  {ranked ? "Ranqueado" : "Treino"}
+                </span>
+                <button
+                  role="switch"
+                  aria-checked={!ranked}
+                  onClick={() => {
+                    toggleRanked();
+                    setShowMenu(false);
+                  }}
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ${
+                    ranked ? "bg-[rgba(255,255,255,0.15)]" : "bg-[var(--green)]"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${
+                      ranked ? "translate-x-0.5" : "translate-x-[1.375rem]"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {!ranked && (
+                <button
+                  onClick={() => {
+                    startPracticeRound();
+                    setShowMenu(false);
+                  }}
+                  className="px-3 py-2 rounded-lg text-xs font-semibold text-left bg-[rgba(201,165,90,0.12)] text-[var(--gold)] transition-all"
+                >
+                  🔁 Novo puzzle
+                </button>
+              )}
+              {ranked && status !== "playing" && (
+                <button
+                  onClick={() => {
+                    setShowResult(true);
+                    loadLeaderboard();
+                    setShowMenu(false);
+                  }}
+                  className="px-3 py-2 rounded-lg text-xs font-semibold text-left bg-[rgba(201,165,90,0.12)] text-[var(--gold)] transition-all"
+                >
+                  📊 Resultado
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {showRules && (
@@ -465,6 +660,26 @@ export function SudokuGame() {
 
       {/* Tabuleiro */}
       <div className="flex-1 flex flex-col gap-5 px-4 py-2">
+        <div className="flex items-center justify-center gap-2.5">
+          <span className="text-xs font-semibold text-[var(--text-secondary)]">
+            Alterar visualização do modo rascunho
+          </span>
+          <button
+            role="switch"
+            aria-checked={notesBlockMode}
+            onClick={() => setNotesBlockMode((v) => !v)}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ${
+              notesBlockMode ? "bg-[var(--green)]" : "bg-[rgba(255,255,255,0.15)]"
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${
+                notesBlockMode ? "translate-x-[1.375rem]" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+        </div>
+
         <div
           className="grid grid-cols-9 mx-auto border-2 border-[rgba(255,255,255,0.25)] rounded-md overflow-hidden"
           style={{ width: "min(100%, 360px)" }}
@@ -483,13 +698,19 @@ export function SudokuGame() {
                 ? Math.floor(selRow / 3) * 3 + Math.floor(selCol / 3)
                 : null;
             const box = Math.floor(r / 3) * 3 + Math.floor(c / 3);
-            const inPeer = selected !== null && (r === selRow || c === selCol || box === selBox);
+            const inPeer =
+              selected !== null &&
+              (r === selRow || c === selCol || box === selBox);
             const sameDigit =
-              selected !== null && value !== "0" && value === board[selected] && !isSelected;
+              selected !== null &&
+              value !== "0" &&
+              value === board[selected] &&
+              !isSelected;
 
             let bg = "bg-transparent";
             if (isSelected) bg = "bg-[rgba(201,165,90,0.28)]";
-            else if (flashIndex === i || flashConflicts.includes(i)) bg = "bg-[rgba(196,64,64,0.35)]";
+            else if (flashIndex === i || flashConflicts.includes(i))
+              bg = "bg-[rgba(196,64,64,0.35)]";
             else if (sameDigit) bg = "bg-[rgba(201,165,90,0.16)]";
             else if (inPeer) bg = "bg-[rgba(255,255,255,0.04)]";
 
@@ -502,24 +723,47 @@ export function SudokuGame() {
                   given ? "text-[var(--text-primary)]" : "text-[var(--gold)]"
                 }`}
                 style={{
-                  borderTop: r % 3 === 0 ? "2px solid rgba(255,255,255,0.25)" : "1px solid rgba(255,255,255,0.08)",
-                  borderLeft: c % 3 === 0 ? "2px solid rgba(255,255,255,0.25)" : "1px solid rgba(255,255,255,0.08)",
-                  borderRight: c === 8 ? "2px solid rgba(255,255,255,0.25)" : undefined,
-                  borderBottom: r === 8 ? "2px solid rgba(255,255,255,0.25)" : undefined,
+                  borderTop:
+                    r % 3 === 0
+                      ? "2px solid rgba(255,255,255,0.25)"
+                      : "1px solid rgba(255,255,255,0.16)",
+                  borderLeft:
+                    c % 3 === 0
+                      ? "2px solid rgba(255,255,255,0.25)"
+                      : "1px solid rgba(255,255,255,0.16)",
+                  borderRight:
+                    c === 8 ? "2px solid rgba(255,255,255,0.25)" : undefined,
+                  borderBottom:
+                    r === 8 ? "2px solid rgba(255,255,255,0.25)" : undefined,
                 }}
               >
                 {value !== "0" ? (
                   value
                 ) : cellNotes && cellNotes.length > 0 ? (
-                  <div className="grid grid-cols-3 grid-rows-3 w-full h-full">
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-                      <span
-                        key={n}
-                        className="flex items-center justify-center text-[0.5rem] leading-none font-semibold text-[var(--text-muted)]"
-                      >
-                        {cellNotes.includes(n) ? n : ""}
-                      </span>
-                    ))}
+                  <div
+                    className={`grid grid-cols-3 grid-rows-3 w-full h-full ${
+                      notesBlockMode ? "gap-[1px] p-[2px]" : ""
+                    }`}
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) =>
+                      notesBlockMode ? (
+                        <span
+                          key={n}
+                          className={`rounded-[2px] transition-colors ${
+                            cellNotes.includes(n)
+                              ? "bg-[var(--gold)]"
+                              : "bg-transparent"
+                          }`}
+                        />
+                      ) : (
+                        <span
+                          key={n}
+                          className="flex items-center justify-center leading-none font-semibold text-[0.65rem] sm:text-xs text-[var(--text-secondary)]"
+                        >
+                          {cellNotes.includes(n) ? n : ""}
+                        </span>
+                      ),
+                    )}
                   </div>
                 ) : (
                   ""
@@ -564,21 +808,33 @@ export function SudokuGame() {
         ) : (
           <div className="flex flex-col items-center gap-3 max-w-[480px] mx-auto w-full">
             <div className="w-full text-center rounded-xl py-4 px-4 border bg-[rgba(58,186,122,0.1)] border-[rgba(58,186,122,0.3)]">
-              <p className="text-lg font-bold text-[var(--green)]">Resolvido! +{score} pts 🎉</p>
+              <p className="text-lg font-bold text-[var(--green)]">
+                Resolvido! +{score} pts 🎉
+              </p>
               <p className="text-xs text-[var(--text-muted)] mt-1">
-                {SUDOKU_DIFFICULTIES[difficulty].label} · {formatElapsed(elapsedSeconds)} · {mistakes} erro
+                {SUDOKU_DIFFICULTIES[difficulty].label} ·{" "}
+                {formatElapsed(elapsedSeconds)} · {mistakes} erro
                 {mistakes === 1 ? "" : "s"}
               </p>
             </div>
-            <button
-              onClick={() => {
-                setShowResult(true);
-                loadLeaderboard();
-              }}
-              className="text-sm text-[var(--gold)] underline underline-offset-2"
-            >
-              Ver placar do dia
-            </button>
+            {ranked ? (
+              <button
+                onClick={() => {
+                  setShowResult(true);
+                  loadLeaderboard();
+                }}
+                className="text-sm text-[var(--gold)] underline underline-offset-2"
+              >
+                Ver placar do dia
+              </button>
+            ) : (
+              <button
+                onClick={startPracticeRound}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] transition-all"
+              >
+                🔁 Novo puzzle
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -613,7 +869,9 @@ export function SudokuGame() {
               📋 {shareLabel}
             </button>
 
-            <p className="text-xs text-[var(--text-muted)] mb-3">Placar do dia</p>
+            <p className="text-xs text-[var(--text-muted)] mb-3">
+              Placar do dia
+            </p>
             <SudokuLeaderboard entries={leaderboard} meId={user?.id} />
           </div>
         </>

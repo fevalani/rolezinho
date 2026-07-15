@@ -9,10 +9,17 @@
 // não dar spoiler grátis a quem já jogou Letreco no mesmo dia.
 // ═══════════════════════════════════════════
 
-import { WORD_LIST, isValidWord, normalize } from "./letrecoLogic";
+import { WORD_LIST, isValidWord, normalize, getPracticeWord } from "./letrecoLogic";
 import type { GuessCounts } from "./word500Types";
 
 export { WORD_LIST, isValidWord, normalize };
+
+/**
+ * Palavra do modo treino (não-ranqueado) — reaproveita o mesmo pool de
+ * treino do Letreco (`dictionary.txt`, sem overlap com o `WORD_LIST`
+ * ranqueado), já que o Word500 também empresta o `WORD_LIST` pro ranqueado.
+ */
+export const getWord500PracticeWord = getPracticeWord;
 
 /** Tamanho da palavra (mesmo padrão do gênero) */
 export const WORD_LENGTH = 5;

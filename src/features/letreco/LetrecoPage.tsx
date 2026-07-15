@@ -12,6 +12,7 @@ import {
   MAX_ATTEMPTS,
   getWordOfDay,
   getGameDate,
+  getPracticeWord,
   normalize,
   isValidWord,
   isPlausibleWord,
@@ -383,8 +384,19 @@ type GameMode = "letreco" | "letroso" | "sudoku" | "word500";
 export function LetrecoPage() {
   const { user } = useAuth();
   // Estáveis durante a sessão (mudam só na virada do dia)
-  const answer = useMemo(() => getWordOfDay(), []);
+  const rankedAnswer = useMemo(() => getWordOfDay(), []);
   const gameDate = useMemo(() => getGameDate(), []);
+
+  // Modo ranqueado (persiste, 1 partida/dia) vs treino (efêmero, ilimitado,
+  // palavra de um pool diferente do words.txt ranqueado — nunca spoila o dia).
+  const [ranked, setRanked] = useState(true);
+  const [practiceAnswer, setPracticeAnswer] = useState(() => getPracticeWord());
+  const answer = ranked ? rankedAnswer : practiceAnswer;
+  const rankedSnapshot = useRef<{
+    guesses: string[];
+    status: GameStatus;
+    score: number;
+  } | null>(null);
 
   const [guesses, setGuesses] = useState<string[]>([]);
   // Linha em edição: 5 células (cada "" ou uma letra) + posição do cursor
@@ -408,6 +420,7 @@ export function LetrecoPage() {
   // Palpite recusado que *parece* palavra → oferece adicionar ao dicionário
   const [suggestable, setSuggestable] = useState<string | null>(null);
   const [suggesting, setSuggesting] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -498,6 +511,36 @@ export function LetrecoPage() {
     };
   }, [user, gameDate]);
 
+  const startPracticeRound = useCallback(() => {
+    setPracticeAnswer(getPracticeWord());
+    setGuesses([]);
+    setCells(new Array(WORD_LENGTH).fill(""));
+    setCursor(0);
+    setStatus("playing");
+    setScore(0);
+    setShowResult(false);
+    clearSuggestion();
+  }, [clearSuggestion]);
+
+  const toggleRanked = useCallback(() => {
+    setRanked((wasRanked) => {
+      if (wasRanked) {
+        rankedSnapshot.current = { guesses, status, score };
+        startPracticeRound();
+      } else {
+        const snap = rankedSnapshot.current;
+        setGuesses(snap?.guesses ?? []);
+        setCells(new Array(WORD_LENGTH).fill(""));
+        setCursor(0);
+        setStatus(snap?.status ?? "playing");
+        setScore(snap?.score ?? 0);
+        setShowResult(false);
+        clearSuggestion();
+      }
+      return !wasRanked;
+    });
+  }, [guesses, status, score, startPracticeRound, clearSuggestion]);
+
   const submitGuess = useCallback(async () => {
     if (!user || status !== "playing") return;
     const word = cells.join("");
@@ -530,14 +573,17 @@ export function LetrecoPage() {
     setStatus(newStatus);
     setScore(newScore);
 
-    await saveGame(user.id, gameDate, {
-      guesses: newGuesses,
-      status: newStatus,
-      attempts: newGuesses.length,
-      score: newScore,
-    });
+    // Modo treino não persiste nem conta pro ranking — só o ranqueado grava.
+    if (ranked) {
+      await saveGame(user.id, gameDate, {
+        guesses: newGuesses,
+        status: newStatus,
+        attempts: newGuesses.length,
+        score: newScore,
+      });
+    }
 
-    if (newStatus !== "playing") {
+    if (newStatus !== "playing" && ranked) {
       // espera o flip da última linha antes de mostrar o resultado
       setTimeout(() => {
         setShowResult(true);
@@ -551,6 +597,7 @@ export function LetrecoPage() {
     guesses,
     answer,
     gameDate,
+    ranked,
     flashToast,
     loadResultData,
     offerSuggestion,
@@ -766,17 +813,77 @@ export function LetrecoPage() {
 
       {/* Letreco header inline (só quando ativo) */}
       {gameMode === "letreco" && (
-        <div className="px-4 pt-2 pb-1 flex items-center justify-between">
-          <p className="text-xs text-[var(--text-muted)]">
-            Palavra do dia · {gameDate.split("-").reverse().join("/")}
-          </p>
-          {status !== "playing" && (
-            <button
-              onClick={() => { setShowResult(true); loadResultData(); }}
-              className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] transition-all"
-            >
-              📊 Resultado
-            </button>
+        <div className="px-4 pt-2 pb-1 flex items-center justify-between relative">
+          <div>
+            <p className="text-xs text-[var(--text-muted)]">
+              Palavra do dia · {gameDate.split("-").reverse().join("/")}
+            </p>
+            {!ranked && (
+              <p className="text-[0.6rem] text-[var(--gold)] opacity-80 mt-0.5">
+                🎓 Modo treino — não conta pro ranking, pode jogar quantas vezes quiser
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => setShowMenu((v) => !v)}
+            aria-label="Mais opções"
+            className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl text-lg font-bold leading-none bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] border border-[rgba(255,255,255,0.08)] transition-all"
+          >
+            ⋯
+          </button>
+
+          {showMenu && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+              <div className="absolute right-4 top-full mt-1 z-50 w-56 rounded-xl border border-[rgba(255,255,255,0.1)] bg-[var(--bg-elevated)] shadow-lg p-2 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.04)]">
+                  <span className="text-xs font-semibold text-[var(--text-secondary)]">
+                    {ranked ? "Ranqueado" : "Treino"}
+                  </span>
+                  <button
+                    role="switch"
+                    aria-checked={!ranked}
+                    onClick={() => {
+                      toggleRanked();
+                      setShowMenu(false);
+                    }}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ${
+                      ranked ? "bg-[rgba(255,255,255,0.15)]" : "bg-[var(--green)]"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${
+                        ranked ? "translate-x-0.5" : "translate-x-[1.375rem]"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {!ranked && (
+                  <button
+                    onClick={() => {
+                      startPracticeRound();
+                      setShowMenu(false);
+                    }}
+                    className="px-3 py-2 rounded-lg text-xs font-semibold text-left bg-[rgba(201,165,90,0.12)] text-[var(--gold)] transition-all"
+                  >
+                    🔁 Nova palavra
+                  </button>
+                )}
+                {ranked && status !== "playing" && (
+                  <button
+                    onClick={() => {
+                      setShowResult(true);
+                      loadResultData();
+                      setShowMenu(false);
+                    }}
+                    className="px-3 py-2 rounded-lg text-xs font-semibold text-left bg-[rgba(201,165,90,0.12)] text-[var(--gold)] transition-all"
+                  >
+                    📊 Resultado
+                  </button>
+                )}
+              </div>
+            </>
           )}
         </div>
       )}
@@ -894,15 +1001,24 @@ export function LetrecoPage() {
                 </>
               )}
             </div>
-            <button
-              onClick={() => {
-                setShowResult(true);
-                loadResultData();
-              }}
-              className="text-sm text-[var(--gold)] underline underline-offset-2"
-            >
-              Ver placar do dia
-            </button>
+            {ranked ? (
+              <button
+                onClick={() => {
+                  setShowResult(true);
+                  loadResultData();
+                }}
+                className="text-sm text-[var(--gold)] underline underline-offset-2"
+              >
+                Ver placar do dia
+              </button>
+            ) : (
+              <button
+                onClick={startPracticeRound}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] transition-all"
+              >
+                🔁 Nova palavra
+              </button>
+            )}
           </div>
         )}
       </div>

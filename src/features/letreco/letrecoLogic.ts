@@ -279,6 +279,33 @@ export function getWordOfDay(date: Date = new Date()): string {
   return WORD_LIST[idx];
 }
 
+// ─── Palavra do modo treino (não-ranqueado) ─────────────────────
+
+/**
+ * Pool exclusivo do modo treino: palavras de `dictionary.txt` que NÃO
+ * pertencem ao `WORD_LIST` curado usado pela palavra ranqueada do dia.
+ * Fonte deliberadamente diferente — garante que o treino nunca sorteia a
+ * mesma palavra do dia nem usa o mesmo pool do modo ranqueado.
+ */
+const WORD_LIST_SET = new Set(WORD_LIST);
+export const PRACTICE_WORD_POOL: string[] = Array.from(
+  new Set(
+    dictionaryRaw
+      .split(/\r?\n/)
+      .map((w) => normalize(w))
+      .filter((w) => w.length === WORD_LENGTH && !WORD_LIST_SET.has(w)),
+  ),
+);
+
+/**
+ * Palavra aleatória (não determinística, nova a cada chamada) para o modo
+ * treino — sorteada do `PRACTICE_WORD_POOL`, nunca do pool ranqueado.
+ */
+export function getPracticeWord(): string {
+  if (PRACTICE_WORD_POOL.length === 0) return WORD_LIST[0] ?? "";
+  return PRACTICE_WORD_POOL[Math.floor(Math.random() * PRACTICE_WORD_POOL.length)];
+}
+
 // ─── Compartilhamento em emojis (sem spoiler) ───────────────────
 
 const EMOJI: Record<LetterStatus, string> = {

@@ -73,6 +73,23 @@ export function getLetrosoWordOfDay(date: Date = new Date()): string {
   return LETROSO_WORDS[idx];
 }
 
+/**
+ * Palavra aleatória do modo treino (não-ranqueado). O Letroso não tem um
+ * pool alternativo de palavras 6-10 letras no projeto — sorteia dentro do
+ * mesmo `LETROSO_WORDS`, mas nunca a palavra ranqueada do dia (não vaza
+ * nada, já que o resultado ranqueado do dia já é público).
+ */
+export function getLetrosoPracticeWord(date: Date = new Date()): string {
+  if (LETROSO_WORDS.length === 0) return "";
+  const today = getLetrosoWordOfDay(date);
+  if (LETROSO_WORDS.length === 1) return LETROSO_WORDS[0];
+  let word = today;
+  while (word === today) {
+    word = LETROSO_WORDS[Math.floor(Math.random() * LETROSO_WORDS.length)];
+  }
+  return word;
+}
+
 // ─── Scoring com agrupamento visual ─────────────────────────────────
 
 function scoreWordle(guess: string, answer: string): ("correct" | "present" | "absent")[] {

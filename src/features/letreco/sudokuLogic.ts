@@ -193,6 +193,43 @@ export function getSudokuOfDay(
   };
 }
 
+/**
+ * Puzzle aleatório do modo treino (não-ranqueado). Sudoku não tem um pool
+ * alternativo por dificuldade no projeto — sorteia um índice diferente do
+ * puzzle ranqueado do dia dentro do mesmo pool, com um scramble próprio
+ * (seed aleatória, não determinística) pra nunca repetir a mesma partida.
+ */
+export function getSudokuPracticePuzzle(
+  difficulty: SudokuDifficulty,
+  date: Date = new Date(),
+): SudokuOfDay {
+  const pool = SUDOKU_POOLS[difficulty];
+  if (pool.length === 0) return { puzzle: "0".repeat(81), solution: "1".repeat(81) };
+
+  const day = getDayNumber(date);
+  const order = SUDOKU_DAILY_ORDERS[difficulty];
+  const todayIdx = order[((day % pool.length) + pool.length) % pool.length];
+
+  let poolIdx = todayIdx;
+  if (pool.length > 1) {
+    while (poolIdx === todayIdx) {
+      poolIdx = Math.floor(Math.random() * pool.length);
+    }
+  }
+  const base = pool[poolIdx];
+
+  const rng = mulberry32((Math.random() * 0xffffffff) >>> 0);
+  const rowPerm = buildAxisPermutation(rng);
+  const colPerm = buildAxisPermutation(rng);
+  const digitMap = shuffleArray([1, 2, 3, 4, 5, 6, 7, 8, 9], rng);
+  const transpose = rng() < 0.5;
+
+  return {
+    puzzle: applyGridTransform(base.puzzle, rowPerm, colPerm, digitMap, transpose),
+    solution: applyGridTransform(base.solution, rowPerm, colPerm, digitMap, transpose),
+  };
+}
+
 // ─── Estado do tabuleiro ───────────────────────────────────────────────
 
 export function isGivenCell(puzzle: string, index: number): boolean {

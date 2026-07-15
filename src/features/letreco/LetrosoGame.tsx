@@ -4,6 +4,7 @@ import { Avatar } from "@/components/Avatar";
 import {
   getLetrosoWordOfDay,
   getLetrosoGameDate,
+  getLetrosoPracticeWord,
   normalize,
   scoreLetrosoGuess,
   aggregateLetrosoKeyStatuses,
@@ -392,8 +393,20 @@ function LetrosoLeaderboard({
 
 export function LetrosoGame() {
   const { user } = useAuth();
-  const answer = useMemo(() => getLetrosoWordOfDay(), []);
+  const rankedAnswer = useMemo(() => getLetrosoWordOfDay(), []);
   const gameDate = useMemo(() => getLetrosoGameDate(), []);
+
+  // Modo ranqueado (persiste, 1 partida/dia) vs treino (efêmero, ilimitado,
+  // palavra diferente da do dia dentro do mesmo pool — Letroso não tem
+  // outro pool de palavras 6-10 letras no projeto).
+  const [ranked, setRanked] = useState(true);
+  const [practiceAnswer, setPracticeAnswer] = useState(() => getLetrosoPracticeWord());
+  const answer = ranked ? rankedAnswer : practiceAnswer;
+  const rankedSnapshot = useRef<{
+    guesses: string[];
+    status: GameStatus;
+    score: number;
+  } | null>(null);
 
   const [guesses, setGuesses] = useState<string[]>([]);
   const [currentInput, setCurrentInput] = useState<string>("");
@@ -405,6 +418,7 @@ export function LetrosoGame() {
   const [showResult, setShowResult] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LetrosoLeaderboardEntry[]>([]);
   const [showLegend, setShowLegend] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [shareLabel, setShareLabel] = useState("Compartilhar resultado");
   const [validating, setValidating] = useState(false);
 
@@ -451,6 +465,32 @@ export function LetrosoGame() {
     return () => { active = false; };
   }, [user, gameDate]);
 
+  const startPracticeRound = useCallback(() => {
+    setPracticeAnswer(getLetrosoPracticeWord());
+    setGuesses([]);
+    setCurrentInput("");
+    setStatus("playing");
+    setScore(0);
+    setShowResult(false);
+  }, []);
+
+  const toggleRanked = useCallback(() => {
+    setRanked((wasRanked) => {
+      if (wasRanked) {
+        rankedSnapshot.current = { guesses, status, score };
+        startPracticeRound();
+      } else {
+        const snap = rankedSnapshot.current;
+        setGuesses(snap?.guesses ?? []);
+        setCurrentInput("");
+        setStatus(snap?.status ?? "playing");
+        setScore(snap?.score ?? 0);
+        setShowResult(false);
+      }
+      return !wasRanked;
+    });
+  }, [guesses, status, score, startPracticeRound]);
+
   const submitGuess = useCallback(async () => {
     if (!user || status !== "playing" || validating) return;
     const word = normalize(currentInput);
@@ -481,20 +521,34 @@ export function LetrosoGame() {
     setStatus(newStatus);
     setScore(newScore);
 
-    await saveLetrosoGame(user.id, gameDate, {
-      guesses: newGuesses,
-      status: newStatus,
-      attempts: newGuesses.length,
-      score: newScore,
-    });
+    // Modo treino não persiste nem conta pro ranking — só o ranqueado grava.
+    if (ranked) {
+      await saveLetrosoGame(user.id, gameDate, {
+        guesses: newGuesses,
+        status: newStatus,
+        attempts: newGuesses.length,
+        score: newScore,
+      });
+    }
 
-    if (newStatus === "won") {
+    if (newStatus === "won" && ranked) {
       setTimeout(() => {
         setShowResult(true);
         loadLeaderboard();
       }, word.length * 120 + 200);
     }
-  }, [user, status, validating, currentInput, guesses, answer, gameDate, flashToast, loadLeaderboard]);
+  }, [
+    user,
+    status,
+    validating,
+    currentInput,
+    guesses,
+    answer,
+    gameDate,
+    ranked,
+    flashToast,
+    loadLeaderboard,
+  ]);
 
   const handleKey = useCallback(
     (k: string) => {
@@ -584,7 +638,7 @@ export function LetrosoGame() {
   return (
     <div className="flex flex-col">
       {/* Cabeçalho */}
-      <div className="px-4 pb-3 flex items-center justify-between">
+      <div className="px-4 pb-3 flex items-center justify-between relative">
         <div>
           <p className="text-xs text-[var(--text-muted)]">
             Palavra do dia · {gameDate.split("-").reverse().join("/")}
@@ -592,23 +646,83 @@ export function LetrosoGame() {
           <p className="text-[0.65rem] text-[var(--text-muted)] opacity-60">
             3 a 10 letras · tentativas ilimitadas
           </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowLegend((v) => !v)}
-            className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] border border-[rgba(255,255,255,0.08)] transition-all"
-          >
-            ℹ️ Regras
-          </button>
-          {status !== "playing" && (
-            <button
-              onClick={() => { setShowResult(true); loadLeaderboard(); }}
-              className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] transition-all"
-            >
-              📊 Resultado
-            </button>
+          {!ranked && (
+            <p className="text-[0.6rem] text-[var(--gold)] opacity-80 mt-0.5">
+              🎓 Modo treino — não conta pro ranking, pode jogar quantas vezes quiser
+            </p>
           )}
         </div>
+        <button
+          onClick={() => setShowMenu((v) => !v)}
+          aria-label="Mais opções"
+          className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl text-lg font-bold leading-none bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] border border-[rgba(255,255,255,0.08)] transition-all"
+        >
+          ⋯
+        </button>
+
+        {showMenu && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+            <div className="absolute right-4 top-full mt-1 z-50 w-56 rounded-xl border border-[rgba(255,255,255,0.1)] bg-[var(--bg-elevated)] shadow-lg p-2 flex flex-col gap-1.5">
+              <button
+                onClick={() => {
+                  setShowLegend((v) => !v);
+                  setShowMenu(false);
+                }}
+                className="px-3 py-2 rounded-lg text-xs font-semibold text-left bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] transition-all"
+              >
+                ℹ️ Regras
+              </button>
+
+              <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.04)]">
+                <span className="text-xs font-semibold text-[var(--text-secondary)]">
+                  {ranked ? "Ranqueado" : "Treino"}
+                </span>
+                <button
+                  role="switch"
+                  aria-checked={!ranked}
+                  onClick={() => {
+                    toggleRanked();
+                    setShowMenu(false);
+                  }}
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ${
+                    ranked ? "bg-[rgba(255,255,255,0.15)]" : "bg-[var(--green)]"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${
+                      ranked ? "translate-x-0.5" : "translate-x-[1.375rem]"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {!ranked && (
+                <button
+                  onClick={() => {
+                    startPracticeRound();
+                    setShowMenu(false);
+                  }}
+                  className="px-3 py-2 rounded-lg text-xs font-semibold text-left bg-[rgba(201,165,90,0.12)] text-[var(--gold)] transition-all"
+                >
+                  🔁 Nova palavra
+                </button>
+              )}
+              {ranked && status !== "playing" && (
+                <button
+                  onClick={() => {
+                    setShowResult(true);
+                    loadLeaderboard();
+                    setShowMenu(false);
+                  }}
+                  className="px-3 py-2 rounded-lg text-xs font-semibold text-left bg-[rgba(201,165,90,0.12)] text-[var(--gold)] transition-all"
+                >
+                  📊 Resultado
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Legenda colapsável */}
@@ -683,12 +797,21 @@ export function LetrosoGame() {
                 </>
               )}
             </div>
-            <button
-              onClick={() => { setShowResult(true); loadLeaderboard(); }}
-              className="text-sm text-[var(--gold)] underline underline-offset-2"
-            >
-              Ver placar do dia
-            </button>
+            {ranked ? (
+              <button
+                onClick={() => { setShowResult(true); loadLeaderboard(); }}
+                className="text-sm text-[var(--gold)] underline underline-offset-2"
+              >
+                Ver placar do dia
+              </button>
+            ) : (
+              <button
+                onClick={startPracticeRound}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-[rgba(201,165,90,0.12)] text-[var(--gold)] border border-[rgba(201,165,90,0.25)] transition-all"
+              >
+                🔁 Nova palavra
+              </button>
+            )}
           </div>
         )}
       </div>
