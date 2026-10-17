@@ -252,6 +252,14 @@ export const APP_FEATURES: Feature[] = [
     description: "Tabelas de classificação com pontuação personalizada",
   },
   {
+    id: "duelos",
+    name: "Duelos",
+    icon: "⚔️",
+    path: "/duelos",
+    enabled: true,
+    description: "Monte seu ranking escolhendo entre dois itens por vez",
+  },
+  {
     id: "ficha",
     name: "RPG",
     icon: "🏰",
