@@ -264,7 +264,7 @@ export const APP_FEATURES: Feature[] = [
     name: "RPG",
     icon: "🏰",
     path: "/rpg",
-    enabled: false,
+    enabled: true,
     description: "Mesas de RPG, fichas D&D e sessões ao vivo",
   },
 ];
