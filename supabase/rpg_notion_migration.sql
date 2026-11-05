@@ -16,6 +16,7 @@ ALTER TABLE rpg_notion_connections ENABLE ROW LEVEL SECURITY;
 
 -- Somente o mestre atual da mesa enxerga e gerencia a conexão.
 -- O cliente nunca seleciona access_token (só o api/notion-proxy.ts lê).
+DROP POLICY IF EXISTS "master manages notion connection" ON rpg_notion_connections;
 CREATE POLICY "master manages notion connection" ON rpg_notion_connections
   FOR ALL
   USING (table_id IN (SELECT id FROM rpg_tables WHERE master_id = auth.uid()))
@@ -50,10 +51,12 @@ CREATE INDEX IF NOT EXISTS rpg_notion_pages_table_idx ON rpg_notion_pages(table_
 ALTER TABLE rpg_notion_pages ENABLE ROW LEVEL SECURITY;
 
 -- Membros leem (o mestre decide o que sincronizar escolhendo as páginas-raiz)
+DROP POLICY IF EXISTS "members view notion pages" ON rpg_notion_pages;
 CREATE POLICY "members view notion pages" ON rpg_notion_pages FOR SELECT
   USING (table_id IN (SELECT table_id FROM rpg_table_members WHERE user_id = auth.uid())
       OR table_id IN (SELECT id FROM rpg_tables WHERE master_id = auth.uid()));
 
+DROP POLICY IF EXISTS "master manages notion pages" ON rpg_notion_pages;
 CREATE POLICY "master manages notion pages" ON rpg_notion_pages FOR ALL
   USING (table_id IN (SELECT id FROM rpg_tables WHERE master_id = auth.uid()))
   WITH CHECK (table_id IN (SELECT id FROM rpg_tables WHERE master_id = auth.uid()));
