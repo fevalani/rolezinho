@@ -652,9 +652,17 @@ export async function deleteLibraryEntry(entryId: string): Promise<void> {
 // NOTION
 // ═══════════════════════════════════════════
 
+export interface NotionRoot {
+  id: string;
+  type: "page" | "database";
+  title: string;
+}
+
 export interface NotionConnection {
   workspace_name: string | null;
   bot_name: string | null;
+  root_pages: NotionRoot[];
+  last_synced_at: string | null;
 }
 
 export interface NotionItem {
@@ -662,6 +670,20 @@ export interface NotionItem {
   type: "page" | "database";
   title: string;
   url: string;
+  top: boolean;
+}
+
+export interface NotionPageNode {
+  notion_id: string;
+  parent_notion_id: string | null;
+  type: "page" | "database";
+  title: string;
+  icon: string | null;
+  sort_order: number;
+}
+
+export interface NotionPage extends NotionPageNode {
+  blocks: any[];
 }
 
 export async function fetchNotionConnection(
@@ -670,7 +692,7 @@ export async function fetchNotionConnection(
   // nunca seleciona access_token: ele só é lido pelo api/notion-proxy
   const { data } = await supabase
     .from("rpg_notion_connections")
-    .select("workspace_name, bot_name")
+    .select("workspace_name, bot_name, root_pages, last_synced_at")
     .eq("table_id", tableId)
     .maybeSingle();
   return (data as NotionConnection | null) ?? null;
@@ -705,4 +727,103 @@ export async function listNotionItems(tableId: string): Promise<NotionItem[]> {
 
 export async function disconnectNotion(tableId: string): Promise<void> {
   await supabase.from("rpg_notion_connections").delete().eq("table_id", tableId);
+}
+
+export async function saveNotionRoots(
+  tableId: string,
+  roots: NotionRoot[],
+): Promise<void> {
+  await supabase
+    .from("rpg_notion_connections")
+    .update({ root_pages: roots })
+    .eq("table_id", tableId);
+}
+
+/** Árvore (sem o conteúdo dos blocos) para navegação. */
+export async function fetchNotionTree(
+  tableId: string,
+): Promise<NotionPageNode[]> {
+  const { data } = await supabase
+    .from("rpg_notion_pages")
+    .select("notion_id, parent_notion_id, type, title, icon, sort_order")
+    .eq("table_id", tableId)
+    .order("sort_order");
+  return (data ?? []) as NotionPageNode[];
+}
+
+export async function fetchNotionPage(
+  tableId: string,
+  notionId: string,
+): Promise<NotionPage | null> {
+  const { data } = await supabase
+    .from("rpg_notion_pages")
+    .select("notion_id, parent_notion_id, type, title, icon, sort_order, blocks")
+    .eq("table_id", tableId)
+    .eq("notion_id", notionId)
+    .maybeSingle();
+  return (data as NotionPage | null) ?? null;
+}
+
+/**
+ * Percorre a árvore a partir das raízes (um nó por requisição, para não
+ * estourar o timeout da função) e remove o que sumiu do Notion.
+ */
+export async function syncNotion(
+  tableId: string,
+  roots: NotionRoot[],
+  onProgress: (done: number, queued: number, current: string) => void,
+): Promise<{ synced: number; failed: number }> {
+  const runId = crypto.randomUUID();
+  const queue: {
+    id: string;
+    type: string;
+    parentId: string | null;
+    order: number;
+  }[] = roots.map((r, i) => ({
+    id: r.id,
+    type: r.type,
+    parentId: null,
+    order: i,
+  }));
+  const seen = new Set(roots.map((r) => r.id));
+  let done = 0;
+  let failed = 0;
+
+  while (queue.length) {
+    const node = queue.shift()!;
+    onProgress(done, queue.length + 1, node.id);
+    try {
+      const json = await callNotionProxy({
+        action: "sync_page",
+        tableId,
+        notionId: node.id,
+        type: node.type,
+        parentId: node.parentId,
+        sortOrder: node.order,
+        runId,
+      });
+      done++;
+      (json.children as { id: string; type: string }[]).forEach((c, i) => {
+        if (seen.has(c.id)) return;
+        seen.add(c.id);
+        queue.push({ id: c.id, type: c.type, parentId: node.id, order: i });
+      });
+    } catch {
+      failed++;
+    }
+  }
+
+  // só poda se tudo foi lido; senão uma falha apagaria conteúdo bom
+  if (failed === 0) {
+    await supabase
+      .from("rpg_notion_pages")
+      .delete()
+      .eq("table_id", tableId)
+      .neq("sync_run", runId);
+    await supabase
+      .from("rpg_notion_connections")
+      .update({ last_synced_at: new Date().toISOString() })
+      .eq("table_id", tableId);
+  }
+  return { synced: done, failed };
 }
