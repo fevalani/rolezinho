@@ -646,3 +646,63 @@ export async function updateLibraryEntry(
 export async function deleteLibraryEntry(entryId: string): Promise<void> {
   await supabase.from("rpg_library_entries").delete().eq("id", entryId);
 }
+
+
+// ═══════════════════════════════════════════
+// NOTION
+// ═══════════════════════════════════════════
+
+export interface NotionConnection {
+  workspace_name: string | null;
+  bot_name: string | null;
+}
+
+export interface NotionItem {
+  id: string;
+  type: "page" | "database";
+  title: string;
+  url: string;
+}
+
+export async function fetchNotionConnection(
+  tableId: string,
+): Promise<NotionConnection | null> {
+  // nunca seleciona access_token: ele só é lido pelo api/notion-proxy
+  const { data } = await supabase
+    .from("rpg_notion_connections")
+    .select("workspace_name, bot_name")
+    .eq("table_id", tableId)
+    .maybeSingle();
+  return (data as NotionConnection | null) ?? null;
+}
+
+async function callNotionProxy(body: Record<string, unknown>) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const res = await fetch("/api/notion-proxy", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${sessionData.session?.access_token ?? ""}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? "Erro ao falar com o Notion");
+  return json;
+}
+
+export function connectNotion(
+  tableId: string,
+  token: string,
+): Promise<NotionConnection> {
+  return callNotionProxy({ action: "connect", tableId, token });
+}
+
+export async function listNotionItems(tableId: string): Promise<NotionItem[]> {
+  const json = await callNotionProxy({ action: "list", tableId });
+  return json.items as NotionItem[];
+}
+
+export async function disconnectNotion(tableId: string): Promise<void> {
+  await supabase.from("rpg_notion_connections").delete().eq("table_id", tableId);
+}

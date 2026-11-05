@@ -27,6 +27,12 @@ import {
   fetchTableSheets,
   linkSheetToTable,
   fetchMySheets,
+  fetchNotionConnection,
+  connectNotion,
+  listNotionItems,
+  disconnectNotion,
+  type NotionConnection,
+  type NotionItem,
 } from "./rpgService";
 import type {
   RpgTable,
@@ -1188,6 +1194,8 @@ function AventuraTab({
               </div>
             </div>
 
+            <NotionConnectCard tableId={table.id} />
+
             {/* Transfer mastery */}
             <div className="rounded-xl bg-[var(--bg-card)] border border-[rgba(201,165,90,0.1)] p-4">
               <p className="text-[0.65rem] text-(--text-muted) uppercase tracking-widest mb-3">
@@ -1232,6 +1240,128 @@ function AventuraTab({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Notion (conexão do mestre) ───────────────────────────────
+
+function NotionConnectCard({ tableId }: { tableId: string }) {
+  const [conn, setConn] = useState<NotionConnection | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [token, setToken] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [items, setItems] = useState<NotionItem[] | null>(null);
+
+  useEffect(() => {
+    fetchNotionConnection(tableId).then((c) => {
+      setConn(c);
+      setLoaded(true);
+    });
+  }, [tableId]);
+
+  const onConnect = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setConn(await connectNotion(tableId, token));
+      setToken("");
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setBusy(false);
+  };
+
+  const onList = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setItems(await listNotionItems(tableId));
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setBusy(false);
+  };
+
+  const onDisconnect = async () => {
+    if (!confirm("Desconectar o Notion desta mesa?")) return;
+    await disconnectNotion(tableId);
+    setConn(null);
+    setItems(null);
+  };
+
+  if (!loaded) return null;
+
+  return (
+    <div className="rounded-xl bg-[var(--bg-card)] border border-[rgba(201,165,90,0.1)] p-4">
+      <p className="text-[0.65rem] text-(--text-muted) uppercase tracking-widest mb-3">
+        Notion
+      </p>
+
+      {conn ? (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-(--text-primary)">
+            ✅ Conectado
+            {conn.workspace_name ? ` a ${conn.workspace_name}` : ""}
+            {conn.bot_name ? ` (${conn.bot_name})` : ""}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={onList}
+              disabled={busy}
+              className="flex-1 py-2.5 rounded-xl text-sm border border-[rgba(201,165,90,0.2)] text-(--gold) disabled:opacity-50"
+            >
+              {busy ? "Buscando…" : "Ver páginas acessíveis"}
+            </button>
+            <button
+              onClick={onDisconnect}
+              className="py-2.5 px-4 rounded-xl text-sm border border-[rgba(196,64,64,0.2)] text-(--red)"
+            >
+              Desconectar
+            </button>
+          </div>
+          {items && (
+            <ul className="flex flex-col gap-1 max-h-60 overflow-y-auto">
+              {items.length === 0 && (
+                <li className="text-xs text-(--text-muted)">
+                  Nenhuma página compartilhada com a integração. No Notion,
+                  abra a página → ••• → Conexões → adicione a integração.
+                </li>
+              )}
+              {items.map((it) => (
+                <li key={it.id} className="text-sm text-(--text-primary)">
+                  {it.type === "database" ? "🗂" : "📄"} {it.title}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-(--text-muted)">
+            Crie uma integração interna em notion.so/profile/integrations,
+            compartilhe suas páginas com ela (••• → Conexões) e cole o token
+            abaixo.
+          </p>
+          <input
+            type="password"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="Token da integração (ntn_… ou secret_…)"
+            className="w-full px-3 py-2.5 rounded-xl text-sm bg-[var(--bg-deep)] border border-[rgba(201,165,90,0.15)] text-(--text-primary)"
+          />
+          <button
+            onClick={onConnect}
+            disabled={busy || !token.trim()}
+            className="py-2.5 rounded-xl font-bold text-sm bg-[rgba(201,165,90,0.12)] border border-[rgba(201,165,90,0.2)] text-(--gold) disabled:opacity-50"
+          >
+            {busy ? "Conectando…" : "Conectar Notion"}
+          </button>
+        </div>
+      )}
+
+      {error && <p className="text-xs text-(--red) mt-2">{error}</p>}
     </div>
   );
 }
