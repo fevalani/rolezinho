@@ -1,0 +1,127 @@
+import { describe, it, expect } from "vitest";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { SudokuGame } from "@/features/letreco/SudokuGame";
+import { getSudokuOfDay, getSudokuGameDate, SUDOKU_DIFFICULTIES, applyGuess } from "@/features/letreco/sudokuLogic";
+import { loginAs, renderWithProviders } from "./helpers";
+import { mockDb } from "./supabaseMock";
+
+const cells = () => Array.from(document.querySelectorAll<HTMLButtonElement>("button.aspect-square"));
+// teclado numérico (os botões 1–9 de baixo; as células do tabuleiro também têm dígitos)
+const digitBtn = (d: number) =>
+  Array.from(document.querySelectorAll<HTMLButtonElement>("button.w-10.h-10")).find((b) => b.textContent?.trim() === String(d))!;
+
+const start = async (diff: "facil" | "medio" | "dificil" = "facil") => {
+  loginAs();
+  renderWithProviders(<SudokuGame />);
+  fireEvent.click(await screen.findByText(SUDOKU_DIFFICULTIES[diff].label));
+  await waitFor(() => expect(cells()).toHaveLength(81));
+  return getSudokuOfDay(diff);
+};
+
+describe("SudokuGame", () => {
+  it("sem partida hoje pede a dificuldade, com pontuação e pistas de cada nível", async () => {
+    loginAs();
+    renderWithProviders(<SudokuGame />);
+    expect(await screen.findByText("Escolha a dificuldade")).toBeInTheDocument();
+    for (const cfg of Object.values(SUDOKU_DIFFICULTIES)) {
+      expect(screen.getByText(cfg.label)).toBeInTheDocument();
+      expect(screen.getByText(`${cfg.clues} pistas no tabuleiro`)).toBeInTheDocument();
+    }
+  });
+
+  it("escolher a dificuldade monta o tabuleiro e já grava a partida em andamento", async () => {
+    const { puzzle } = await start("facil");
+    const given = cells().filter((c) => c.textContent && /^[1-9]$/.test(c.textContent.trim())).length;
+    expect(given).toBe(puzzle.split("").filter((d) => d !== "0").length);
+    await waitFor(() => expect(mockDb.writes.some((w) => w.table === "sudoku_games")).toBe(true));
+    expect(mockDb.writes.find((w) => w.table === "sudoku_games")!.args[0]).toMatchObject({
+      user_id: "user-1",
+      game_date: getSudokuGameDate(),
+      difficulty: "facil",
+      board: puzzle,
+      mistakes: 0,
+      status: "playing",
+    });
+    expect(screen.getByText(/0 erros/)).toBeInTheDocument();
+  });
+
+  it("os números ficam desabilitados até selecionar uma célula", async () => {
+    await start();
+    expect(digitBtn(5)).toBeDisabled();
+    const empty = cells().find((c) => !c.textContent?.trim());
+    fireEvent.click(empty!);
+    expect(digitBtn(5)).toBeEnabled();
+  });
+
+  it("número errado conta um erro e não altera o tabuleiro", async () => {
+    const { puzzle, solution } = await start();
+    const idx = puzzle.split("").findIndex((d) => d === "0");
+    const wrong = (Number(solution[idx]) % 9) + 1;
+    fireEvent.click(cells()[idx]);
+    fireEvent.click(digitBtn(wrong));
+    expect(await screen.findByText(/1 erro(?!s)/)).toBeInTheDocument();
+    expect(cells()[idx].textContent?.trim()).toBe("");
+  });
+
+  it("número certo preenche a célula e grava o progresso", async () => {
+    const { puzzle, solution } = await start();
+    const idx = puzzle.split("").findIndex((d) => d === "0");
+    mockDb.writes.length = 0;
+    fireEvent.click(cells()[idx]);
+    fireEvent.click(digitBtn(Number(solution[idx])));
+    await waitFor(() => expect(cells()[idx].textContent?.trim()).toBe(solution[idx]));
+    await waitFor(() => expect(mockDb.writes.some((w) => w.table === "sudoku_games")).toBe(true));
+    const saved = mockDb.writes.find((w) => w.table === "sudoku_games")!.args[0] as { board: string; status: string };
+    expect(saved.status).toBe("playing");
+    expect(saved.board).toBe(applyGuess(puzzle, solution, idx, Number(solution[idx])).board);
+  });
+
+  it("não deixa alterar as pistas iniciais", async () => {
+    const { puzzle } = await start();
+    const givenIdx = puzzle.split("").findIndex((d) => d !== "0");
+    fireEvent.click(cells()[givenIdx]);
+    fireEvent.click(digitBtn(Number(puzzle[givenIdx]) % 9 + 1));
+    expect(screen.getByText(/0 erros/)).toBeInTheDocument();
+  });
+
+  it("completar o tabuleiro sem erros grava a vitória com pontuação", async () => {
+    const { puzzle, solution } = await start();
+    const empties = puzzle.split("").map((d, i) => (d === "0" ? i : -1)).filter((i) => i >= 0);
+    for (const i of empties) {
+      fireEvent.click(cells()[i]);
+      fireEvent.click(digitBtn(Number(solution[i])));
+    }
+    await waitFor(() => {
+      const wins = mockDb.writes.filter((w) => w.table === "sudoku_games" && (w.args[0] as { status: string }).status === "won");
+      expect(wins).toHaveLength(1);
+    });
+    const win = mockDb.writes.filter((w) => w.table === "sudoku_games").pop()!.args[0] as Record<string, unknown>;
+    expect(win).toMatchObject({ status: "won", mistakes: 0, board: solution });
+    expect(Number(win.score)).toBeGreaterThan(0);
+    expect(typeof win.finished_at).toBe("string");
+  });
+
+  it("retoma a partida salva: sem seletor, com os erros anteriores", async () => {
+    loginAs();
+    const { puzzle } = getSudokuOfDay("medio");
+    mockDb.tables.sudoku_games = [
+      { id: "s1", user_id: "user-1", game_date: getSudokuGameDate(), difficulty: "medio", board: puzzle, mistakes: 3, elapsed_seconds: 120, status: "playing", score: 0, started_at: new Date().toISOString() },
+    ];
+    renderWithProviders(<SudokuGame />);
+    await waitFor(() => expect(cells()).toHaveLength(81));
+    expect(screen.queryByText("Escolha a dificuldade")).not.toBeInTheDocument();
+    expect(screen.getByText(/3 erros/)).toBeInTheDocument();
+    expect(screen.getByText(/Médio/)).toBeInTheDocument();
+  });
+
+  it("partida já vencida não aceita mais jogadas (células desabilitadas)", async () => {
+    loginAs();
+    const { solution } = getSudokuOfDay("facil");
+    mockDb.tables.sudoku_games = [
+      { id: "s1", user_id: "user-1", game_date: getSudokuGameDate(), difficulty: "facil", board: solution, mistakes: 0, elapsed_seconds: 300, status: "won", score: 900, started_at: new Date().toISOString() },
+    ];
+    renderWithProviders(<SudokuGame />);
+    await waitFor(() => expect(cells()).toHaveLength(81));
+    expect(cells().every((c) => c.disabled)).toBe(true);
+  });
+});

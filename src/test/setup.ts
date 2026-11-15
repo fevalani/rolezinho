@@ -58,10 +58,10 @@ class NoopObserver {
     return [];
   }
 }
-if (!("IntersectionObserver" in globalThis))
-  vi.stubGlobal("IntersectionObserver", NoopObserver);
-if (!("ResizeObserver" in globalThis))
-  vi.stubGlobal("ResizeObserver", NoopObserver);
+// (atribuição direta: vi.unstubAllGlobals() nos testes não pode remover isto)
+const g = globalThis as Record<string, unknown>;
+if (!g.IntersectionObserver) g.IntersectionObserver = NoopObserver;
+if (!g.ResizeObserver) g.ResizeObserver = NoopObserver;
 
 // Mock Supabase (comportamento configurável em ./supabaseMock)
 vi.mock("@/lib/supabase", async () => {
