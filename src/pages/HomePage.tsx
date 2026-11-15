@@ -7,7 +7,7 @@ import { APP_FEATURES, type Feature } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { Avatar } from "@/components/Avatar";
 import { useSeasonalTheme } from "@/lib/seasonal/SeasonalThemeContext";
-import { formatMdLong } from "@/lib/seasonal/themes";
+import { formatMdLong, occasionMdFor } from "@/lib/seasonal/themes";
 
 interface TodayBirthday {
   id: string;
@@ -142,7 +142,7 @@ export function HomePage() {
                 {seasonTheme.occasion}
               </span>
               <span className="text-[0.68rem] text-white/75">
-                {formatMdLong(seasonTheme.occasionMd)}
+                {formatMdLong(occasionMdFor(seasonTheme))}
               </span>
             </span>
           </div>

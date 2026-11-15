@@ -1,0 +1,110 @@
+/* Tema sazonal: PÁSCOA  (data-season="pascoa" no <html>)
+   Cores: variáveis de global.css sobrescritas. Decorações: desenhadas em
+   pseudo-elementos a partir dos pontos [data-decor] marcados nos componentes.
+   SVGs em /public/seasons/pascoa/. Ver src/lib/seasonal/themes.ts. */
+
+/* ── Cores — escuro: verde-pinheiro profundo + dourado ── */
+/* ── Cores — escuro: chocolate + rosa-doce ── */
+:root[data-season="pascoa"] {
+  --bg-abyss: #0d0705;
+  --bg-deep: #140c08;
+  --bg-primary: #1c110c;
+  --bg-card: #251711;
+  --bg-elevated: #301e17;
+  --bg-hover: #3d271e;
+
+  --gold-dark: #b0708a;
+  --gold: #f5a9c4;
+  --gold-bright: #ffc2d6;
+  --gold-glow: #ffd9e6;
+
+  --text-primary: #fbf3ea;
+  --text-secondary: #bfa99c;
+  --text-muted: #86705f;
+
+  --green: #6fcf9a;
+  --shadow-gold: 0 0 24px rgba(245, 169, 196, 0.18);
+}
+
+/* ── Cores — claro: creme-manteiga + lilás ── */
+:root[data-season="pascoa"][data-theme="light"] {
+  --bg-abyss: #fbf4de;
+  --bg-deep: #fffdf2;
+  --bg-primary: #fff9e6;
+  --bg-card: #ffffff;
+  --bg-elevated: #f6ecd0;
+  --bg-hover: #efe2bd;
+
+  --gold-dark: #5a3a9c;
+  --gold: #7a54c7;
+  --gold-bright: #9873de;
+  --gold-glow: #c3a8f0;
+
+  --text-primary: #2a2033;
+  --text-secondary: #5e5270;
+  --text-muted: #8f84a0;
+
+  --shadow-gold: 0 0 24px rgba(122, 84, 199, 0.16);
+}
+
+/* ── Decorações ───────────────────────────────── */
+
+/* Orelhas de coelho — canto superior direito do elemento (logo / avatar) */
+[data-season="pascoa"] [data-decor="hat"] {
+  position: relative;
+}
+[data-season="pascoa"] [data-decor="hat"]::after {
+  content: "";
+  position: absolute;
+  top: -62%;
+  right: 12%;
+  width: 66%;
+  aspect-ratio: 1;
+  background: url("/seasons/pascoa/hat.svg") center / contain no-repeat;
+  transform: rotate(6deg);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Ovo pintado — pendurada no fim da linha (título de categoria) */
+[data-season="pascoa"] [data-decor="stocking"] {
+  position: relative;
+  padding-right: 28px;
+}
+[data-season="pascoa"] [data-decor="stocking"]::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  width: 20px;
+  height: 27px;
+  background: url("/seasons/pascoa/egg.svg") center / contain no-repeat;
+  transform: translateY(-50%) rotate(-8deg);
+  pointer-events: none;
+}
+
+/* Ovos pendurados — faixa logo abaixo do elemento (cabeçalho sticky) */
+[data-season="pascoa"] [data-decor="garland"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 22px;
+  background: url("/seasons/pascoa/garland.svg") left top / auto 22px repeat-x;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Fio de flores — fio no topo do elemento (hero da Home), parado */
+[data-season="pascoa"] [data-decor="lights"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 30px;
+  background: url("/seasons/pascoa/lights.svg") left top / auto 30px repeat-x;
+  pointer-events: none;
+  z-index: 2;
+}

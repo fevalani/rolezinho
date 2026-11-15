@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { isAdminUser } from "@/lib/admin";
 import {
   SEASONAL_THEMES,
+  defaultWindowFor,
   formatMd,
   isInWindow,
   isValidMd,
@@ -54,10 +55,11 @@ export function ThemesAdminPage() {
       return;
     }
     const t = SEASONAL_THEMES.find((x) => x.id === id);
+    const def = t ? defaultWindowFor(t) : null;
     setOk(
       start && end
         ? `✓ Período salvo: ${formatMd(start)} a ${formatMd(end)}`
-        : `✓ Período restaurado para o padrão${t ? ` (${formatMd(t.defaultStart)} a ${formatMd(t.defaultEnd)})` : ""}`,
+        : `✓ Período restaurado para o padrão${def ? ` (${formatMd(def.start)} a ${formatMd(def.end)})` : ""}`,
     );
   };
 
@@ -103,6 +105,7 @@ export function ThemesAdminPage() {
         {SEASONAL_THEMES.map((t) => {
           const approved = !!approvals[t.id];
           const win = windows[t.id];
+          const def = defaultWindowFor(t);
           const inWindow = isInWindow(today, win);
           const previewing = previewId === t.id;
           return (
@@ -138,8 +141,9 @@ export function ThemesAdminPage() {
                 key={`${t.id}-${win.start}-${win.end}`}
                 start={win.start}
                 end={win.end}
-                isDefault={win.start === t.defaultStart && win.end === t.defaultEnd}
-                defaultLabel={`${formatMd(t.defaultStart)} a ${formatMd(t.defaultEnd)}`}
+                isDefault={win.start === def.start && win.end === def.end}
+                movable={!!t.movable}
+                defaultLabel={`${formatMd(def.start)} a ${formatMd(def.end)}`}
                 busy={busy === t.id}
                 onSave={(s, e) => saveWindow(t.id, s, e)}
                 onReset={() => saveWindow(t.id, null, null)}
@@ -276,6 +280,7 @@ function WindowEditor({
   start,
   end,
   isDefault,
+  movable,
   defaultLabel,
   busy,
   onSave,
@@ -284,6 +289,7 @@ function WindowEditor({
   start: string;
   end: string;
   isDefault: boolean;
+  movable: boolean;
   defaultLabel: string;
   busy: boolean;
   onSave: (start: string, end: string) => void;
@@ -298,7 +304,7 @@ function WindowEditor({
     <div className="mt-2">
       <p className="text-xs text-(--text-muted)">
         📅 Salvo: <b>{formatMd(start)}</b> a <b>{formatMd(end)}</b>, todo ano
-        {isDefault ? " (padrão)" : ""}
+        {isDefault ? (movable ? " (padrão: acompanha a data da Páscoa)" : " (padrão)") : ""}
       </p>
 
       <div className="flex flex-col gap-2 mt-2">
@@ -343,7 +349,9 @@ function WindowEditor({
         </p>
       )}
       <p className="text-[11px] text-(--text-muted) mt-1">
-        Ano ignorado — vale todo ano nessas datas.
+        {movable
+          ? "Se você salvar datas, elas ficam FIXAS e deixam de acompanhar a data da Páscoa. Para voltar a acompanhar, use “Restaurar padrão”."
+          : "Ano ignorado — vale todo ano nessas datas."}
       </p>
     </div>
   );

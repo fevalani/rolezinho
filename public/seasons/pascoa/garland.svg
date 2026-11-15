@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="28" viewBox="0 0 96 28">
+  <path d="M0 4Q24 13 48 4Q72 13 96 4" fill="none" stroke="#8a7d6a" stroke-width="1.6"/>
+  <line x1="12.0" y1="7.4" x2="12.0" y2="11.4" stroke="#8a7d6a" stroke-width="1"/><g transform="translate(12.0 18.4)"><ellipse rx="5" ry="6.6" fill="#f5a9c4"/><path d="M-4.6 -0.6L-2.3 -2.4L0 -0.6L2.3 -2.4L4.6 -0.6L4.4 1.6L2.3 0L0 1.6L-2.3 0L-4.4 1.6Z" fill="#fff7c2"/></g>
+  <line x1="36.0" y1="7.4" x2="36.0" y2="11.4" stroke="#8a7d6a" stroke-width="1"/><g transform="translate(36.0 18.4)"><ellipse rx="5" ry="6.6" fill="#9fe0c8"/><path d="M-4.6 -0.6L-2.3 -2.4L0 -0.6L2.3 -2.4L4.6 -0.6L4.4 1.6L2.3 0L0 1.6L-2.3 0L-4.4 1.6Z" fill="#fff"/></g>
+  <line x1="60.0" y1="7.4" x2="60.0" y2="11.4" stroke="#8a7d6a" stroke-width="1"/><g transform="translate(60.0 18.4)"><ellipse rx="5" ry="6.6" fill="#ffe08a"/><path d="M-4.6 -0.6L-2.3 -2.4L0 -0.6L2.3 -2.4L4.6 -0.6L4.4 1.6L2.3 0L0 1.6L-2.3 0L-4.4 1.6Z" fill="#f5a9c4"/></g>
+  <line x1="84.0" y1="7.4" x2="84.0" y2="11.4" stroke="#8a7d6a" stroke-width="1"/><g transform="translate(84.0 18.4)"><ellipse rx="5" ry="6.6" fill="#c9a7f5"/><path d="M-4.6 -0.6L-2.3 -2.4L0 -0.6L2.3 -2.4L4.6 -0.6L4.4 1.6L2.3 0L0 1.6L-2.3 0L-4.4 1.6Z" fill="#fff7c2"/></g>
+</svg>
