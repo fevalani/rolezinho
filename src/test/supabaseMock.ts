@@ -25,12 +25,15 @@ export const mockDb = {
   rpcResults: {} as Record<string, unknown>,
   errors: {} as Record<string, { message: string; code?: string }>,
   writes: [] as WriteRecord[],
+  /** Cada `supabase.from(tabela)` e os métodos encadeados nele (ex.: eq/in/order), para conferir filtros. */
+  queries: [] as { table: string; calls: [string, unknown[]][] }[],
   session: null as null | { user: Record<string, unknown> },
   reset() {
     this.tables = {};
     this.rpcResults = {};
     this.errors = {};
     this.writes = [];
+    this.queries = [];
     this.session = null;
   },
 };
@@ -39,6 +42,8 @@ const WRITE_OPS = new Set(["insert", "update", "upsert", "delete"]);
 
 function queryBuilder(table: string) {
   let single = false;
+  const record: { table: string; calls: [string, unknown[]][] } = { table, calls: [] };
+  mockDb.queries.push(record);
 
   const result = () => {
     const error = mockDb.errors[table] ?? null;
@@ -62,6 +67,7 @@ function queryBuilder(table: string) {
           };
         }
         return (...args: unknown[]) => {
+          record.calls.push([prop, args]);
           if (WRITE_OPS.has(prop)) {
             mockDb.writes.push({ table, op: prop as WriteRecord["op"], args });
           }
@@ -108,7 +114,8 @@ export const supabaseMock = {
     updateUser: vi.fn(async () => ({ error: null })),
   },
   from: vi.fn((table: string) => queryBuilder(table)),
-  rpc: vi.fn((name: string) => rpcBuilder(name)),
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  rpc: vi.fn((name: string, _args?: unknown) => rpcBuilder(name)),
   storage: {
     from: vi.fn(() => ({
       upload: vi.fn(async () => ({ data: { path: "x" }, error: null })),

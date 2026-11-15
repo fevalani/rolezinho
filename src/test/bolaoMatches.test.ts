@@ -1,6 +1,17 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { fetchMatchesForPool, upsertPrediction } from "@/features/bolao/bolaoService";
-import { mockDb } from "./supabaseMock";
+import {
+  fetchMatchesForPool,
+  upsertPrediction,
+  setMatchResultManually,
+  recalculateAllPoints,
+  updatePoolScoringModel,
+  updatePoolGoalBase,
+  updatePoolStageMultipliers,
+  updatePoolVariationMode,
+  fetchKnockoutStages,
+  DEFAULT_CUSTOM_CONFIG,
+} from "@/features/bolao/bolaoService";
+import { mockDb, supabaseMock } from "./supabaseMock";
 
 afterEach(() => vi.useRealTimers());
 
@@ -115,5 +126,97 @@ describe("upsertPrediction (guarda no momento de gravar)", () => {
     mockDb.tables.bolao_matches = [{ utc_date: at(2), status: "TIMED", home_team: "A", away_team: "B" }];
     mockDb.errors.bolao_predictions = { message: "rls" };
     expect(await upsertPrediction("p1", "m1", "u1", 1, 1)).toEqual({ error: "rls" });
+  });
+});
+
+describe("ações de admin do bolão (serviço)", () => {
+  const rpcCalls = () => supabaseMock.rpc.mock.calls.map((c) => c[0]);
+
+  it("setMatchResultManually grava o placar como FINISHED, zera o detalhamento e re-pontua", async () => {
+    supabaseMock.rpc.mockClear();
+    expect(await setMatchResultManually("m1", 2, 1)).toEqual({ error: null });
+    expect(mockDb.writes[0].args[0]).toMatchObject({
+      score_home: 2, score_away: 1, status: "FINISHED",
+      score_regular_home: null, score_regular_away: null, score_pen_home: null, score_pen_away: null,
+    });
+    expect(supabaseMock.rpc).toHaveBeenCalledWith("score_match_predictions", { p_match_id: "m1", p_pool_id: null });
+  });
+  it("setMatchResultManually com erro não re-pontua", async () => {
+    supabaseMock.rpc.mockClear();
+    mockDb.errors.bolao_matches = { message: "rls" };
+    expect(await setMatchResultManually("m1", 1, 0)).toEqual({ error: "rls" });
+    expect(rpcCalls()).not.toContain("score_match_predictions");
+  });
+
+  it("recalculateAllPoints: bolão inexistente", async () => {
+    expect(await recalculateAllPoints("p1")).toEqual({ updated: 0, error: "Bolão não encontrado" });
+  });
+  it("recalculateAllPoints re-pontua cada partida encerrada do bolão", async () => {
+    mockDb.tables.bolao_pools = [{ championship_id: "c1" }];
+    mockDb.tables.bolao_matches = [{ id: "m1" }, { id: "m2" }];
+    supabaseMock.rpc.mockClear();
+    expect(await recalculateAllPoints("p1")).toEqual({ updated: 2, error: null });
+    const calls = supabaseMock.rpc.mock.calls.filter((c) => c[0] === "score_match_predictions");
+    expect(calls.map((c) => c[1])).toEqual([
+      { p_match_id: "m1", p_pool_id: "p1" },
+      { p_match_id: "m2", p_pool_id: "p1" },
+    ]);
+  });
+
+  it("trocar o modelo: atualiza, zera os pontos e recalcula (nessa ordem)", async () => {
+    mockDb.tables.bolao_pools = [{ championship_id: "c1" }];
+    mockDb.tables.bolao_matches = [{ id: "m1" }];
+    supabaseMock.rpc.mockClear();
+    expect(await updatePoolScoringModel("p1", "simplified")).toEqual({ error: null });
+    expect(rpcCalls()).toEqual(["update_pool_scoring_model", "reset_pool_scores", "score_match_predictions"]);
+    expect(supabaseMock.rpc.mock.calls[0][1]).toEqual({ p_pool_id: "p1", p_scoring_model: "simplified", p_scoring_config: null });
+  });
+  it("só envia a config quando o modelo é personalizado", async () => {
+    supabaseMock.rpc.mockClear();
+    await updatePoolScoringModel("p1", "custom", { ...DEFAULT_CUSTOM_CONFIG, exact: 20 });
+    expect(supabaseMock.rpc.mock.calls[0][1]).toMatchObject({ p_scoring_model: "custom", p_scoring_config: { exact: 20 } });
+    supabaseMock.rpc.mockClear();
+    await updatePoolScoringModel("p1", "classic", DEFAULT_CUSTOM_CONFIG);
+    expect(supabaseMock.rpc.mock.calls[0][1]).toMatchObject({ p_scoring_config: null });
+  });
+  it("erro ao trocar o modelo interrompe antes de zerar os pontos", async () => {
+    mockDb.errors["rpc:update_pool_scoring_model"] = { message: "só o criador" };
+    supabaseMock.rpc.mockClear();
+    expect(await updatePoolScoringModel("p1", "extended")).toEqual({ error: "só o criador" });
+    expect(rpcCalls()).toEqual(["update_pool_scoring_model"]);
+  });
+  it("erro ao zerar os pontos interrompe antes de recalcular", async () => {
+    mockDb.errors["rpc:reset_pool_scores"] = { message: "x" };
+    supabaseMock.rpc.mockClear();
+    expect(await updatePoolScoringModel("p1", "extended")).toEqual({ error: "x" });
+    expect(rpcCalls()).toEqual(["update_pool_scoring_model", "reset_pool_scores"]);
+  });
+
+  it("base de gols e multiplicadores seguem o mesmo fluxo (atualiza → zera → recalcula)", async () => {
+    mockDb.tables.bolao_pools = [{ championship_id: "c1" }];
+    supabaseMock.rpc.mockClear();
+    expect(await updatePoolGoalBase("p1", "regular")).toEqual({ error: null });
+    expect(rpcCalls().slice(0, 2)).toEqual(["update_pool_goal_base", "reset_pool_scores"]);
+    supabaseMock.rpc.mockClear();
+    expect(await updatePoolStageMultipliers("p1", { FINAL: 2 })).toEqual({ error: null });
+    expect(rpcCalls().slice(0, 2)).toEqual(["update_pool_stage_multipliers", "reset_pool_scores"]);
+    expect(supabaseMock.rpc.mock.calls[0][1]).toEqual({ p_pool_id: "p1", p_stage_multipliers: { FINAL: 2 } });
+  });
+
+  it("variação de posição só chama a RPC (não mexe nos pontos)", async () => {
+    supabaseMock.rpc.mockClear();
+    expect(await updatePoolVariationMode("p1", "round")).toEqual({ error: null });
+    expect(rpcCalls()).toEqual(["update_pool_variation_mode"]);
+    mockDb.errors["rpc:update_pool_variation_mode"] = { message: "x" };
+    expect(await updatePoolVariationMode("p1", "off")).toEqual({ error: "x" });
+  });
+
+  it("fetchKnockoutStages devolve só as fases que existem, na ordem do mata-mata", async () => {
+    mockDb.tables.bolao_matches = [{ stage: "FINAL" }, { stage: "LAST_16" }, { stage: "LAST_16" }, { stage: "GROUP_STAGE" }];
+    expect(await fetchKnockoutStages("c1")).toEqual(["LAST_16", "FINAL"]);
+  });
+  it("fetchKnockoutStages com erro = vazio", async () => {
+    mockDb.errors.bolao_matches = { message: "x" };
+    expect(await fetchKnockoutStages("c1")).toEqual([]);
   });
 });

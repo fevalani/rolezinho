@@ -6,7 +6,7 @@ import { AuthProvider, useAuth } from "@/lib/AuthContext";
 import { BolaoDetailPage } from "@/features/bolao/BolaoDetailPage";
 import { fetchLeaderboard, fetchRoundLeaderboards, fetchAllUserPredictions } from "@/features/bolao/bolaoService";
 import { loginAs, ADMIN_USER } from "./helpers";
-import { mockDb } from "./supabaseMock";
+import { mockDb, supabaseMock } from "./supabaseMock";
 
 function Ready({ children }: { children: ReactNode }) {
   const { loading, user, profile } = useAuth();
@@ -186,5 +186,89 @@ describe("classificação no serviço", () => {
     expect(await fetchLeaderboard("p1")).toEqual([]);
     expect(await fetchRoundLeaderboards("p1")).toEqual([]);
     expect((await fetchAllUserPredictions("p1")).size).toBe(0);
+  });
+});
+
+describe("BolaoDetailPage — admin e informações", () => {
+  it("criador troca o modelo de pontuação: botão só habilita ao mudar; chama as RPCs e avisa", async () => {
+    loginAs();
+    seed("user-1");
+    mockDb.tables.bolao_matches[0].status = "FINISHED";
+    mockDb.tables.bolao_matches[0].score_home = 1;
+    mockDb.tables.bolao_matches[0].score_away = 0;
+    mount();
+    fireEvent.click(await screen.findByText("Admin"));
+    const save = await screen.findByRole("button", { name: "Salvar modelo" });
+    expect(save).toBeDisabled();
+    supabaseMock.rpc.mockClear();
+    fireEvent.click(screen.getAllByText("Simplificado")[0]);
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+    expect(await screen.findByText(/Modelo alterado para Simplificado e pontos recalculados/)).toBeInTheDocument();
+    const names = supabaseMock.rpc.mock.calls.map((c) => c[0]);
+    expect(names.slice(0, 2)).toEqual(["update_pool_scoring_model", "reset_pool_scores"]);
+    expect(supabaseMock.rpc.mock.calls[0][1]).toMatchObject({ p_pool_id: "p1", p_scoring_model: "simplified" });
+  });
+
+  it("criador troca a variação de posição", async () => {
+    loginAs();
+    seed("user-1");
+    mount();
+    fireEvent.click(await screen.findByText("Admin"));
+    const save = await screen.findByRole("button", { name: "Salvar variação" });
+    fireEvent.click(screen.getAllByText("Por partida")[0]);
+    supabaseMock.rpc.mockClear();
+    fireEvent.click(save);
+    expect(await screen.findByText(/Variação de posição: Por partida/)).toBeInTheDocument();
+    expect(supabaseMock.rpc).toHaveBeenCalledWith("update_pool_variation_mode", { p_pool_id: "p1", p_variation_mode: "match" });
+  });
+
+  it("criador (não admin do app) não vê importar/sincronizar/recalcular", async () => {
+    loginAs();
+    seed("user-1");
+    mount();
+    fireEvent.click(await screen.findByText("Admin"));
+    await screen.findByRole("button", { name: "Salvar modelo" });
+    expect(screen.queryByText("Recalcular pontos")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sincronizar resultados")).not.toBeInTheDocument();
+    expect(screen.queryByText("Importar da API")).not.toBeInTheDocument();
+  });
+
+  it("admin do app recalcula os pontos e vê o resultado", async () => {
+    loginAs(ADMIN_USER);
+    seed("u9");
+    mockDb.tables.bolao_pools[0].bolao_pool_members = [{ user_id: "admin-1" }];
+    mockDb.tables.bolao_matches[0].status = "FINISHED";
+    mount();
+    fireEvent.click(await screen.findByText("Admin"));
+    fireEvent.click(await screen.findByText("Recalcular pontos"));
+    expect(await screen.findByText(/Pontos recalculados para 1 partida/)).toBeInTheDocument();
+    expect(supabaseMock.rpc).toHaveBeenCalledWith("score_match_predictions", { p_match_id: "m1", p_pool_id: "p1" });
+  });
+
+  it("aba Info lista os participantes, marca '(você)' e o criador", async () => {
+    loginAs();
+    seed("u2");
+    mount();
+    fireEvent.click(await screen.findByText("Info"));
+    expect(await screen.findByText("(você)")).toBeInTheDocument();
+    expect(screen.getByText("criador")).toBeInTheDocument();
+    expect(screen.getAllByText(/Beltrano/).length).toBeGreaterThan(0);
+  });
+
+  it("sair do bolão pede confirmação, remove a participação e volta para a lista", async () => {
+    loginAs();
+    seed("u9");
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    mount();
+    fireEvent.click(await screen.findByText("Info"));
+    fireEvent.click(await screen.findByText("Sair do bolão"));
+    expect(confirm).toHaveBeenCalledWith("Sair do bolão?");
+    expect(mockDb.writes.some((w) => w.table === "bolao_pool_members" && w.op === "delete")).toBe(false);
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByText("Sair do bolão"));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(/^\/bolao$/));
+    expect(mockDb.writes.some((w) => w.table === "bolao_pool_members" && w.op === "delete")).toBe(true);
+    confirm.mockRestore();
   });
 });
