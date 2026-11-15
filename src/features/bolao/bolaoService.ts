@@ -1440,7 +1440,24 @@ export async function fetchAllUserPredictions(
     .eq("pool_id", poolId);
 
   const result = new Map<string, UserPredictionDetail[]>();
-  for (const p of (data ?? []) as any[]) {
+  type PredictionRow = {
+    user_id: string;
+    match_id: string;
+    home_goals: number;
+    away_goals: number;
+    points_earned: number | null;
+    bolao_matches: {
+      home_team: string;
+      away_team: string;
+      home_crest: string | null;
+      away_crest: string | null;
+      round_label: string;
+      utc_date: string;
+      score_home: number | null;
+      score_away: number | null;
+    } | null;
+  };
+  for (const p of (data ?? []) as unknown as PredictionRow[]) {
     const m = p.bolao_matches;
     if (!m) continue;
     const detail: UserPredictionDetail = {

@@ -64,6 +64,7 @@ function TeamCrestImg({
 
   // Sincroniza quando props mudam (ex: HMR ou match TBD que foi definido)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza o escudo local quando as props mudam
     setSrc(localSrc ?? crest ?? null);
   }, [localSrc, crest]);
 
@@ -177,6 +178,7 @@ function MatchCard({
     || !match.away_team || match.away_team === "A definir";
   // Só revela palpites dos outros quando a partida JÁ COMEÇOU (utc_date no passado).
   // Partidas futuras travadas (TBD ou dentro de 1 min do início) ficam ocultas.
+  // eslint-disable-next-line react-hooks/purity -- só revela palpites após o início; o valor é recalculado a cada render
   const isStarted = Date.now() >= new Date(match.utc_date).getTime();
   const isLive = match.is_locked && !isFinished && !isTbd && isStarted;
 

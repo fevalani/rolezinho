@@ -208,6 +208,7 @@ export function RankingPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial: load() é assíncrono e só atualiza o estado após o await
     load();
   }, [load]);
 

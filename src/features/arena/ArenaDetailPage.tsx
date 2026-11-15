@@ -205,6 +205,7 @@ export function ArenaDetailPage() {
     setLoading(false);
   }, [user, duelId]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial: load() é assíncrono e só atualiza o estado após o await
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {

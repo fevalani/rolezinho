@@ -457,6 +457,7 @@ export function ArenaPage() {
     setLoading(false);
   }, [user]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial: load() é assíncrono e só atualiza o estado após o await
   useEffect(() => { load(); }, [load]);
 
   const openDuels = duels.filter((d) => d.status === "open");
