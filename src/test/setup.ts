@@ -1,5 +1,6 @@
 import "@testing-library/jest-dom";
 import { beforeEach, vi } from "vitest";
+import { configure } from "@testing-library/react";
 import { mockDb } from "./supabaseMock";
 
 // Mock crypto
@@ -73,3 +74,7 @@ beforeEach(() => {
   mockDb.reset();
   localStorage.clear();
 });
+
+// Com a suíte inteira rodando em paralelo a CPU fica disputada e o padrão de 1s
+// do findBy/waitFor estoura de vez em quando (falha intermitente, não bug).
+configure({ asyncUtilTimeout: 4000 });
