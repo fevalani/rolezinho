@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/static-components */
 /* eslint-disable @typescript-eslint/no-unused-expressions */
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -842,7 +841,10 @@ export function CulturaPage() {
     });
   };
 
-  function WeekSection({
+  // Função de renderização (e não um componente aninhado): um componente
+  // declarado aqui seria recriado a cada render e remontaria os cards,
+  // fechando o card aberto a cada marcação, nota ou toast.
+  function renderWeekSection({
     group,
     isCurrent,
   }: {
@@ -850,7 +852,7 @@ export function CulturaPage() {
     isCurrent: boolean;
   }) {
     return (
-      <div>
+      <div key={group.week}>
         {/* Week header */}
         <div className="flex items-center gap-3 mb-3">
           <div className="flex items-center gap-2">
@@ -962,9 +964,9 @@ export function CulturaPage() {
           </div>
         ) : (
           <>
-            {thisWeek && <WeekSection group={thisWeek} isCurrent />}
+            {thisWeek && renderWeekSection({ group: thisWeek, isCurrent: true })}
             {pastWeeks.map((g) => (
-              <WeekSection key={g.week} group={g} isCurrent={false} />
+              renderWeekSection({ group: g, isCurrent: false })
             ))}
           </>
         )}
