@@ -26,7 +26,7 @@ export function loginAs(user: typeof TEST_USER = TEST_USER) {
     id: user.id,
     email: user.email,
     display_name: user.display_name,
-    avatar_url: null,
+    avatar_url: null as string | null,
     hidden_features: [] as string[],
     birthday: null,
     theme: "dark",
