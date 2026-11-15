@@ -43,6 +43,9 @@ function displayToBirthday(input: string): string | null {
   if (mm < 1 || mm > 12) return null;
   if (dd < 1 || dd > 31) return null;
   if (yyyy < 1900 || yyyy > currentYear) return null;
+  // dia que existe naquele mês/ano (31/02 e 29/02 em ano comum não valem)
+  const real = new Date(Date.UTC(yyyy, mm - 1, dd));
+  if (real.getUTCMonth() !== mm - 1 || real.getUTCDate() !== dd) return null;
   return `${yyyy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
 }
 
