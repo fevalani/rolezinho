@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { fetchSheetById, updateSheet } from "./rpgService";
 import type {
@@ -221,9 +221,9 @@ export function RpgSheetPage() {
   const { sheetId } = useParams<{ sheetId: string }>();
 
   if (!sheetId || sheetId === "null") {
-    // ID inválido — volta pra home
-    navigate("/rpg", { replace: true });
-    return null;
+    // ID inválido — volta pra home. (navigate() durante a renderização é
+    // ignorado pelo react-router e deixava a tela em branco.)
+    return <Navigate to="/rpg" replace />;
   }
 
   return <RpgSheetView sheetId={sheetId} onBack={() => navigate("/rpg")} />;

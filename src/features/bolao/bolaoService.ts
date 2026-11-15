@@ -794,8 +794,13 @@ export async function fetchMatchesForPool(
     const stageIdx = KNOCKOUT_STAGE_ORDER.indexOf(group.stage);
     if (stageIdx <= 0) continue; // REGULAR_SEASON ou GROUP_STAGE sempre visíveis
 
-    const prevStage = KNOCKOUT_STAGE_ORDER[stageIdx - 1];
-    const prevGroup = groups.find((g) => g.stage === prevStage);
+    // Fase anterior que de fato existe neste campeonato: a lista traz nomes
+    // alternativos (LAST_32/ROUND_OF_32, LAST_16/ROUND_OF_16), então a
+    // posição imediatamente anterior pode ser o "apelido" que não existe aqui.
+    let prevGroup: RoundGroup | undefined;
+    for (let i = stageIdx - 1; i >= 0 && !prevGroup; i--) {
+      prevGroup = groups.find((g) => g.stage === KNOCKOUT_STAGE_ORDER[i]);
+    }
     if (!prevGroup) continue;
 
     group.is_visible = prevGroup.matches.every(
