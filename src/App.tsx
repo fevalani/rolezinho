@@ -1,8 +1,18 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { useEffect } from "react";
+import { Capacitor } from "@capacitor/core";
+import { App as CapApp } from "@capacitor/app";
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
 import { scheduleMusicReminder } from "@/lib/notificationService";
 import { registerPushToken } from "@/lib/pushTokenService";
+import { trackPageView } from "@/lib/analytics";
 import { LoginPage } from "@/pages/LoginPage";
 import { HomePage } from "@/pages/HomePage";
 import { ProfilePage } from "@/pages/ProfilePage";
@@ -54,6 +64,28 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // App Links: https://rolezinho-amigos.vercel.app/agenda?evento=ID abre no app
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const handle = CapApp.addListener("appUrlOpen", ({ url }) => {
+      try {
+        const u = new URL(url);
+        navigate(u.pathname + u.search + u.hash);
+      } catch {
+        // URL inválida — ignora
+      }
+    });
+    return () => {
+      handle.then((h) => h.remove());
+    };
+  }, [navigate]);
+
+  useEffect(() => {
+    trackPageView(location.pathname + location.search);
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     if (user) {

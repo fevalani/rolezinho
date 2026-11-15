@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.taverna.amigos",
+      "sha256_cert_fingerprints": [
+        "D0:AD:EC:47:93:55:7E:72:5D:BD:C6:9A:29:3A:52:6B:34:5F:6B:D7:2A:C6:7C:9B:41:5E:2E:BF:44:04:98:1A"
+      ]
+    }
+  }
+]

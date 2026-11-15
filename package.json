@@ -1,7 +1,7 @@
 {
   "name": "rolezinho",
   "private": true,
-  "version": "0.0.73",
+  "version": "0.0.74",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -16,9 +16,11 @@
     "@capacitor/android": "^8.2.0",
     "@capacitor/app": "^8.0.1",
     "@capacitor/core": "^8.2.0",
+    "@capacitor/filesystem": "^8.1.5",
     "@capacitor/haptics": "^8.0.1",
     "@capacitor/local-notifications": "^8.0.2",
     "@capacitor/push-notifications": "^8.1.1",
+    "@capacitor/share": "^8.0.3",
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.1",
     "@supabase/supabase-js": "^2.99.0",

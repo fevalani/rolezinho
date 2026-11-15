@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import {
@@ -17,6 +18,12 @@ import {
   type RsvpStatus,
   type CreateEventPayload,
 } from "./agendaService";
+import {
+  googleCalendarUrl,
+  downloadIcs,
+  shareEvent,
+} from "./calendarLinks";
+import { track } from "@/lib/analytics";
 
 // ─── helpers ────────────────────────────────────────────────────
 
@@ -144,19 +151,53 @@ function EventCard({
   isMe,
   onDelete,
   onRsvp,
+  onToast,
+  autoExpand,
 }: {
   event: AgendaEvent;
   isMe: boolean;
   onDelete: () => void;
   onRsvp: (status: RsvpStatus | null) => void;
+  onToast: (msg: string) => void;
+  autoExpand?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(!!autoExpand);
+  const [showCal, setShowCal] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (autoExpand)
+      cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [autoExpand]);
+
+  const handleShare = async () => {
+    const res = await shareEvent(event);
+    track("share_event", { event_id: event.id, result: res });
+    if (res === "copied") onToast("Link copiado! 🔗");
+    else if (res === "failed") onToast("Não foi possível compartilhar.");
+  };
+
+  const handleGoogle = () => {
+    track("add_to_calendar", { event_id: event.id, provider: "google" });
+    window.open(googleCalendarUrl(event), "_blank", "noopener");
+    setShowCal(false);
+  };
+
+  const handleIcs = async () => {
+    track("add_to_calendar", { event_id: event.id, provider: "ics" });
+    setShowCal(false);
+    const ok = await downloadIcs(event);
+    if (!ok) onToast("Não foi possível gerar o arquivo.");
+  };
   const isPast = event.is_past;
 
   return (
     <div
+      ref={cardRef}
       className={`rounded-2xl border transition-all
         ${
+          autoExpand ? "ring-1 ring-[rgba(201,165,90,0.5)] " : ""
+        }${
           isPast
             ? "bg-[var(--bg-primary)] border-[rgba(255,255,255,0.04)] opacity-70"
             : "bg-[var(--bg-card)] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.1)]"
@@ -300,6 +341,38 @@ function EventCard({
 
           {/* RSVP buttons (only future events) */}
           {!isPast && <RsvpRow event={event} onRsvp={onRsvp} />}
+
+          {/* Calendar + share */}
+          <div className="flex items-center gap-2 mt-3 flex-wrap">
+            <button
+              onClick={() => setShowCal((v) => !v)}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold text-(--gold) bg-[rgba(201,165,90,0.1)] border border-[rgba(201,165,90,0.2)]"
+            >
+              📅 Adicionar à agenda
+            </button>
+            <button
+              onClick={handleShare}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold text-(--text-secondary) bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)]"
+            >
+              🔗 Compartilhar
+            </button>
+          </div>
+          {showCal && (
+            <div className="flex gap-2 mt-2 flex-wrap">
+              <button
+                onClick={handleGoogle}
+                className="px-3 py-1.5 rounded-lg text-xs text-(--text-primary) bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)]"
+              >
+                Google Agenda
+              </button>
+              <button
+                onClick={handleIcs}
+                className="px-3 py-1.5 rounded-lg text-xs text-(--text-primary) bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)]"
+              >
+                Apple Calendar / .ics
+              </button>
+            </div>
+          )}
 
           {/* Delete */}
           {isMe && (
@@ -505,6 +578,8 @@ export function AgendaPage() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [toast, setToast] = useState("");
+  const [searchParams] = useSearchParams();
+  const highlightId = searchParams.get("evento");
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -684,6 +759,8 @@ export function AgendaPage() {
                 isMe={event.created_by === user?.id}
                 onDelete={() => handleDelete(event.id)}
                 onRsvp={(status) => handleRsvp(event, status)}
+                onToast={showToast}
+                autoExpand={event.id === highlightId}
               />
             ))}
           </div>
