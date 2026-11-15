@@ -56,8 +56,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       let version: string;
       if (Capacitor.isNativePlatform()) {
+        // APK: versão nativa + versão do código web carregado (OTA), ex.:
+        // "0.0.76 (76) · web 0.0.80". Site/navegador grava só "web 0.0.80".
         const info = await App.getInfo();
-        version = `${info.version} (${info.build})`;
+        version = `${info.version} (${info.build}) · web ${import.meta.env.VITE_APP_VERSION ?? "?"}`;
       } else {
         version = `web ${import.meta.env.VITE_APP_VERSION ?? "?"}`;
       }
