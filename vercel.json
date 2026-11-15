@@ -2,10 +2,20 @@
   "installCommand": "npm install",
 "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/og-agenda-image.ts": {
+      "includeFiles": "node_modules/harfbuzzjs/hb.wasm"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
       "destination": "/api/$1"
+    },
+    {
+      "source": "/agenda",
+      "has": [{ "type": "query", "key": "evento" }],
+      "destination": "/api/og-agenda"
     },
     {
       "source": "/(.*)",

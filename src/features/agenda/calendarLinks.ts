@@ -19,8 +19,24 @@ export function getPublicBaseUrl(): string {
   return window.location.origin;
 }
 
+/** Link curto (só o ID) — usado dentro de entradas de calendário. */
 export function getEventShareUrl(eventId: string): string {
   return `${getPublicBaseUrl()}/agenda?evento=${encodeURIComponent(eventId)}`;
+}
+
+/**
+ * Link compartilhável: leva título/data/hora/local/descrição no próprio URL
+ * para o servidor montar o preview (Open Graph) sem consultar o banco.
+ */
+export function getEventPreviewUrl(event: AgendaEvent): string {
+  const params = new URLSearchParams({ evento: event.id });
+  params.set("t", event.title.slice(0, 80));
+  params.set("d", event.event_date);
+  if (event.event_time) params.set("h", event.event_time.slice(0, 5));
+  if (event.location) params.set("l", event.location.slice(0, 80));
+  if (event.description?.trim())
+    params.set("x", event.description.replace(/\s+/g, " ").trim().slice(0, 160));
+  return `${getPublicBaseUrl()}/agenda?${params.toString()}`;
 }
 
 // ─── datas ──────────────────────────────────────────────────────
@@ -190,7 +206,7 @@ export async function downloadIcs(event: AgendaEvent): Promise<boolean> {
 export async function shareEvent(
   event: AgendaEvent,
 ): Promise<"shared" | "copied" | "failed"> {
-  const url = getEventShareUrl(event.id);
+  const url = getEventPreviewUrl(event);
   const text = `${event.title} — ${event.event_date.split("-").reverse().join("/")}`;
   try {
     if (Capacitor.isNativePlatform()) {
