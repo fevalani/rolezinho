@@ -21,6 +21,11 @@ export interface SeasonalTheme {
   name: string;
   emoji: string;
   description: string;
+  /** Motivo exibido na Home sobre a foto do grupo (ex.: "Natal"). */
+  occasion: string;
+  /** Data comemorativa ("MM-DD"), exibida junto do motivo. Independe do
+   *  período em que o tema fica no ar. */
+  occasionMd: string;
   /** Janela padrão (anual), "MM-DD". O admin pode sobrescrever em /temas
    *  (valores salvos em seasonal_theme_approvals.start_md/end_md). Se o fim for
    *  anterior ao início, a janela atravessa a virada do ano (ex.: 12-29 a 01-02). */
@@ -53,6 +58,25 @@ export const isValidMd = (s: string) => {
 /** "12-01" -> "01/12" */
 export const formatMd = (md: string) => `${md.slice(3, 5)}/${md.slice(0, 2)}`;
 
+const MONTH_NAMES = [
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro",
+];
+
+/** "12-25" -> "25 de dezembro" */
+export const formatMdLong = (md: string) =>
+  `${Number(md.slice(3, 5))} de ${MONTH_NAMES[Number(md.slice(0, 2)) - 1]}`;
+
 /** A data cai dentro da janela (inclusive)? Suporta virada de ano. */
 export function isInWindow(date: Date, w: ThemeWindow): boolean {
   const md = toMd(date);
@@ -80,6 +104,8 @@ export const SEASONAL_THEMES: SeasonalTheme[] = [
     id: "natal",
     name: "Natal",
     emoji: "🎄",
+    occasion: "Natal",
+    occasionMd: "12-25",
     description:
       "Verde-pinheiro e dourado, com gorro de Papai Noel, meias, guirlanda e luzes.",
     defaultStart: "12-01",
@@ -96,6 +122,8 @@ export const SEASONAL_THEMES: SeasonalTheme[] = [
     id: "republica",
     name: "Proclamação da República",
     emoji: "🇧🇷",
+    occasion: "Proclamação da República",
+    occasionMd: "11-15",
     description:
       "Azul-marinho e amarelo da bandeira, com barrete frígio, bandeirinhas, estrelas e a bandeira do Brasil.",
     defaultStart: "11-15",

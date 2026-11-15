@@ -6,6 +6,8 @@ import { hapticTap } from "@/lib/haptics";
 import { APP_FEATURES, type Feature } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { Avatar } from "@/components/Avatar";
+import { useSeasonalTheme } from "@/lib/seasonal/SeasonalThemeContext";
+import { formatMdLong } from "@/lib/seasonal/themes";
 
 interface TodayBirthday {
   id: string;
@@ -48,6 +50,7 @@ function groupFeaturesByCategory(
 
 export function HomePage() {
   const { profile } = useAuth();
+  const { active: seasonTheme } = useSeasonalTheme();
   const navigate = useNavigate();
   const firstName = profile?.display_name?.split(" ")[0] ?? "Aventureiro";
 
@@ -121,6 +124,29 @@ export function HomePage() {
           className="absolute inset-0 w-full h-full object-contain anim-fade"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-(--bg-abyss) via-black/30 to-black/10" />
+        {seasonTheme && (
+          <div
+            className="absolute left-4 top-10 z-[3] flex items-center gap-2 px-3 py-1.5 rounded-full anim-fade max-w-[calc(100%-2rem)]"
+            style={{
+              background: "rgba(0,0,0,0.45)",
+              border: "1px solid rgba(255,255,255,0.18)",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
+            }}
+          >
+            <span className="text-lg leading-none shrink-0">
+              {seasonTheme.emoji}
+            </span>
+            <span className="flex flex-col min-w-0 leading-tight">
+              <span className="text-[0.8rem] font-semibold text-white truncate">
+                {seasonTheme.occasion}
+              </span>
+              <span className="text-[0.68rem] text-white/75">
+                {formatMdLong(seasonTheme.occasionMd)}
+              </span>
+            </span>
+          </div>
+        )}
         <div className="relative h-full flex flex-col justify-end px-5 pb-6 gap-1">
           <h1
             className="text-2xl text-white anim-fade"
