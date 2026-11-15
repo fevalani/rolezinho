@@ -107,7 +107,7 @@ export function HomePage() {
       )}
 
       {/* Hero */}
-      <div data-decor="lights" className="relative w-full h-60 overflow-hidden">
+      <div data-decor="lights" className="relative w-full h-96 overflow-hidden">
         {/* Camada de fundo: a mesma imagem, ampliada e borrada, preenche
             a faixa toda — dá a sensação de continuidade em vez de barras
             pretas nas laterais da foto quadrada. */}
@@ -115,7 +115,7 @@ export function HomePage() {
           src="/images/rolezinho-roots.jpeg"
           alt=""
           aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover blur-md opacity-80"
+          className="sticky top-0 inset-0 w-full h-full object-cover blur-md opacity-80"
         />
         {/* Camada nítida: a foto completa, sem cortar */}
         <img
@@ -232,9 +232,9 @@ export function HomePage() {
           {groupFeaturesByCategory(visibleFeatures).map((group) => (
             <div key={group.label} className="flex flex-col gap-2">
               <p
-                  data-decor="stocking"
-                  className="text-xs font-semibold text-(--text-muted) uppercase tracking-widest px-1"
-                >
+                data-decor="stocking"
+                className="text-xs font-semibold text-(--text-muted) uppercase tracking-widest px-1"
+              >
                 {group.label}
               </p>
               <div className="grid grid-cols-3 gap-2.5">
