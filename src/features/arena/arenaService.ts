@@ -421,14 +421,18 @@ export async function claimPayout(
   betId: string,
   payout: number,
 ): Promise<{ error: string | null }> {
-  const { error: claimError } = await supabase
+  // `.select()` devolve só as linhas realmente atualizadas: se a aposta já
+  // estava resgatada (ou não é do usuário), nada é creditado de novo.
+  const { data: claimed, error: claimError } = await supabase
     .from("arena_bets")
     .update({ payout_claimed: true })
     .eq("id", betId)
     .eq("user_id", userId)
-    .eq("payout_claimed", false);
+    .eq("payout_claimed", false)
+    .select("id");
 
   if (claimError) return { error: claimError.message };
+  if (!claimed?.length) return { error: "Prêmio já resgatado" };
 
   const { data: wallet } = await supabase
     .from("arena_wallets")

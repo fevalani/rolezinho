@@ -231,9 +231,21 @@ describe("apostas e saldo", () => {
   });
   it("claimPayout marca como resgatado e credita o prêmio", async () => {
     mockDb.tables.arena_wallets = [{ balance: 100 }];
+    mockDb.tables.arena_bets = [{ id: "b1" }]; // a linha foi de fato atualizada
     expect(await claimPayout("u1", "b1", 279)).toEqual({ error: null });
     expect(mockDb.writes.find((w) => w.table === "arena_bets")!.args[0]).toEqual({ payout_claimed: true });
     expect((mockDb.writes.find((w) => w.table === "arena_wallets")!.args[0] as { balance: number }).balance).toBe(379);
+  });
+  it("claimPayout de aposta já resgatada NÃO credita de novo", async () => {
+    mockDb.tables.arena_wallets = [{ balance: 100 }];
+    mockDb.tables.arena_bets = []; // nenhuma linha com payout_claimed=false
+    expect(await claimPayout("u1", "b1", 279)).toEqual({ error: "Prêmio já resgatado" });
+    expect(mockDb.writes.some((w) => w.table === "arena_wallets")).toBe(false);
+  });
+  it("claimPayout com erro do banco não credita", async () => {
+    mockDb.errors.arena_bets = { message: "rls" };
+    expect(await claimPayout("u1", "b1", 279)).toEqual({ error: "rls" });
+    expect(mockDb.writes.some((w) => w.table === "arena_wallets")).toBe(false);
   });
   it("fetchBetsForDuel mapeia as linhas", async () => {
     mockDb.tables.arena_bets = [

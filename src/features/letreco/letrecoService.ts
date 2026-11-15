@@ -6,7 +6,7 @@ import type {
   LetrecoStats,
   OverallEntry,
 } from "./letrecoTypes";
-import { MAX_ATTEMPTS } from "./letrecoLogic";
+import { MAX_ATTEMPTS, getGameDate } from "./letrecoLogic";
 
 // ══════════════════════════════════════════════════════════════
 // Partida do dia
@@ -232,7 +232,10 @@ export async function getOverallLeaderboard(): Promise<OverallEntry[]> {
 // ══════════════════════════════════════════════════════════════
 
 /** Estatísticas acumuladas do jogador (vitórias, streak, distribuição). */
-export async function getUserStats(userId: string): Promise<LetrecoStats> {
+export async function getUserStats(
+  userId: string,
+  today: string = getGameDate(),
+): Promise<LetrecoStats> {
   const { data } = await supabase
     .from("letreco_games")
     .select("game_date, status, attempts, score")
@@ -267,7 +270,7 @@ export async function getUserStats(userId: string): Promise<LetrecoStats> {
     .sort();
 
   const maxStreak = longestConsecutive(wonDays);
-  const currentStreak = currentConsecutive(wonDays);
+  const currentStreak = currentConsecutive(wonDays, today);
 
   const played = rows.length;
   return {
@@ -301,8 +304,10 @@ function longestConsecutive(days: string[]): number {
   return best;
 }
 
-function currentConsecutive(days: string[]): number {
+/** Sequência ativa: só conta se a última vitória foi hoje ou ontem. */
+function currentConsecutive(days: string[], today: string): number {
   if (days.length === 0) return 0;
+  if (dayDiff(days[days.length - 1], today) > 1) return 0;
   let run = 1;
   for (let i = days.length - 1; i > 0; i--) {
     if (dayDiff(days[i - 1], days[i]) === 1) run++;

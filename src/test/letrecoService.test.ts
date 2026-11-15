@@ -149,8 +149,23 @@ describe("getUserStats", () => {
       row("2026-06-05", "won"),
       row("2026-06-06", "won"),
     ];
-    const s = await getUserStats("u1");
+    const s = await getUserStats("u1", "2026-06-06");
     expect(s.maxStreak).toBe(3);
     expect(s.currentStreak).toBe(2); // contada a partir da vitória mais recente
+  });
+  it("sequência ativa vale se a última vitória foi hoje ou ontem", async () => {
+    mockDb.tables.letreco_games = [row("2026-06-05", "won"), row("2026-06-06", "won")];
+    expect((await getUserStats("u1", "2026-06-06")).currentStreak).toBe(2);
+    expect((await getUserStats("u1", "2026-06-07")).currentStreak).toBe(2);
+  });
+  it("sequência antiga não conta como atual (última vitória há 2+ dias)", async () => {
+    mockDb.tables.letreco_games = [row("2026-06-05", "won"), row("2026-06-06", "won")];
+    const s = await getUserStats("u1", "2026-06-08");
+    expect(s.currentStreak).toBe(0);
+    expect(s.maxStreak).toBe(2); // o recorde histórico continua
+  });
+  it("derrota no meio quebra a sequência", async () => {
+    mockDb.tables.letreco_games = [row("2026-06-05", "won"), row("2026-06-06", "lost"), row("2026-06-07", "won")];
+    expect((await getUserStats("u1", "2026-06-07")).currentStreak).toBe(1);
   });
 });

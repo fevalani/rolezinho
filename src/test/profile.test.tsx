@@ -13,6 +13,26 @@ describe("ProfilePage", () => {
     );
   });
 
+  it("preenche o formulário mesmo quando o perfil carrega depois da tela", async () => {
+    loginAs();
+    // sem esperar o perfil: a tela monta com profile=null e o perfil chega depois
+    renderWithProviders(<ProfilePage />, { settled: false });
+    await waitFor(() => expect(screen.getByPlaceholderText("Seu nome")).toHaveValue("Fulano"));
+  });
+
+  it("não sobrescreve o que o usuário está digitando quando o perfil é atualizado", async () => {
+    loginAs();
+    renderWithProviders(<ProfilePage />);
+    const input = await screen.findByPlaceholderText("Seu nome");
+    await waitFor(() => expect(input).toHaveValue("Fulano"));
+    fireEvent.change(input, { target: { value: "Digitando..." } });
+    fireEvent.click(await screen.findByText("☀️ Claro")); // atualiza o perfil (tema)
+    await waitFor(() =>
+      expect(mockDb.writes.some((w) => (w.args[0] as { theme?: string }).theme === "light")).toBe(true),
+    );
+    expect(input).toHaveValue("Digitando...");
+  });
+
   it("não salva com nome vazio", async () => {
     loginAs();
     renderWithProviders(<ProfilePage />);

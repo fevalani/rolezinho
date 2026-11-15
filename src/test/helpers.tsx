@@ -48,12 +48,12 @@ function Settled({ children }: { children: ReactNode }) {
 /** Renderiza dentro de Router + AuthProvider (com o Supabase mockado). */
 export function renderWithProviders(
   ui: ReactElement,
-  { route = "/" }: { route?: string } = {},
+  { route = "/", settled = true }: { route?: string; settled?: boolean } = {},
 ) {
   return render(
     <MemoryRouter initialEntries={[route]}>
       <AuthProvider>
-        <Settled>{ui}</Settled>
+        {settled ? <Settled>{ui}</Settled> : ui}
       </AuthProvider>
     </MemoryRouter>,
   );

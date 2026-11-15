@@ -1,5 +1,5 @@
 /* eslint-disable no-misleading-character-class */
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -69,6 +69,18 @@ export function ProfilePage() {
     profile?.hidden_features ?? [],
   );
   const [savingHome, setSavingHome] = useState(false);
+
+  // O perfil pode chegar depois da tela (ex.: recarregar direto em /profile):
+  // preenche o formulário quando ele carrega, sem sobrescrever edições depois.
+  const profileId = profile?.id;
+  useEffect(() => {
+    if (!profile) return;
+    setDisplayName(profile.display_name ?? "");
+    setAvatarPreview(profile.avatar_url ?? "");
+    setBirthdayInput(birthdayToDisplay(profile.birthday ?? null));
+    setHiddenFeatures(profile.hidden_features ?? []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileId]);
 
   // Aparência
   const [changingTheme, setChangingTheme] = useState(false);
