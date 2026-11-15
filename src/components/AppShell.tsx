@@ -232,7 +232,7 @@ export function AppShell() {
                 className="text-[0.65rem] text-(--text-muted) select-none"
                 style={{ fontFamily: "var(--font-mono)" }}
               >
-                v2.1.0
+                v{import.meta.env.VITE_APP_VERSION ?? "dev"}
               </span>
             </div>
           </nav>
