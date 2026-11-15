@@ -1,0 +1,124 @@
+/* Tema sazonal: NATAL  (data-season="natal" no <html>)
+   Cores: variáveis de global.css sobrescritas. Decorações: desenhadas em
+   pseudo-elementos a partir dos pontos [data-decor] marcados nos componentes.
+   SVGs em /public/seasons/natal/. Ver src/lib/seasonal/themes.ts. */
+
+/* ── Cores — escuro: verde-pinheiro profundo + dourado ── */
+:root[data-season="natal"] {
+  --bg-abyss: #050e0a;
+  --bg-deep: #0a1812;
+  --bg-primary: #0e2018;
+  --bg-card: #132a20;
+  --bg-elevated: #1a3629;
+  --bg-hover: #214332;
+
+  --gold-dark: #9c7e36;
+  --gold: #e3b95c;
+  --gold-bright: #f2d27a;
+  --gold-glow: #f8e3a4;
+
+  --text-primary: #f3efe4;
+  --text-secondary: #a9b8ad;
+  --text-muted: #6c8274;
+
+  --shadow-gold: 0 0 24px rgba(227, 185, 92, 0.16);
+}
+
+/* ── Cores — claro: creme + verde-pinheiro (vermelho fica nas decorações) ── */
+:root[data-season="natal"][data-theme="light"] {
+  --bg-abyss: #f3ede0;
+  --bg-deep: #fffaf0;
+  --bg-primary: #f8f2e4;
+  --bg-card: #ffffff;
+  --bg-elevated: #f1eadb;
+  --bg-hover: #e8dfca;
+
+  --gold-dark: #174f33;
+  --gold: #1f6b45;
+  --gold-bright: #2f9462;
+  --gold-glow: #5cbf8a;
+
+  --text-primary: #1d2a22;
+  --text-secondary: #4d5f54;
+  --text-muted: #7b8c80;
+
+  --shadow-gold: 0 0 24px rgba(31, 107, 69, 0.15);
+}
+
+/* ── Decorações ───────────────────────────────── */
+
+/* Gorro — canto superior direito do elemento (logo / avatar) */
+[data-season="natal"] [data-decor="hat"] {
+  position: relative;
+}
+[data-season="natal"] [data-decor="hat"]::after {
+  content: "";
+  position: absolute;
+  top: -32%;
+  right: -22%;
+  width: 62%;
+  aspect-ratio: 1;
+  background: url("/seasons/natal/hat.svg") center / contain no-repeat;
+  transform: rotate(18deg);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Meia — pendurada no fim da linha (título de categoria) */
+[data-season="natal"] [data-decor="stocking"] {
+  position: relative;
+  padding-right: 28px;
+}
+[data-season="natal"] [data-decor="stocking"]::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  width: 20px;
+  height: 27px;
+  background: url("/seasons/natal/stocking.svg") center / contain no-repeat;
+  transform: translateY(-50%) rotate(-8deg);
+  pointer-events: none;
+}
+
+/* Guirlanda — faixa logo abaixo do elemento (cabeçalho sticky) */
+[data-season="natal"] [data-decor="garland"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 22px;
+  background: url("/seasons/natal/garland.svg") left top / auto 22px repeat-x;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Luzes — fio no topo do elemento (hero da Home), piscando de leve */
+[data-season="natal"] [data-decor="lights"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 30px;
+  background: url("/seasons/natal/lights.svg") left top / auto 30px repeat-x;
+  pointer-events: none;
+  z-index: 2;
+  animation: natalTwinkle 2.8s ease-in-out infinite;
+}
+@keyframes natalTwinkle {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-season="natal"] [data-decor="lights"]::after {
+    animation: none;
+  }
+}

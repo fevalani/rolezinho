@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { isAdminUser } from "@/lib/admin";
 import { BolaoStatsTab } from "./BolaoStatsTab";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
@@ -832,7 +833,7 @@ export function BolaoDetailPage() {
     Record<string, { home: number; away: number }>
   >({});
 
-  const isAdmin = user?.email === "valanife@gmail.com";
+  const isAdmin = isAdminUser(user);
   const isCreator = !!user && !!pool && user.id === pool.created_by;
   // Criador do bolão pode configurar pontuação (modelo, variação, multiplicador
   // de mata-mata), mas não tem acesso a edição manual de placar, importação de

@@ -13,6 +13,8 @@ import { AuthProvider, useAuth } from "@/lib/AuthContext";
 import { scheduleMusicReminder } from "@/lib/notificationService";
 import { registerPushToken } from "@/lib/pushTokenService";
 import { trackPageView } from "@/lib/analytics";
+import { SeasonalThemeProvider } from "@/lib/seasonal/SeasonalThemeContext";
+import { ThemesAdminPage } from "@/pages/ThemesAdminPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { HomePage } from "@/pages/HomePage";
 import { ProfilePage } from "@/pages/ProfilePage";
@@ -105,6 +107,7 @@ function AppRoutes() {
       >
         <Route path="/" element={<HomePage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/temas" element={<ThemesAdminPage />} />
         <Route path="/dados" element={<TavernaPage />} />
         <Route path="/racha-conta" element={<RachaContaPage />} />
         <Route path="/aniversarios" element={<AniversariosPage />} />
@@ -134,7 +137,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <SeasonalThemeProvider>
+          <AppRoutes />
+        </SeasonalThemeProvider>
       </AuthProvider>
     </BrowserRouter>
   );

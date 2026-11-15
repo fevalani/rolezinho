@@ -1,7 +1,7 @@
 {
   "name": "rolezinho",
   "private": true,
-  "version": "0.0.75",
+  "version": "0.0.76",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "deploy:web": "node scripts/bump-version.js && npx vercel --prod",
     "deploy:android": "node scripts/bump-version.js && npm run build && bash scripts/build-android.sh",
-    "build:android": "npm run build && bash scripts/build-android.sh"
+    "build:android": "npm run build && bash scripts/build-android.sh",
+    "build:android:bundled": "CAP_BUNDLED=1 npm run build:android"
   },
   "dependencies": {
     "@capacitor/android": "^8.2.0",

@@ -144,12 +144,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.theme = profile?.theme ?? "dark";
   }, [profile?.theme]);
 
-  // Flag de modo beta (ver useBetaMode) — liga tratamentos visuais globais
+  // Modo beta (ver useBetaMode) é fixo — liga tratamentos visuais globais
   // via CSS puro (fonte, transição de tema) sem precisar de classe por componente.
   useEffect(() => {
-    document.documentElement.dataset.beta =
-      profile?.home_layout === "grid" ? "true" : "false";
-  }, [profile?.home_layout]);
+    document.documentElement.dataset.beta = "true";
+  }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({

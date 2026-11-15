@@ -5,15 +5,18 @@ import { useBetaMode } from "@/lib/useBetaMode";
 import { hapticTap } from "@/lib/haptics";
 import { APP_FEATURES } from "@/lib/types";
 import { Avatar } from "@/components/Avatar";
+import { isAdminUser } from "@/lib/admin";
+import { SeasonalPreviewBanner } from "@/components/SeasonalPreviewBanner";
 
 export function AppShell() {
-  const { profile, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const isBeta = useBetaMode();
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
   const [scrolled, setScrolled] = useState(false);
+  const versionTaps = useRef({ n: 0, t: 0 });
 
   // Header condensado ao rolar — só no modo beta, o resto do app não muda.
   // `condensed` já ignora `scrolled` quando isBeta é false, então não precisa
@@ -34,10 +37,26 @@ export function AppShell() {
     navigate(path);
   };
 
+  // Acesso escondido (só admin): 7 toques na versão abrem /temas.
+  const handleVersionTap = () => {
+    if (!isAdminUser(user)) return;
+    const now = Date.now();
+    const v = versionTaps.current;
+    v.n = now - v.t > 1500 ? 1 : v.n + 1;
+    v.t = now;
+    if (v.n >= 7) {
+      v.n = 0;
+      setMenuOpen(false);
+      navigate("/temas");
+    }
+  };
+
   return (
     <div className="page">
+      <SeasonalPreviewBanner />
       {/* ── Header ── */}
       <header
+        data-decor="garland"
         className={`flex items-center gap-3 px-4 sticky top-0 z-50 transition-all duration-300 ${
           condensed
             ? "py-1.5 glass-panel shadow-[0_4px_20px_rgba(0,0,0,0.15)]"
@@ -58,13 +77,15 @@ export function AppShell() {
         </button>
 
         <div className="flex-1 flex items-center gap-2">
-          <img
-            src="/images/rolezinho-roots.jpeg"
-            alt=""
-            className={`rounded-full object-cover border border-[rgba(201,165,90,0.2)] transition-all duration-300 ${
-              condensed ? "w-5 h-5" : "w-7 h-7"
-            }`}
-          />
+          <span data-decor="hat" className="inline-flex shrink-0">
+            <img
+              src="/images/rolezinho-roots.jpeg"
+              alt=""
+              className={`rounded-full object-cover border border-[rgba(201,165,90,0.2)] transition-all duration-300 ${
+                condensed ? "w-5 h-5" : "w-7 h-7"
+              }`}
+            />
+          </span>
           <span
             className={`font-bold text-(--gold) tracking-wide transition-all duration-300 ${
               condensed ? "text-[0.85rem]" : "text-[1.05rem]"
@@ -109,11 +130,13 @@ export function AppShell() {
           >
             {/* Profile area */}
             <div className="flex items-center gap-3 px-5 pt-6 pb-4">
-              <Avatar
-                url={profile?.avatar_url}
-                name={profile?.display_name ?? "?"}
-                size="xl"
-              />
+              <span data-decor="hat" className="inline-flex shrink-0">
+                <Avatar
+                  url={profile?.avatar_url}
+                  name={profile?.display_name ?? "?"}
+                  size="xl"
+                />
+              </span>
               <div className="flex-1 min-w-0">
                 <span
                   className="block text-sm font-bold text-(--text-primary) truncate"
@@ -205,7 +228,8 @@ export function AppShell() {
                 Sair da conta
               </button>
               <span
-                className="text-[0.65rem] text-(--text-muted)"
+                onClick={handleVersionTap}
+                className="text-[0.65rem] text-(--text-muted) select-none"
                 style={{ fontFamily: "var(--font-mono)" }}
               >
                 v2.1.0
