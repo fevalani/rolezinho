@@ -22,7 +22,7 @@ export function SeasonalPreviewBanner() {
       <span className="whitespace-nowrap">
         {theme.emoji} Pré-visualizando <b>{theme.occasion}</b>
       </span>
-      {!approved && (
+      {!approved && !theme.occasionData && (
         <button
           onClick={() => approve(theme.id, true)}
           className="px-2.5 py-1 rounded-full font-bold bg-[rgba(52,211,153,0.15)] text-emerald-400 border border-[rgba(52,211,153,0.3)]"

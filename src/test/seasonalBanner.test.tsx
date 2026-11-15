@@ -3,9 +3,10 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import { SEASONAL_THEMES } from "@/lib/seasonal/themes";
+import { occasionToTheme } from "@/lib/seasonal/occasions";
 
-// O banner lê o tema em `themes` (já com o título/emoji que o admin salvou), por isso o mock
-// do contexto passou a expor a lista.
+// O banner lê o tema em `themes` (temas prontos + ocasiões do admin), por isso o mock do
+// contexto passou a expor a lista.
 const ctx = {
   themes: SEASONAL_THEMES,
   previewId: null as string | null,
@@ -49,14 +50,13 @@ describe("SeasonalPreviewBanner", () => {
     expect(ctx.approve).toHaveBeenCalledWith("natal", true);
   });
 
-  it("mostra o título (ocasião) que o admin definiu, não o nome do visual", () => {
-    ctx.previewId = "confete";
-    ctx.themes = SEASONAL_THEMES.map((t) =>
-      t.id === "confete" ? { ...t, occasion: "Aniversário do grupo", emoji: "🎂" } : t,
-    );
+  it("ocasião do admin: mostra o título e não oferece aprovar (ela vale ao ativar)", () => {
+    const oc = occasionToTheme({ id: "o1", title: "Aniversário do grupo", emoji: "🎂", extras: [], dayMd: "10-03", daysBefore: 0, jumble: false, enabled: true });
+    ctx.themes = [...SEASONAL_THEMES, oc];
+    ctx.previewId = oc.id;
     renderBanner();
     expect(screen.getByText("Aniversário do grupo")).toBeInTheDocument();
-    expect(screen.queryByText("Confete")).not.toBeInTheDocument();
+    expect(screen.queryByText("Aprovar")).not.toBeInTheDocument();
     ctx.themes = SEASONAL_THEMES;
   });
 

@@ -2,28 +2,22 @@ import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { isAdminUser } from "@/lib/admin";
-import { MdPicker } from "@/components/MdPicker";
-import { ThemeCustomizer } from "@/components/ThemeCustomizer";
 import {
   SEASONAL_THEMES,
   defaultWindowFor,
   formatMd,
-  formatMdLong,
   isInWindow,
   isValidMd,
-  occasionMdFor,
 } from "@/lib/seasonal/themes";
-import {
-  useSeasonalTheme,
-  type ThemeCustomization,
-} from "@/lib/seasonal/SeasonalThemeContext";
+import { useSeasonalTheme } from "@/lib/seasonal/SeasonalThemeContext";
+import { MdPicker } from "@/components/MdPicker";
+import { OccasionsAdmin } from "@/components/OccasionsAdmin";
 
 /** Tela de admin: lista os temas sazonais, pré-visualiza e aprova. */
 export function ThemesAdminPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const {
-    themes,
     approvals,
     windows,
     previewId,
@@ -31,7 +25,6 @@ export function ThemesAdminPage() {
     stopPreview,
     approve,
     updateWindow,
-    updateCustomization,
   } = useSeasonalTheme();
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
@@ -72,23 +65,6 @@ export function ThemesAdminPage() {
     );
   };
 
-  const saveCustomization = async (id: string, c: ThemeCustomization, label: string) => {
-    setBusy(id);
-    setMsg("");
-    setOk("");
-    const { error } = await updateCustomization(id, c);
-    setBusy(null);
-    if (error) {
-      setMsg(
-        error.includes("custom_") || error.includes("occasion_md")
-          ? "Colunas de título/dia não existem — rode supabase/seasonal_themes_custom_migration.sql."
-          : `Erro ao salvar: ${error}`,
-      );
-      return;
-    }
-    setOk(label);
-  };
-
   const toggleApproval = async (id: string, value: boolean) => {
     setBusy(id);
     setMsg("");
@@ -127,21 +103,18 @@ export function ThemesAdminPage() {
         </p>
       )}
 
+      <OccasionsAdmin />
+
+      <h2 className="text-base text-(--gold) mb-3" style={{ fontFamily: "var(--font-display)" }}>
+        Temas prontos
+      </h2>
       <div className="flex flex-col gap-3">
-        {themes.map((t) => {
+        {SEASONAL_THEMES.map((t) => {
           const approved = !!approvals[t.id];
           const win = windows[t.id];
           const def = defaultWindowFor(t);
           const inWindow = isInWindow(today, win);
           const previewing = previewId === t.id;
-          const day = occasionMdFor(t);
-          const base = SEASONAL_THEMES.find((x) => x.id === t.id)!;
-          const customized =
-            t.occasion !== base.occasion ||
-            t.emoji !== base.emoji ||
-            !!t.occasionMdOverride ||
-            win.start !== def.start ||
-            win.end !== def.end;
           return (
             <div
               key={t.id}
@@ -171,35 +144,6 @@ export function ThemesAdminPage() {
               <p className="text-sm text-(--text-secondary) mt-2">
                 {t.description}
               </p>
-              {t.generic && (
-                <p className="text-xs text-(--text-muted) mt-1">
-                  No selo da Home: {t.emoji} {t.occasion} · {formatMdLong(day)}
-                </p>
-              )}
-              {t.generic && (
-                <ThemeCustomizer
-                  key={`${t.id}-${t.occasion}-${t.emoji}-${day}-${win.start}`}
-                  theme={t}
-                  day={day}
-                  startMd={win.start}
-                  customized={customized}
-                  busy={busy === t.id}
-                  onSave={(c) =>
-                    saveCustomization(
-                      t.id,
-                      c,
-                      `✓ Salvo: ${c.occasion} em ${formatMdLong(c.occasionMd!)}`,
-                    )
-                  }
-                  onReset={() =>
-                    saveCustomization(
-                      t.id,
-                      { occasion: null, emoji: null, occasionMd: null, start: null, end: null },
-                      "✓ Visual restaurado para o padrão",
-                    )
-                  }
-                />
-              )}
               <WindowEditor
                 key={`${t.id}-${win.start}-${win.end}`}
                 start={win.start}

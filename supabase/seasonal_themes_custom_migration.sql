@@ -1,3 +1,5 @@
+-- OBSOLETA desde 16/11/2026: o tema por ocasião (seasonal_occasions_migration.sql) substituiu
+-- esta ideia de reaproveitar visuais prontos. As colunas abaixo não são mais lidas pelo app.
 -- Título, emoji e dia comemorativo editáveis dos temas sazonais (reaproveitar um visual
 -- para outra data sem mexer no código). Tudo opcional: NULL = usa o que está no código
 -- (src/lib/seasonal/themes.ts). Rodar no SQL Editor do Supabase, depois de

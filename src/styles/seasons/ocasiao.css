@@ -1,0 +1,95 @@
+/* Tema de OCASIÃO (data-season="ocasiao" no <html>) — criado pelo admin em /temas.
+   Tudo vem de variáveis que o app põe no <html> a partir da ocasião:
+     --p-h / --p-s   tom e saturação, tirados do emoji principal
+     --occ-emoji     o emoji principal, como string CSS
+     --occ-garland   SVG da faixa com os emojis (fio + itens pendurados)
+   Ver src/lib/seasonal/occasions.ts e occasionAssets.ts. */
+
+/* ── Cores — escuro ── */
+:root[data-season="ocasiao"] {
+  --bg-abyss: hsl(var(--p-h) 36% 5%);
+  --bg-deep: hsl(var(--p-h) 34% 8%);
+  --bg-primary: hsl(var(--p-h) 30% 11%);
+  --bg-card: hsl(var(--p-h) 28% 15%);
+  --bg-elevated: hsl(var(--p-h) 26% 19%);
+  --bg-hover: hsl(var(--p-h) 24% 24%);
+
+  --gold-dark: hsl(var(--p-h) calc(var(--p-s) * 0.6) 42%);
+  --gold: hsl(var(--p-h) var(--p-s) 66%);
+  --gold-bright: hsl(var(--p-h) var(--p-s) 76%);
+  --gold-glow: hsl(var(--p-h) var(--p-s) 86%);
+
+  --text-primary: hsl(var(--p-h) 30% 94%);
+  --text-secondary: hsl(var(--p-h) 14% 72%);
+  --text-muted: hsl(var(--p-h) 10% 52%);
+
+  --shadow-gold: 0 0 24px hsl(var(--p-h) var(--p-s) 60% / 0.2);
+}
+
+/* ── Cores — claro ── */
+:root[data-season="ocasiao"][data-theme="light"] {
+  --bg-abyss: hsl(var(--p-h) 40% 93%);
+  --bg-deep: #ffffff;
+  --bg-primary: hsl(var(--p-h) 50% 97%);
+  --bg-card: #ffffff;
+  --bg-elevated: hsl(var(--p-h) 38% 93%);
+  --bg-hover: hsl(var(--p-h) 34% 88%);
+
+  --gold-dark: hsl(var(--p-h) var(--p-s) 26%);
+  --gold: hsl(var(--p-h) var(--p-s) 36%);
+  --gold-bright: hsl(var(--p-h) var(--p-s) 46%);
+  --gold-glow: hsl(var(--p-h) var(--p-s) 70%);
+
+  --text-primary: hsl(var(--p-h) 40% 12%);
+  --text-secondary: hsl(var(--p-h) 20% 32%);
+  --text-muted: hsl(var(--p-h) 12% 50%);
+
+  --shadow-gold: 0 0 24px hsl(var(--p-h) var(--p-s) 40% / 0.16);
+}
+
+/* ── Decorações ───────────────────────────────── */
+
+/* Emoji principal sobre a logo e o avatar do menu */
+[data-season="ocasiao"] [data-decor="hat"] {
+  position: relative;
+}
+[data-season="ocasiao"] [data-decor="hat"]::after {
+  content: var(--occ-emoji);
+  position: absolute;
+  top: -30%;
+  right: -12%;
+  font-size: 0.95em;
+  line-height: 1;
+  transform: rotate(12deg);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Emoji principal ao lado dos títulos de categoria */
+[data-season="ocasiao"] [data-decor="stocking"] {
+  position: relative;
+  padding-right: 28px;
+}
+[data-season="ocasiao"] [data-decor="stocking"]::after {
+  content: var(--occ-emoji);
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  font-size: 17px;
+  line-height: 1;
+  transform: translateY(-50%) rotate(-8deg);
+  pointer-events: none;
+}
+
+/* Faixa de emojis pendurada sob o cabeçalho */
+[data-season="ocasiao"] [data-decor="garland"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 30px;
+  background: var(--occ-garland) left top / 400px 30px repeat-x;
+  pointer-events: none;
+  z-index: 1;
+}

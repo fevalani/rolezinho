@@ -6,8 +6,7 @@ import "./styles/seasons/natal.css";
 import "./styles/seasons/republica.css";
 import "./styles/seasons/anonovo.css";
 import "./styles/seasons/pascoa.css";
-import "./styles/seasons/generic.css";
-import "./styles/seasons/letras.css";
+import "./styles/seasons/ocasiao.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Root element not found");

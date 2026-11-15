@@ -31,8 +31,7 @@ import { Word500Game } from "@/features/letreco/Word500Game";
 import { FronteirasGame } from "@/features/letreco/FronteirasGame";
 import { JumbledText } from "@/components/JumbledText";
 import { MdPicker } from "@/components/MdPicker";
-import { ThemeCustomizer } from "@/components/ThemeCustomizer";
-import { SEASONAL_THEMES } from "@/lib/seasonal/themes";
+import { OccasionsAdmin } from "@/components/OccasionsAdmin";
 import { RankingPage } from "@/features/ranking/RankingPage";
 import { RankingDetailPage } from "@/features/ranking/RankingDetailPage";
 import { DuelosPage } from "@/features/duelos/DuelosPage";
@@ -74,14 +73,7 @@ const PAGES: Case[] = [
   { name: "FronteirasGame", Component: FronteirasGame, pattern: "/fronteiras", route: "/fronteiras" },
   { name: "JumbledText", Component: () => <JumbledText text="Atenção à Dislexia" />, pattern: "/jumble", route: "/jumble" },
   { name: "MdPicker", Component: () => <MdPicker label="Dia" value="11-16" onChange={() => {}} />, pattern: "/mdpicker", route: "/mdpicker" },
-  {
-    name: "ThemeCustomizer",
-    Component: () => (
-      <ThemeCustomizer theme={SEASONAL_THEMES[0]} day="11-16" startMd="11-16" customized={false} busy={false} onSave={() => {}} onReset={() => {}} />
-    ),
-    pattern: "/themecustomizer",
-    route: "/themecustomizer",
-  },
+  { name: "OccasionsAdmin", Component: OccasionsAdmin, pattern: "/ocasioes", route: "/ocasioes" },
   { name: "RankingPage", Component: RankingPage, pattern: "/ranking", route: "/ranking" },
   { name: "RankingDetailPage", Component: RankingDetailPage, pattern: "/ranking/:tableId", route: "/ranking/r1" },
   { name: "DuelosPage", Component: DuelosPage, pattern: "/duelos", route: "/duelos" },

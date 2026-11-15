@@ -7,9 +7,10 @@ import {
   SeasonalThemeProvider,
   useSeasonalTheme,
 } from "@/lib/seasonal/SeasonalThemeContext";
-import { fetchThemeRecords, setApproval, setWindow, setCustomization } from "@/lib/seasonal/seasonalService";
+import { fetchThemeRecords, setApproval, setWindow } from "@/lib/seasonal/seasonalService";
 import { loginAs, ADMIN_USER, TEST_USER } from "./helpers";
-import { mockDb, supabaseMock } from "./supabaseMock";
+import { mockDb } from "./supabaseMock";
+import { OCCASION_VAR_NAMES } from "@/lib/seasonal/occasionAssets";
 
 type Ctx = ReturnType<typeof useSeasonalTheme>;
 let ctx: Ctx | undefined;
@@ -47,46 +48,9 @@ describe("seasonalService", () => {
     mockDb.tables.seasonal_theme_approvals = [
       { theme_id: "natal", approved: true, start_md: "11-20", end_md: null },
     ];
-    // título/emoji/dia (colunas novas) ausentes viram null
     expect(await fetchThemeRecords()).toEqual({
-      natal: { approved: true, start: "11-20", end: null, occasion: null, emoji: null, occasionMd: null },
+      natal: { approved: true, start: "11-20", end: null },
     });
-  });
-
-  it("lê título, emoji e dia definidos pelo admin", async () => {
-    mockDb.tables.seasonal_theme_approvals = [
-      { theme_id: "confete", approved: true, start_md: "10-01", end_md: "10-03", custom_occasion: "Festa do grupo", custom_emoji: "🥳", occasion_md: "10-03" },
-    ];
-    expect((await fetchThemeRecords()).confete).toEqual({
-      approved: true, start: "10-01", end: "10-03", occasion: "Festa do grupo", emoji: "🥳", occasionMd: "10-03",
-    });
-  });
-
-  it("sem as colunas novas (migration não rodou) cai para o período e depois para só a aprovação", async () => {
-    const real = supabaseMock.from.getMockImplementation()!;
-    const selects: string[] = [];
-    supabaseMock.from.mockImplementation((table: string) => {
-      const b = real(table);
-      return new Proxy(b, {
-        get(t, prop: string) {
-          if (prop !== "select") return t[prop];
-          return (cols: string) => {
-            selects.push(cols);
-            // 1ª e 2ª tentativas falham (colunas inexistentes); a 3ª funciona
-            if (selects.length < 3) return Promise.resolve({ data: null, error: { message: "column does not exist" } });
-            return t.select(cols);
-          };
-        },
-      });
-    });
-    mockDb.tables.seasonal_theme_approvals = [{ theme_id: "natal", approved: true }];
-    const r = await fetchThemeRecords();
-    expect(selects).toHaveLength(3);
-    expect(selects[0]).toContain("custom_occasion");
-    expect(selects[1]).not.toContain("custom_occasion");
-    expect(selects[2]).toBe("theme_id, approved");
-    expect(r.natal.approved).toBe(true);
-    supabaseMock.from.mockImplementation(real);
   });
 
   it("sem tabela/erro devolve vazio (nada aprovado)", async () => {
@@ -108,33 +72,6 @@ describe("seasonalService", () => {
   it("setWindow grava start/end (null restaura o padrão)", async () => {
     await setWindow("natal", null, null, "u1");
     expect(mockDb.writes[0].args[0]).toMatchObject({ start_md: null, end_md: null });
-  });
-});
-
-describe("setCustomization", () => {
-  it("grava título, emoji, dia e período de uma vez (null restaura o padrão)", async () => {
-    await setCustomization(
-      "confete",
-      { occasion: "Festa do grupo", emoji: "🥳", occasionMd: "10-03", start: "09-26", end: "10-03" },
-      "u1",
-    );
-    expect(mockDb.writes[0]).toMatchObject({ table: "seasonal_theme_approvals", op: "upsert" });
-    expect(mockDb.writes[0].args[0]).toMatchObject({
-      theme_id: "confete",
-      custom_occasion: "Festa do grupo",
-      custom_emoji: "🥳",
-      occasion_md: "10-03",
-      start_md: "09-26",
-      end_md: "10-03",
-    });
-    await setCustomization("confete", { occasion: null, emoji: null, occasionMd: null, start: null, end: null }, "u1");
-    expect(mockDb.writes[1].args[0]).toMatchObject({ custom_occasion: null, occasion_md: null, start_md: null });
-  });
-  it("devolve o erro do banco", async () => {
-    mockDb.errors.seasonal_theme_approvals = { message: "negado" };
-    expect(
-      await setCustomization("confete", { occasion: "x", emoji: null, occasionMd: null, start: null, end: null }, "u1"),
-    ).toEqual({ error: "negado" });
   });
 });
 
@@ -228,77 +165,126 @@ describe("SeasonalThemeProvider", () => {
     expect(ctx!.windows.natal).toEqual({ start: "11-20", end: "12-31" });
   });
 
-  it("o título, emoji e dia salvos pelo admin valem por cima do tema do código", async () => {
-    loginAs();
-    mockDb.tables.seasonal_theme_approvals = [
-      { theme_id: "confete", approved: true, start_md: "12-08", end_md: "12-12", custom_occasion: "Festa do grupo", custom_emoji: "🥳", occasion_md: "12-12" },
-    ];
-    mount();
-    await waitFor(() => expect(screen.getByTestId("active")).toHaveTextContent("confete"));
-    expect(ctx!.active).toMatchObject({ id: "confete", occasion: "Festa do grupo", emoji: "🥳", occasionMdOverride: "12-12" });
-    expect(ctx!.themes.find((t) => t.id === "confete")!.occasion).toBe("Festa do grupo");
-    expect(ctx!.themes.find((t) => t.id === "natal")!.occasion).toBe("Natal"); // os outros não mudam
-  });
+  describe("ocasiões criadas pelo admin", () => {
+    const row = (over: Record<string, unknown> = {}) => ({
+      id: "o1", title: "Dia do Amigo", emoji: "🤝", extras: ["🍻", "🎉"], day_md: "12-10", days_before: 2, jumble: false, enabled: true, ...over,
+    });
 
-  it("tema genérico ativo liga data-season-generic; os temas feitos à mão não", async () => {
-    loginAs();
-    mockDb.tables.seasonal_theme_approvals = [{ theme_id: "natal", approved: true }];
-    mount();
-    await waitFor(() => expect(screen.getByTestId("active")).toHaveTextContent("natal"));
-    expect(document.documentElement.dataset.seasonGeneric).toBeUndefined();
+    it("ocasião ativada e dentro do período liga sozinha, sem aprovação separada", async () => {
+      loginAs();
+      mockDb.tables.seasonal_occasions = [row()]; // 08–10/12; hoje é 10/12
+      mount();
+      await waitFor(() => expect(screen.getByTestId("active")).toHaveTextContent("oc:o1"));
+      expect(document.documentElement.dataset.season).toBe("ocasiao");
+      expect(ctx!.active).toMatchObject({ occasion: "Dia do Amigo", emoji: "🤝", occasionMdOverride: "12-10" });
+      expect(ctx!.occasions).toHaveLength(1);
+    });
 
-    vi.setSystemTime(new Date(2026, 10, 16)); // 16/11: Atenção à Dislexia
-    cleanup();
-    mockDb.tables.seasonal_theme_approvals = [{ theme_id: "letras", approved: true }];
-    mount();
-    await waitFor(() => expect(screen.getByTestId("active")).toHaveTextContent("letras"));
-    expect(document.documentElement.dataset.season).toBe("letras");
-    expect(document.documentElement.dataset.seasonGeneric).toBe("");
-  });
+    it("liga as variáveis CSS (tom, emoji e faixa) e as tira quando sai do ar", async () => {
+      loginAs();
+      mockDb.tables.seasonal_occasions = [row()];
+      mount();
+      await waitFor(() => expect(document.documentElement.dataset.season).toBe("ocasiao"));
+      const st = document.documentElement.style;
+      expect(st.getPropertyValue("--occ-emoji")).toBe('"🤝"');
+      expect(st.getPropertyValue("--p-h")).not.toBe("");
+      expect(st.getPropertyValue("--occ-garland")).toContain("data:image/svg+xml");
+      cleanup();
+      vi.setSystemTime(new Date(2026, 5, 1)); // fora do período
+      mount();
+      await act(async () => {});
+      for (const n of OCCASION_VAR_NAMES) expect(st.getPropertyValue(n)).toBe("");
+      expect(document.documentElement.dataset.season).toBeUndefined();
+    });
 
-  it("o tema da Dislexia entra sozinho em 16/11 depois de aprovado, e não nos dias vizinhos", async () => {
-    loginAs();
-    mockDb.tables.seasonal_theme_approvals = [{ theme_id: "letras", approved: true }];
-    vi.setSystemTime(new Date(2026, 10, 15));
-    mount();
-    await act(async () => {});
-    expect(screen.getByTestId("active")).toHaveTextContent("none");
-    cleanup();
-    vi.setSystemTime(new Date(2026, 10, 16));
-    mount();
-    await waitFor(() => expect(screen.getByTestId("active")).toHaveTextContent("letras"));
-    cleanup();
-    vi.setSystemTime(new Date(2026, 10, 17));
-    mount();
-    await act(async () => {});
-    expect(screen.getByTestId("active")).toHaveTextContent("none");
-  });
+    it("desativada ou fora do período não liga", async () => {
+      loginAs();
+      mockDb.tables.seasonal_occasions = [row({ enabled: false }), row({ id: "o2", day_md: "03-01" })];
+      mount();
+      await waitFor(() => expect(ctx?.occasions).toHaveLength(2));
+      expect(screen.getByTestId("active")).toHaveTextContent("none");
+    });
 
-  it("usuário comum não altera título/dia", async () => {
-    loginAs(TEST_USER);
-    mount();
-    await waitFor(() => expect(ctx).toBeDefined());
-    const c = { occasion: "x", emoji: null, occasionMd: null, start: null, end: null };
-    expect(await ctx!.updateCustomization("confete", c)).toEqual({ error: "Sem permissão" });
-    expect(mockDb.writes.filter((w) => w.table === "seasonal_theme_approvals")).toHaveLength(0);
-  });
+    it("tem prioridade sobre um tema pronto no mesmo dia", async () => {
+      loginAs();
+      mockDb.tables.seasonal_theme_approvals = [{ theme_id: "natal", approved: true }]; // 01–26/12
+      mockDb.tables.seasonal_occasions = [row()];
+      mount();
+      await waitFor(() => expect(screen.getByTestId("active")).toHaveTextContent("oc:o1"));
+    });
 
-  it("admin salva título e dia e o tema muda na hora", async () => {
-    loginAs(ADMIN_USER);
-    mount();
-    await waitFor(() => expect(ctx).toBeDefined());
-    await act(async () => {
-      const r = await ctx!.updateCustomization("confete", {
-        occasion: "Festa do grupo", emoji: "🥳", occasionMd: "12-12", start: "12-08", end: "12-12",
+    it("as ocasiões entram na lista de temas (pré-visualização, banner)", async () => {
+      loginAs();
+      mockDb.tables.seasonal_occasions = [row({ day_md: "03-01" })];
+      mount();
+      await waitFor(() => expect(ctx?.themes.some((t) => t.id === "oc:o1")).toBe(true));
+      expect(ctx!.themes.length).toBeGreaterThan(4);
+    });
+
+    it("admin pré-visualiza uma ocasião mesmo fora do período; usuário comum não", async () => {
+      loginAs(ADMIN_USER);
+      mockDb.tables.seasonal_occasions = [row({ day_md: "03-01" })];
+      mount();
+      await waitFor(() => expect(ctx?.occasions).toHaveLength(1));
+      act(() => ctx!.startPreview("oc:o1"));
+      await waitFor(() => expect(screen.getByTestId("active")).toHaveTextContent("oc:o1"));
+      act(() => ctx!.stopPreview());
+      await waitFor(() => expect(screen.getByTestId("active")).toHaveTextContent("none"));
+    });
+
+    it("usuário comum não cria, edita nem exclui", async () => {
+      loginAs(TEST_USER);
+      mount();
+      await waitFor(() => expect(ctx).toBeDefined());
+      expect(await ctx!.saveOccasion({ title: "x", emoji: "🎉", dayMd: "01-01" })).toEqual({ error: "Sem permissão" });
+      expect(await ctx!.removeOccasion("o1")).toEqual({ error: "Sem permissão" });
+      expect(mockDb.writes.filter((w) => w.table === "seasonal_occasions")).toHaveLength(0);
+    });
+
+    it("admin cria: valida, grava e a ocasião aparece/entra no ar na hora", async () => {
+      loginAs(ADMIN_USER);
+      mount();
+      await waitFor(() => expect(ctx).toBeDefined());
+      expect((await ctx!.saveOccasion({ title: " ", emoji: "🎉", dayMd: "12-10" })).error).toBe("Escreva um título.");
+      expect(mockDb.writes.filter((w) => w.table === "seasonal_occasions")).toHaveLength(0);
+      mockDb.tables.seasonal_occasions = [row()]; // o que o banco devolve ao inserir
+      await act(async () => {
+        const r = await ctx!.saveOccasion({ title: "Dia do Amigo", emoji: "🤝", extras: "🍻 🎉", dayMd: "12-10", daysBefore: 2 });
+        expect(r.error).toBeNull();
       });
-      expect(r).toEqual({ error: null });
+      expect(mockDb.writes.find((w) => w.table === "seasonal_occasions")!.op).toBe("insert");
+      expect(screen.getByTestId("active")).toHaveTextContent("oc:o1");
     });
-    expect(ctx!.themes.find((t) => t.id === "confete")).toMatchObject({ occasion: "Festa do grupo", emoji: "🥳", occasionMdOverride: "12-12" });
-    expect(ctx!.windows.confete).toEqual({ start: "12-08", end: "12-12" });
-    // restaurar o padrão
-    await act(async () => {
-      await ctx!.updateCustomization("confete", { occasion: null, emoji: null, occasionMd: null, start: null, end: null });
+
+    it("admin edita (atualiza a lista) e exclui", async () => {
+      loginAs(ADMIN_USER);
+      mockDb.tables.seasonal_occasions = [row()];
+      mount();
+      await waitFor(() => expect(ctx?.occasions).toHaveLength(1));
+      mockDb.tables.seasonal_occasions = [row({ title: "Dia do Amigo 2" })];
+      await act(async () => {
+        await ctx!.saveOccasion({ id: "o1", title: "Dia do Amigo 2", emoji: "🤝", dayMd: "12-10" });
+      });
+      expect(ctx!.occasions[0].title).toBe("Dia do Amigo 2");
+      expect(mockDb.writes.find((w) => w.table === "seasonal_occasions")!.op).toBe("update");
+      await act(async () => {
+        expect(await ctx!.removeOccasion("o1")).toEqual({ error: null });
+      });
+      expect(ctx!.occasions).toHaveLength(0);
+      expect(screen.getByTestId("active")).toHaveTextContent("none");
     });
-    expect(ctx!.themes.find((t) => t.id === "confete")!.occasion).toBe("Carnaval");
+
+    it("erro do banco ao salvar volta para a tela e não muda a lista", async () => {
+      loginAs(ADMIN_USER);
+      mount();
+      await waitFor(() => expect(ctx).toBeDefined());
+      mockDb.errors.seasonal_occasions = { message: "permission denied" };
+      let r: { error: string | null } | undefined;
+      await act(async () => {
+        r = await ctx!.saveOccasion({ title: "x", emoji: "🎉", dayMd: "01-01" });
+      });
+      expect(r!.error).toBe("permission denied");
+      expect(ctx!.occasions).toHaveLength(0);
+    });
   });
 });

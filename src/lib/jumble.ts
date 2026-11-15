@@ -13,7 +13,7 @@ function rand(text: string, i: number, salt: number): number {
 /** Deslocamento e giro (pequenos e estáveis) de cada letra de `text`. */
 export function jumbleOffsets(text: string): { rotate: number; dy: number }[] {
   return Array.from(text).map((_, i) => ({
-    rotate: Math.round((rand(text, i, 1) * 2 - 1) * 9), // -9° a 9°
-    dy: Math.round((rand(text, i, 2) * 2 - 1) * 2), // -2px a 2px
+    rotate: Math.round((rand(text, i, 1) * 2 - 1) * 5), // -5° a 5°
+    dy: Math.round((rand(text, i, 2) * 2 - 1) * 1.5 * 10) / 10, // -1,5px a 1,5px
   }));
 }
