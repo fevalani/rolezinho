@@ -10,6 +10,7 @@ import {
   occasionMdFor,
   effectiveWindow,
   getTheme,
+  applyOverride,
   SEASONAL_THEMES,
 } from "@/lib/seasonal/themes";
 
@@ -112,5 +113,73 @@ describe("catálogo de temas", () => {
       expect(isValidMd(t.datesFor(2026).occasionMd)).toBe(true);
       expect(t.swatches.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("visuais genéricos reaproveitáveis", () => {
+  const generic = SEASONAL_THEMES.filter((t) => t.generic);
+
+  it("há 10 visuais genéricos prontos, com nomes e ids únicos", () => {
+    expect(generic).toHaveLength(10);
+    expect(new Set(generic.map((t) => t.name)).size).toBe(10);
+    expect(new Set(SEASONAL_THEMES.map((t) => t.name)).size).toBe(SEASONAL_THEMES.length);
+  });
+
+  it("Atenção à Dislexia: só 16/11, letras embaralhadas no selo", () => {
+    const letras = getTheme("letras")!;
+    expect(letras.occasion).toBe("Atenção à Dislexia");
+    expect(letras.jumble).toBe(true);
+    expect(defaultWindowFor(letras, 2026)).toEqual({ start: "11-16", end: "11-16" });
+    expect(occasionMdFor(letras, new Date(2026, 10, 10))).toBe("11-16");
+    // só esse tema embaralha
+    expect(SEASONAL_THEMES.filter((t) => t.jumble).map((t) => t.id)).toEqual(["letras"]);
+  });
+
+  it("Carnaval acompanha a Páscoa: de sexta a terça (47 dias antes da Páscoa)", () => {
+    const c = getTheme("confete")!;
+    expect(c.movable).toBe(true);
+    expect(defaultWindowFor(c, 2026)).toEqual({ start: "02-13", end: "02-17" }); // Páscoa 05/04/2026
+    expect(defaultWindowFor(c, 2027)).toEqual({ start: "02-05", end: "02-09" }); // Páscoa 28/03/2027
+    expect(c.datesFor(2027).occasionMd).toBe("02-09");
+  });
+
+  it("as janelas padrão não se sobrepõem (em 2026–2028), então nunca competem", () => {
+    for (const year of [2026, 2027, 2028]) {
+      for (let day = 0; day < 366; day++) {
+        const d = new Date(year, 0, 1 + day);
+        if (d.getFullYear() !== year) break;
+        const on = SEASONAL_THEMES.filter((t) => isInWindow(d, defaultWindowFor(t, year)));
+        expect(on.map((t) => t.id), toMd(d)).toSatisfy((ids: string[]) => ids.length <= 1);
+      }
+    }
+  });
+});
+
+describe("applyOverride (título, emoji e dia salvos pelo admin)", () => {
+  const confete = getTheme("confete")!;
+
+  it("sem override devolve o próprio tema", () => {
+    expect(applyOverride(confete, null)).toBe(confete);
+    expect(applyOverride(confete, undefined)).toBe(confete);
+  });
+  it("troca título, emoji e dia; o resto do visual continua", () => {
+    const t = applyOverride(confete, { occasion: "  Festa do grupo ", emoji: "🥳", occasionMd: "10-03" });
+    expect(t).toMatchObject({ id: "confete", name: "Confete", occasion: "Festa do grupo", emoji: "🥳", occasionMdOverride: "10-03" });
+    expect(occasionMdFor(t, new Date(2026, 0, 1))).toBe("10-03");
+  });
+  it("campos vazios ou inválidos caem no padrão do tema", () => {
+    const t = applyOverride(confete, { occasion: "   ", emoji: "", occasionMd: "99-99" });
+    expect(t.occasion).toBe("Carnaval");
+    expect(t.emoji).toBe("🎊");
+    expect(t.occasionMdOverride).toBeUndefined();
+  });
+  it("limita o tamanho do título e do emoji", () => {
+    const t = applyOverride(confete, { occasion: "x".repeat(200), emoji: "y".repeat(50) });
+    expect(t.occasion).toHaveLength(60);
+    expect(t.emoji).toHaveLength(12);
+  });
+  it("o dia definido pelo admin vale mesmo num tema móvel (fixo, como o período)", () => {
+    const t = applyOverride(confete, { occasionMd: "05-01" });
+    expect(occasionMdFor(t, new Date(2026, 8, 1))).toBe("05-01");
   });
 });

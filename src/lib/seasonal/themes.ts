@@ -36,6 +36,41 @@ export interface SeasonalTheme {
   swatches: string[];
   /** Decorações usadas, para a tela de admin. */
   decorations: string[];
+  /** Visual genérico (paleta + decoração por variáveis CSS em generic.css): serve para
+   *  qualquer ocasião — o admin troca título, emoji e dia em /temas. */
+  generic?: boolean;
+  /** O título do selo da Home é desenhado com as letras levemente "embaralhadas"
+   *  (só visual: o texto continua legível e acessível). */
+  jumble?: boolean;
+  /** Dia comemorativo definido pelo admin ("MM-DD"); vale no lugar do padrão. */
+  occasionMdOverride?: string;
+}
+
+/** O que o admin pode trocar num tema sem mexer no código. */
+export interface ThemeOverride {
+  occasion?: string | null;
+  emoji?: string | null;
+  occasionMd?: string | null;
+}
+
+export const MAX_OCCASION_LENGTH = 60;
+export const MAX_EMOJI_LENGTH = 12;
+
+/** Aplica o que o admin salvou (título, emoji, dia) por cima do tema do código. */
+export function applyOverride(
+  theme: SeasonalTheme,
+  o?: ThemeOverride | null,
+): SeasonalTheme {
+  if (!o) return theme;
+  const occasion = o.occasion?.trim().slice(0, MAX_OCCASION_LENGTH);
+  const emoji = o.emoji?.trim().slice(0, MAX_EMOJI_LENGTH);
+  return {
+    ...theme,
+    occasion: occasion || theme.occasion,
+    emoji: emoji || theme.emoji,
+    occasionMdOverride:
+      o.occasionMd && isValidMd(o.occasionMd) ? o.occasionMd : undefined,
+  };
 }
 
 export interface ThemeWindow {
@@ -130,6 +165,17 @@ const easterDates = (year: number): ThemeDates => {
   };
 };
 
+/** Carnaval: de sexta a terça (terça = 47 dias antes da Páscoa). */
+const carnavalDates = (year: number): ThemeDates => {
+  const easter = easterSunday(year);
+  const tuesday = addDays(easter, -47);
+  return {
+    start: toMd(addDays(easter, -51)),
+    end: toMd(tuesday),
+    occasionMd: toMd(tuesday),
+  };
+};
+
 /** Período padrão do tema no ano. */
 export const defaultWindowFor = (
   theme: SeasonalTheme,
@@ -142,6 +188,7 @@ export const defaultWindowFor = (
 /** Data comemorativa a exibir: a próxima ocorrência a partir de `today`
  *  (Páscoa deste ano já passou? mostra a do ano que vem). */
 export function occasionMdFor(theme: SeasonalTheme, today = new Date()): string {
+  if (theme.occasionMdOverride) return theme.occasionMdOverride;
   const year = today.getFullYear();
   const md = theme.datesFor(year).occasionMd;
   if (!theme.movable || md >= toMd(today)) return md;
@@ -228,6 +275,172 @@ export const SEASONAL_THEMES: SeasonalTheme[] = [
       "Ovos de Páscoa pendurados sob o cabeçalho",
       "Fio de flores no topo da Home",
       "Ovo pintado nos títulos das categorias",
+    ],
+  },
+  // ── Visuais genéricos: título, emoji e dia são editáveis em /temas ──
+  // O que está aqui é só a sugestão inicial de ocasião de cada visual.
+  {
+    id: "letras",
+    name: "Letras embaralhadas",
+    emoji: "🔤",
+    occasion: "Atenção à Dislexia",
+    jumble: true,
+    generic: true,
+    datesFor: fixedDates("11-16", "11-16", "11-16"),
+    description:
+      "Verde-petróleo e âmbar, com letras espalhadas e viradas (b, d, p, q) e o título do selo levemente embaralhado. Só decoração: o texto do app continua legível.",
+    swatches: ["#0b2227", "#ffb347", "#f4efe4", "#ff7a6b"],
+    decorations: [
+      "Letras viradas na logo e no avatar do menu",
+      "Faixa de letras embaralhadas sob o cabeçalho",
+      "Faixa de letras no topo da Home",
+      "Par de letras nos títulos das categorias",
+      "Título do selo da Home com as letras levemente fora do lugar",
+    ],
+  },
+  {
+    id: "confete",
+    name: "Confete",
+    emoji: "🎊",
+    occasion: "Carnaval",
+    movable: true,
+    generic: true,
+    datesFor: carnavalDates,
+    description: "Roxo-festa e rosa-choque, com confete, serpentina e balões.",
+    swatches: ["#1a0b2e", "#ff5ea8", "#fff5fb", "#ffd23f"],
+    decorations: [
+      "Máscara na logo e no avatar do menu",
+      "Faixa de confete e balões sob o cabeçalho",
+      "Faixa de música e brilhos no topo da Home",
+      "Confete nos títulos das categorias",
+    ],
+  },
+  {
+    id: "coracao",
+    name: "Corações",
+    emoji: "💘",
+    occasion: "Dia dos Namorados",
+    generic: true,
+    datesFor: fixedDates("06-09", "06-12", "06-12"),
+    description: "Vinho e rosa-coral, com corações de vários tipos.",
+    swatches: ["#2a0a14", "#ff6b81", "#fff0f2", "#ffb3c1"],
+    decorations: [
+      "Coração flechado na logo e no avatar do menu",
+      "Faixa de corações sob o cabeçalho",
+      "Faixa de corações e brilhos no topo da Home",
+      "Coração nos títulos das categorias",
+    ],
+  },
+  {
+    id: "junina",
+    name: "Bandeirinhas juninas",
+    emoji: "🌽",
+    occasion: "Festa Junina",
+    generic: true,
+    datesFor: fixedDates("06-13", "06-24", "06-24"),
+    description: "Marrom-fogueira e amarelo-milho, com chapéu de palha, milho, fogueira e balões.",
+    swatches: ["#2b1608", "#ffb020", "#fff6e3", "#e0562b"],
+    decorations: [
+      "Chapéu de palha na logo e no avatar do menu",
+      "Faixa de milho, fogueira e balões sob o cabeçalho",
+      "Faixa de fogos no topo da Home",
+      "Fogueira nos títulos das categorias",
+    ],
+  },
+  {
+    id: "folhas",
+    name: "Folhas",
+    emoji: "🌳",
+    occasion: "Dia da Árvore",
+    generic: true,
+    datesFor: fixedDates("09-14", "09-21", "09-21"),
+    description: "Verde-floresta e verde-limão, com folhas, brotos e trevos.",
+    swatches: ["#0a1f12", "#7bdc8a", "#eefbe9", "#c8f08f"],
+    decorations: [
+      "Folha na logo e no avatar do menu",
+      "Faixa de folhas sob o cabeçalho",
+      "Faixa de trevos e flores no topo da Home",
+      "Árvore nos títulos das categorias",
+    ],
+  },
+  {
+    id: "oceano",
+    name: "Oceano",
+    emoji: "🌊",
+    occasion: "Dia Mundial dos Oceanos",
+    generic: true,
+    datesFor: fixedDates("06-05", "06-08", "06-08"),
+    description: "Azul-profundo e ciano, com ondas, peixes, conchas e bolhas.",
+    swatches: ["#06202e", "#4cc9f0", "#e8f9ff", "#f4d35e"],
+    decorations: [
+      "Âncora na logo e no avatar do menu",
+      "Faixa de ondas, peixes e conchas sob o cabeçalho",
+      "Faixa de bolhas no topo da Home",
+      "Concha nos títulos das categorias",
+    ],
+  },
+  {
+    id: "estrelas",
+    name: "Céu estrelado",
+    emoji: "⭐",
+    occasion: "Dia do Amigo",
+    generic: true,
+    datesFor: fixedDates("07-13", "07-20", "07-20"),
+    description: "Azul-noite e dourado, com estrelas, lua e cometas.",
+    swatches: ["#0a0e2a", "#ffd86b", "#f4f6ff", "#8b9cff"],
+    decorations: [
+      "Estrela na logo e no avatar do menu",
+      "Faixa de estrelas e lua sob o cabeçalho",
+      "Faixa de cometas no topo da Home",
+      "Estrela nos títulos das categorias",
+    ],
+  },
+  {
+    id: "noite",
+    name: "Noite roxa",
+    emoji: "🎃",
+    occasion: "Halloween",
+    generic: true,
+    datesFor: fixedDates("10-25", "10-31", "10-31"),
+    description: "Roxo-noite e laranja-abóbora, com abóboras, morcegos, teias e fantasmas.",
+    swatches: ["#160d22", "#ff8a1f", "#fbeee0", "#7c4dff"],
+    decorations: [
+      "Abóbora na logo e no avatar do menu",
+      "Faixa de teias, morcegos e abóboras sob o cabeçalho",
+      "Faixa de fantasmas e velas no topo da Home",
+      "Morcego nos títulos das categorias",
+    ],
+  },
+  {
+    id: "doce",
+    name: "Doces",
+    emoji: "🍭",
+    occasion: "Dia das Crianças",
+    generic: true,
+    datesFor: fixedDates("10-05", "10-12", "10-12"),
+    description: "Ameixa e rosa-algodão-doce, com pirulitos, balas, cupcakes e balões.",
+    swatches: ["#2a1021", "#ff9ad5", "#fff0fa", "#9ad8ff"],
+    decorations: [
+      "Pirulito na logo e no avatar do menu",
+      "Faixa de doces sob o cabeçalho",
+      "Faixa de balões no topo da Home",
+      "Bala nos títulos das categorias",
+    ],
+  },
+  {
+    id: "retro",
+    name: "Terminal retrô",
+    emoji: "💻",
+    occasion: "Dia do Programador",
+    generic: true,
+    datesFor: fixedDates("09-13", "09-13", "09-13"),
+    description: "Preto-terminal e verde-fósforo, com pixels, joystick e disquete.",
+    swatches: ["#07120a", "#39ff88", "#d9ffe6", "#ffd23f"],
+    decorations: [
+      "Computador na logo e no avatar do menu",
+      "Faixa de pixels e joysticks sob o cabeçalho",
+      "Faixa de disquetes no topo da Home",
+      "Alien de pixel nos títulos das categorias",
     ],
   },
 ];

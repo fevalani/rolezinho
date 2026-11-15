@@ -51,7 +51,7 @@ Registro dos módulos exibidos na Home: `APP_FEATURES` em [src/lib/types.ts](../
 | --- | --- | --- | --- |
 | `/` | `pages/HomePage` | `profiles` | — |
 | `/profile` | `pages/ProfilePage` | `profiles`, bucket `avatars` | — |
-| `/temas` | `pages/ThemesAdminPage` + `lib/seasonal` | `seasonal_theme_approvals` | só admin |
+| `/temas` | `pages/ThemesAdminPage` + `lib/seasonal` | `seasonal_theme_approvals` (+ `seasonal_themes_custom_migration.sql` para título/emoji/dia) | só admin |
 | `/dados` | `taverna` — rolador de dados (d4 a d100) | `dice_rolls` | — |
 | `/racha-conta` | `racha-conta` — divisão de despesas | `split_groups`, `split_group_members`, `split_expenses`, `split_expense_participants`, `split_payments`; RPC `create_split_group` | — |
 | `/aniversarios` | `aniversarios` — próximos aniversários | `profiles.birthday` | — |
@@ -67,7 +67,7 @@ Registro dos módulos exibidos na Home: `APP_FEATURES` em [src/lib/types.ts](../
 
 Outras tabelas transversais: `profiles` (inclui `app_version`, `app_last_seen_at`, `hidden_features`, `theme`, `home_layout`), `push_tokens`.
 
-Temas sazonais (`src/lib/seasonal/themes.ts`): `natal`, `republica`, `anonovo`, `pascoa`. Só ligam sozinhos se aprovados no banco e dentro da janela de datas.
+Temas sazonais (`src/lib/seasonal/themes.ts`): feitos à mão (`natal`, `republica`, `anonovo`, `pascoa`) e **10 visuais genéricos reaproveitáveis** (`letras` = Atenção à Dislexia 16/11, `confete` = Carnaval, `coracao`, `junina`, `folhas`, `oceano`, `estrelas`, `noite`, `doce`, `retro`). Só ligam sozinhos se aprovados no banco e dentro da janela de datas. Nos genéricos o admin troca **título, emoji, dia e antecedência** em `/temas` ("Reaproveitar este visual"), sem deploy: fica em `seasonal_theme_approvals` (`custom_occasion`, `custom_emoji`, `occasion_md`, `start_md`, `end_md`). Paleta/decoração em `styles/seasons/generic.css` (variáveis `--p-*` e `--decor-*`; light e dark derivados com `color-mix`); `letras` tem SVGs próprios em `public/seasons/letras/` e o título do selo usa `JumbledText` (letras levemente fora do lugar, só visual).
 
 ## 5. Autenticação e papéis
 

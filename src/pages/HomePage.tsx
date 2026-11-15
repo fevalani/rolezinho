@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { Avatar } from "@/components/Avatar";
 import { useSeasonalTheme } from "@/lib/seasonal/SeasonalThemeContext";
 import { formatMdLong, occasionMdFor } from "@/lib/seasonal/themes";
+import { JumbledText } from "@/components/JumbledText";
 
 interface TodayBirthday {
   id: string;
@@ -140,7 +141,11 @@ export function HomePage() {
             </span>
             <span className="flex flex-col min-w-0 leading-tight">
               <span className="text-[0.8rem] font-semibold text-white truncate">
-                {seasonTheme.occasion}
+                {seasonTheme.jumble ? (
+                  <JumbledText text={seasonTheme.occasion} />
+                ) : (
+                  seasonTheme.occasion
+                )}
               </span>
               <span className="text-[0.68rem] text-white/75">
                 {formatMdLong(occasionMdFor(seasonTheme))}

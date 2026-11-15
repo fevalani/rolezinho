@@ -1,0 +1,252 @@
+/* Temas genéricos (data-season="<id>" + data-season-generic no <html>).
+   Cada visual define só poucas variáveis (--p-*, --decor-*); a paleta completa e as
+   decorações são derivadas aqui, uma vez. O admin reaproveita o visual para qualquer
+   ocasião trocando título, emoji e dia em /temas (ver src/lib/seasonal/themes.ts).
+
+   Variáveis por visual:
+     --p-bg / --p-accent / --p-text                      escuro: fundo, destaque, texto
+     --p-light-bg / --p-light-accent / --p-light-text    claro
+     --decor-hat    emoji sobre a logo e o avatar do menu
+     --decor-mark   emoji ao lado dos títulos das categorias
+     --decor-strip  faixa sob o cabeçalho
+     --decor-lights faixa no topo da Home */
+
+/* ── Paleta derivada — escuro ── */
+:root[data-season-generic] {
+  --bg-abyss: color-mix(in oklab, var(--p-bg) 65%, black);
+  --bg-deep: var(--p-bg);
+  --bg-primary: color-mix(in oklab, var(--p-bg) 93%, white);
+  --bg-card: color-mix(in oklab, var(--p-bg) 87%, white);
+  --bg-elevated: color-mix(in oklab, var(--p-bg) 81%, white);
+  --bg-hover: color-mix(in oklab, var(--p-bg) 74%, white);
+
+  --gold-dark: color-mix(in oklab, var(--p-accent) 62%, black);
+  --gold: var(--p-accent);
+  --gold-bright: color-mix(in oklab, var(--p-accent) 78%, white);
+  --gold-glow: color-mix(in oklab, var(--p-accent) 52%, white);
+
+  --text-primary: var(--p-text);
+  --text-secondary: color-mix(in oklab, var(--p-text) 68%, var(--p-bg));
+  --text-muted: color-mix(in oklab, var(--p-text) 44%, var(--p-bg));
+
+  --shadow-gold: 0 0 24px color-mix(in oklab, var(--p-accent) 20%, transparent);
+}
+
+/* ── Paleta derivada — claro ── */
+:root[data-season-generic][data-theme="light"] {
+  --bg-abyss: color-mix(in oklab, var(--p-light-bg) 92%, var(--p-light-accent));
+  --bg-deep: #ffffff;
+  --bg-primary: var(--p-light-bg);
+  --bg-card: #ffffff;
+  --bg-elevated: color-mix(in oklab, var(--p-light-bg) 90%, var(--p-light-accent));
+  --bg-hover: color-mix(in oklab, var(--p-light-bg) 80%, var(--p-light-accent));
+
+  --gold-dark: color-mix(in oklab, var(--p-light-accent) 80%, black);
+  --gold: var(--p-light-accent);
+  --gold-bright: color-mix(in oklab, var(--p-light-accent) 80%, white);
+  --gold-glow: color-mix(in oklab, var(--p-light-accent) 50%, white);
+
+  --text-primary: var(--p-light-text);
+  --text-secondary: color-mix(in oklab, var(--p-light-text) 72%, white);
+  --text-muted: color-mix(in oklab, var(--p-light-text) 50%, white);
+
+  --shadow-gold: 0 0 24px color-mix(in oklab, var(--p-light-accent) 16%, transparent);
+}
+
+/* ── Decorações por emoji (os visuais sem SVG próprio) ── */
+
+/* Sobre a logo / avatar do menu — canto superior direito */
+[data-season-generic] [data-decor="hat"] {
+  position: relative;
+}
+[data-season-generic] [data-decor="hat"]::after {
+  content: var(--decor-hat, none);
+  position: absolute;
+  top: -48%;
+  right: 6%;
+  font-size: 0.95em;
+  line-height: 1;
+  transform: rotate(10deg);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Ao lado do título de categoria */
+[data-season-generic] [data-decor="stocking"] {
+  position: relative;
+  padding-right: 28px;
+}
+[data-season-generic] [data-decor="stocking"]::after {
+  content: var(--decor-mark, none);
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  font-size: 17px;
+  line-height: 1;
+  transform: translateY(-50%) rotate(-8deg);
+  pointer-events: none;
+}
+
+/* Faixa logo abaixo do cabeçalho */
+[data-season-generic] [data-decor="garland"]::after {
+  content: var(--decor-strip, none);
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 22px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 14px;
+  line-height: 22px;
+  letter-spacing: 0.55em;
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Faixa no topo do hero da Home */
+[data-season-generic] [data-decor="lights"]::after {
+  content: var(--decor-lights, none);
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 28px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 16px;
+  line-height: 28px;
+  letter-spacing: 0.7em;
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ── Os visuais ── */
+
+:root[data-season="letras"] {
+  --p-bg: #0b2227;
+  --p-accent: #ffb347;
+  --p-text: #f4efe4;
+  --p-light-bg: #fbf6e6;
+  --p-light-accent: #b45309;
+  --p-light-text: #2a2a2a;
+}
+
+:root[data-season="confete"] {
+  --p-bg: #1a0b2e;
+  --p-accent: #ff5ea8;
+  --p-text: #fff5fb;
+  --p-light-bg: #fff4fa;
+  --p-light-accent: #c2185b;
+  --p-light-text: #2a1030;
+  --decor-hat: "🎭";
+  --decor-mark: "🎊";
+  --decor-strip: "🎊🎉🎈🎊🎉🎈🎶🎊🎉🎈";
+  --decor-lights: "🎶🎊✨🎶🎊✨🎶🎊✨";
+}
+
+:root[data-season="coracao"] {
+  --p-bg: #2a0a14;
+  --p-accent: #ff6b81;
+  --p-text: #fff0f2;
+  --p-light-bg: #fff0f3;
+  --p-light-accent: #c0213a;
+  --p-light-text: #3a0f18;
+  --decor-hat: "💘";
+  --decor-mark: "❤️";
+  --decor-strip: "💗💕💖💗💕💖💗💕💖";
+  --decor-lights: "💞💝✨💞💝✨💞💝✨";
+}
+
+:root[data-season="junina"] {
+  --p-bg: #2b1608;
+  --p-accent: #ffb020;
+  --p-text: #fff6e3;
+  --p-light-bg: #fff3dc;
+  --p-light-accent: #b45309;
+  --p-light-text: #3a2208;
+  --decor-hat: "👒";
+  --decor-mark: "🔥";
+  --decor-strip: "🌽🔥🎏🌽🔥🎏🌽🔥🎏";
+  --decor-lights: "✨🎇✨🎆✨🎇✨🎆✨";
+}
+
+:root[data-season="folhas"] {
+  --p-bg: #0a1f12;
+  --p-accent: #7bdc8a;
+  --p-text: #eefbe9;
+  --p-light-bg: #effaec;
+  --p-light-accent: #1f7a3a;
+  --p-light-text: #12301c;
+  --decor-hat: "🍃";
+  --decor-mark: "🌳";
+  --decor-strip: "🌿🍃🌱🌿🍃🌱🌿🍃🌱";
+  --decor-lights: "🍀🍃🌼🍀🍃🌼🍀🍃🌼";
+}
+
+:root[data-season="oceano"] {
+  --p-bg: #06202e;
+  --p-accent: #4cc9f0;
+  --p-text: #e8f9ff;
+  --p-light-bg: #eaf8ff;
+  --p-light-accent: #0369a1;
+  --p-light-text: #0b2a3c;
+  --decor-hat: "⚓";
+  --decor-mark: "🐚";
+  --decor-strip: "🌊🐠🌊🐚🌊🐟🌊🐚🌊";
+  --decor-lights: "🫧🌊🫧🌊🫧🌊🫧🌊🫧";
+}
+
+:root[data-season="estrelas"] {
+  --p-bg: #0a0e2a;
+  --p-accent: #ffd86b;
+  --p-text: #f4f6ff;
+  --p-light-bg: #f1f3ff;
+  --p-light-accent: #4f46e5;
+  --p-light-text: #1a1d44;
+  --decor-hat: "⭐";
+  --decor-mark: "🌟";
+  --decor-strip: "✨⭐✨🌙✨⭐✨🌙✨";
+  --decor-lights: "🌠✨⭐🌠✨⭐🌠✨⭐";
+}
+
+:root[data-season="noite"] {
+  --p-bg: #160d22;
+  --p-accent: #ff8a1f;
+  --p-text: #fbeee0;
+  --p-light-bg: #fff1e3;
+  --p-light-accent: #b8540a;
+  --p-light-text: #2a1608;
+  --decor-hat: "🎃";
+  --decor-mark: "🦇";
+  --decor-strip: "🕸️🦇🎃🕸️🦇🎃🕸️🦇🎃";
+  --decor-lights: "👻🕯️👻🕯️👻🕯️👻🕯️👻";
+}
+
+:root[data-season="doce"] {
+  --p-bg: #2a1021;
+  --p-accent: #ff9ad5;
+  --p-text: #fff0fa;
+  --p-light-bg: #fff0f8;
+  --p-light-accent: #be2f8a;
+  --p-light-text: #3a1030;
+  --decor-hat: "🍭";
+  --decor-mark: "🍬";
+  --decor-strip: "🍭🍬🧁🍩🍭🍬🧁🍩🍭";
+  --decor-lights: "🎈🍭🎈🍭🎈🍭🎈🍭🎈";
+}
+
+:root[data-season="retro"] {
+  --p-bg: #07120a;
+  --p-accent: #39ff88;
+  --p-text: #d9ffe6;
+  --p-light-bg: #eafff1;
+  --p-light-accent: #087a3d;
+  --p-light-text: #0a2a14;
+  --decor-hat: "💻";
+  --decor-mark: "👾";
+  --decor-strip: "👾🕹️💾👾🕹️💾👾🕹️💾";
+  --decor-lights: "💾🕹️👾💾🕹️👾💾🕹️👾";
+}

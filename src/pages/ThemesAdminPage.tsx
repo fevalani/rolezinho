@@ -2,20 +2,28 @@ import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { isAdminUser } from "@/lib/admin";
+import { MdPicker } from "@/components/MdPicker";
+import { ThemeCustomizer } from "@/components/ThemeCustomizer";
 import {
   SEASONAL_THEMES,
   defaultWindowFor,
   formatMd,
+  formatMdLong,
   isInWindow,
   isValidMd,
+  occasionMdFor,
 } from "@/lib/seasonal/themes";
-import { useSeasonalTheme } from "@/lib/seasonal/SeasonalThemeContext";
+import {
+  useSeasonalTheme,
+  type ThemeCustomization,
+} from "@/lib/seasonal/SeasonalThemeContext";
 
 /** Tela de admin: lista os temas sazonais, pré-visualiza e aprova. */
 export function ThemesAdminPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const {
+    themes,
     approvals,
     windows,
     previewId,
@@ -23,6 +31,7 @@ export function ThemesAdminPage() {
     stopPreview,
     approve,
     updateWindow,
+    updateCustomization,
   } = useSeasonalTheme();
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
@@ -61,6 +70,23 @@ export function ThemesAdminPage() {
         ? `✓ Período salvo: ${formatMd(start)} a ${formatMd(end)}`
         : `✓ Período restaurado para o padrão${def ? ` (${formatMd(def.start)} a ${formatMd(def.end)})` : ""}`,
     );
+  };
+
+  const saveCustomization = async (id: string, c: ThemeCustomization, label: string) => {
+    setBusy(id);
+    setMsg("");
+    setOk("");
+    const { error } = await updateCustomization(id, c);
+    setBusy(null);
+    if (error) {
+      setMsg(
+        error.includes("custom_") || error.includes("occasion_md")
+          ? "Colunas de título/dia não existem — rode supabase/seasonal_themes_custom_migration.sql."
+          : `Erro ao salvar: ${error}`,
+      );
+      return;
+    }
+    setOk(label);
   };
 
   const toggleApproval = async (id: string, value: boolean) => {
@@ -102,12 +128,20 @@ export function ThemesAdminPage() {
       )}
 
       <div className="flex flex-col gap-3">
-        {SEASONAL_THEMES.map((t) => {
+        {themes.map((t) => {
           const approved = !!approvals[t.id];
           const win = windows[t.id];
           const def = defaultWindowFor(t);
           const inWindow = isInWindow(today, win);
           const previewing = previewId === t.id;
+          const day = occasionMdFor(t);
+          const base = SEASONAL_THEMES.find((x) => x.id === t.id)!;
+          const customized =
+            t.occasion !== base.occasion ||
+            t.emoji !== base.emoji ||
+            !!t.occasionMdOverride ||
+            win.start !== def.start ||
+            win.end !== def.end;
           return (
             <div
               key={t.id}
@@ -137,6 +171,35 @@ export function ThemesAdminPage() {
               <p className="text-sm text-(--text-secondary) mt-2">
                 {t.description}
               </p>
+              {t.generic && (
+                <p className="text-xs text-(--text-muted) mt-1">
+                  No selo da Home: {t.emoji} {t.occasion} · {formatMdLong(day)}
+                </p>
+              )}
+              {t.generic && (
+                <ThemeCustomizer
+                  key={`${t.id}-${t.occasion}-${t.emoji}-${day}-${win.start}`}
+                  theme={t}
+                  day={day}
+                  startMd={win.start}
+                  customized={customized}
+                  busy={busy === t.id}
+                  onSave={(c) =>
+                    saveCustomization(
+                      t.id,
+                      c,
+                      `✓ Salvo: ${c.occasion} em ${formatMdLong(c.occasionMd!)}`,
+                    )
+                  }
+                  onReset={() =>
+                    saveCustomization(
+                      t.id,
+                      { occasion: null, emoji: null, occasionMd: null, start: null, end: null },
+                      "✓ Visual restaurado para o padrão",
+                    )
+                  }
+                />
+              )}
               <WindowEditor
                 key={`${t.id}-${win.start}-${win.end}`}
                 start={win.start}
@@ -205,74 +268,6 @@ export function ThemesAdminPage() {
         })}
       </div>
     </div>
-  );
-}
-
-const MONTHS = [
-  "janeiro",
-  "fevereiro",
-  "março",
-  "abril",
-  "maio",
-  "junho",
-  "julho",
-  "agosto",
-  "setembro",
-  "outubro",
-  "novembro",
-  "dezembro",
-];
-const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-const pad2 = (n: number) => String(n).padStart(2, "0");
-
-/** Seletor de dia + mês (sem ano). Atualiza na hora, sem janela nativa. */
-function MdPicker({
-  value,
-  onChange,
-  label,
-}: {
-  value: string; // "MM-DD"
-  onChange: (md: string) => void;
-  label: string;
-}) {
-  const month = Number(value.slice(0, 2));
-  const day = Number(value.slice(3, 5));
-  const maxDay = DAYS_IN_MONTH[month - 1];
-  const cls =
-    "input-field !w-auto !py-1 !px-2 text-sm";
-
-  return (
-    <span className="inline-flex items-center gap-1">
-      <select
-        aria-label={`${label} — dia`}
-        className={cls}
-        value={day}
-        onChange={(e) => onChange(`${pad2(month)}-${pad2(Number(e.target.value))}`)}
-      >
-        {Array.from({ length: maxDay }, (_, i) => i + 1).map((d) => (
-          <option key={d} value={d}>
-            {d}
-          </option>
-        ))}
-      </select>
-      <span className="text-xs text-(--text-muted)">de</span>
-      <select
-        aria-label={`${label} — mês`}
-        className={cls}
-        value={month}
-        onChange={(e) => {
-          const m = Number(e.target.value);
-          const d = Math.min(day, DAYS_IN_MONTH[m - 1]);
-          onChange(`${pad2(m)}-${pad2(d)}`);
-        }}
-      >
-        {MONTHS.map((name, i) => (
-          <option key={name} value={i + 1}>
-            {name}
-          </option>
-        ))}
-      </select>
-    </span>
   );
 }
 

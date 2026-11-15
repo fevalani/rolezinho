@@ -1,12 +1,11 @@
 import { useNavigate } from "react-router-dom";
 import { useSeasonalTheme } from "@/lib/seasonal/SeasonalThemeContext";
-import { getTheme } from "@/lib/seasonal/themes";
 
 /** Faixa flutuante (só admin) enquanto um tema sazonal está em pré-visualização. */
 export function SeasonalPreviewBanner() {
-  const { previewId, approvals, stopPreview, approve } = useSeasonalTheme();
+  const { previewId, themes, approvals, stopPreview, approve } = useSeasonalTheme();
   const navigate = useNavigate();
-  const theme = getTheme(previewId);
+  const theme = themes.find((t) => t.id === previewId);
   if (!theme) return null;
   const approved = !!approvals[theme.id];
 
@@ -21,7 +20,7 @@ export function SeasonalPreviewBanner() {
       }}
     >
       <span className="whitespace-nowrap">
-        {theme.emoji} Pré-visualizando <b>{theme.name}</b>
+        {theme.emoji} Pré-visualizando <b>{theme.occasion}</b>
       </span>
       {!approved && (
         <button
