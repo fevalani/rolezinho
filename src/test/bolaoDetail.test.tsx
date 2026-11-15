@@ -272,3 +272,65 @@ describe("BolaoDetailPage — admin e informações", () => {
     confirm.mockRestore();
   });
 });
+
+describe("BolaoDetailPage — edição manual do placar (admin do app)", () => {
+  const seedLocked = (admin = true) => {
+    loginAs(admin ? ADMIN_USER : undefined);
+    seed("u9");
+    mockDb.tables.bolao_pools[0].bolao_pool_members = [{ user_id: admin ? "admin-1" : "user-1" }];
+    mockDb.tables.bolao_matches[0].utc_date = past; // já começou → travado
+  };
+
+  it("só o admin do app vê o lápis de editar resultado, e só em jogo travado", async () => {
+    seedLocked(false);
+    mount();
+    await screen.findByText("Flamengo");
+    expect(screen.queryByTitle("Editar resultado")).not.toBeInTheDocument();
+  });
+
+  it("admin edita o placar: grava FINISHED, re-pontua e avisa", async () => {
+    seedLocked();
+    mount();
+    fireEvent.click(await screen.findByTitle("Editar resultado"));
+    const [home, away] = screen.getAllByRole("spinbutton");
+    fireEvent.change(home, { target: { value: "3" } });
+    fireEvent.change(away, { target: { value: "1" } });
+    supabaseMock.rpc.mockClear();
+    fireEvent.click(screen.getByTitle("Confirmar resultado"));
+    expect(await screen.findByText(/Resultado salvo e pontos recalculados/)).toBeInTheDocument();
+    const w = mockDb.writes.find((x) => x.table === "bolao_matches" && x.op === "update")!;
+    expect(w.args[0]).toMatchObject({ score_home: 3, score_away: 1, status: "FINISHED" });
+    expect(supabaseMock.rpc).toHaveBeenCalledWith("score_match_predictions", { p_match_id: "m1", p_pool_id: null });
+  });
+
+  it("cancelar a edição não grava nada", async () => {
+    seedLocked();
+    mount();
+    fireEvent.click(await screen.findByTitle("Editar resultado"));
+    fireEvent.click(screen.getByTitle("Cancelar"));
+    expect(screen.queryByTitle("Confirmar resultado")).not.toBeInTheDocument();
+    expect(mockDb.writes.some((w) => w.table === "bolao_matches" && w.op === "update")).toBe(false);
+  });
+
+  it("placar vazio não é confirmado", async () => {
+    seedLocked();
+    mount();
+    fireEvent.click(await screen.findByTitle("Editar resultado"));
+    const [home] = screen.getAllByRole("spinbutton");
+    fireEvent.change(home, { target: { value: "" } });
+    fireEvent.click(screen.getByTitle("Confirmar resultado"));
+    expect(mockDb.writes.some((w) => w.table === "bolao_matches" && w.op === "update")).toBe(false);
+  });
+
+  it("erro do banco ao salvar é mostrado", async () => {
+    seedLocked();
+    mount();
+    fireEvent.click(await screen.findByTitle("Editar resultado"));
+    const [home, away] = screen.getAllByRole("spinbutton");
+    fireEvent.change(home, { target: { value: "1" } });
+    fireEvent.change(away, { target: { value: "0" } });
+    mockDb.errors.bolao_matches = { message: "sem permissão" };
+    fireEvent.click(screen.getByTitle("Confirmar resultado"));
+    expect(await screen.findByText("Erro: sem permissão")).toBeInTheDocument();
+  });
+});

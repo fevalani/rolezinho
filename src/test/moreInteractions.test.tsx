@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import type { ReactNode } from "react";
@@ -9,7 +9,7 @@ import { ProfilePage } from "@/pages/ProfilePage";
 import { ThemesAdminPage } from "@/pages/ThemesAdminPage";
 import { DICE_CONFIG } from "@/lib/types";
 import { loginAs, renderWithProviders, ADMIN_USER } from "./helpers";
-import { mockDb } from "./supabaseMock";
+import { mockDb, supabaseMock } from "./supabaseMock";
 
 describe("Taverna — dados", () => {
   const rollRows = () => (mockDb.writes.find((w) => w.table === "dice_rolls")!.args[0] as Array<{ dice_type: string; result: number; batch_id: string | null; user_id: string }>);
@@ -208,3 +208,76 @@ describe("Temas — período", () => {
 });
 
 void within;
+
+describe("Perfil — foto de avatar", () => {
+  const fileInput = () => document.querySelector<HTMLInputElement>('input[type="file"]')!;
+  const pick = (file: File) => fireEvent.change(fileInput(), { target: { files: [file] } });
+  const png = (name = "eu.png", size = 1000) => new File([new Uint8Array(size)], name, { type: "image/png" });
+
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => "blob:preview");
+  });
+
+  it("foto maior que 2MB é recusada", async () => {
+    loginAs();
+    renderWithProviders(<ProfilePage />);
+    await screen.findByText("📷 Enviar foto");
+    pick(png("grande.png", 2 * 1024 * 1024 + 1));
+    expect(await screen.findByText("Imagem deve ter no máximo 2MB")).toBeInTheDocument();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it("foto válida: envia ao salvar, para a pasta do usuário, e grava a URL pública com cache-bust", async () => {
+    loginAs();
+    renderWithProviders(<ProfilePage />);
+    await screen.findByText("📷 Enviar foto");
+    const file = png("minha foto.PNG");
+    pick(file);
+    expect(URL.createObjectURL).toHaveBeenCalledWith(file);
+    fireEvent.click(screen.getByText("Salvar perfil"));
+    await waitFor(() => expect(mockDb.writes.some((w) => "avatar_url" in (w.args[0] as object))).toBe(true));
+    const avatar = (mockDb.writes.find((w) => "avatar_url" in (w.args[0] as object))!.args[0] as { avatar_url: string }).avatar_url;
+    expect(avatar).toMatch(/^https:\/\/test\/x\.png\?t=\d+$/);
+    const bucket = supabaseMock.storage.from.mock.results[0].value;
+    expect(supabaseMock.storage.from).toHaveBeenCalledWith("avatars");
+    expect(bucket.upload).toHaveBeenCalledWith("user-1/avatar.PNG", file, { upsert: true, contentType: "image/png" });
+  });
+
+  it("falha no envio mostra o erro e NÃO salva o perfil", async () => {
+    loginAs();
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    supabaseMock.storage.from.mockReturnValueOnce({
+      upload: vi.fn(async () => ({ data: null, error: { message: "cota" } })),
+      getPublicUrl: vi.fn(),
+      remove: vi.fn(),
+    } as never);
+    renderWithProviders(<ProfilePage />);
+    await screen.findByText("📷 Enviar foto");
+    pick(png());
+    fireEvent.click(screen.getByText("Salvar perfil"));
+    expect(await screen.findByText("Erro ao enviar imagem. Tente novamente.")).toBeInTheDocument();
+    expect(mockDb.writes.some((w) => "display_name" in (w.args[0] as object))).toBe(false);
+    spy.mockRestore();
+  });
+
+  it("escolher um emoji depois de escolher a foto cancela o envio", async () => {
+    loginAs();
+    renderWithProviders(<ProfilePage />);
+    await screen.findByText("📷 Enviar foto");
+    pick(png());
+    fireEvent.change(screen.getByPlaceholderText("✨ Digite qualquer emoji"), { target: { value: "🦊" } });
+    fireEvent.click(screen.getByText("Salvar perfil"));
+    await waitFor(() => expect(mockDb.writes.some((w) => "avatar_url" in (w.args[0] as object))).toBe(true));
+    expect(mockDb.writes.find((w) => "avatar_url" in (w.args[0] as object))!.args[0]).toMatchObject({ avatar_url: "🦊" });
+  });
+
+  it("'Remover' tira a foto e salva sem avatar", async () => {
+    const p = loginAs();
+    p.avatar_url = "https://cdn/eu.png";
+    renderWithProviders(<ProfilePage />);
+    fireEvent.click(await screen.findByText("✕ Remover"));
+    fireEvent.click(screen.getByText("Salvar perfil"));
+    await waitFor(() => expect(mockDb.writes.some((w) => "avatar_url" in (w.args[0] as object))).toBe(true));
+    expect(mockDb.writes.find((w) => "avatar_url" in (w.args[0] as object))!.args[0]).toMatchObject({ avatar_url: null });
+  });
+});
