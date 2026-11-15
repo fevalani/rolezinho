@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { getInitials } from "@/lib/utils";
+import { DevModeCard } from "@/components/DevModeCard";
 import { APP_FEATURES, type ThemeMode } from "@/lib/types";
 
 const EMOJI_AVATARS = [
@@ -76,8 +77,12 @@ export function ProfilePage() {
   // O perfil pode chegar depois da tela (ex.: recarregar direto em /profile):
   // preenche o formulário quando ele carrega, sem sobrescrever edições depois.
   const profileId = profile?.id;
+  // Se o perfil já existia quando a tela montou, o estado inicial já veio dele: sincronizar de
+  // novo aqui sobrescreveria uma edição feita antes de este efeito rodar.
+  const syncedFor = useRef(profile?.id);
   useEffect(() => {
-    if (!profile) return;
+    if (!profile || syncedFor.current === profile.id) return;
+    syncedFor.current = profile.id;
     setDisplayName(profile.display_name ?? "");
     setAvatarPreview(profile.avatar_url ?? "");
     setBirthdayInput(birthdayToDisplay(profile.birthday ?? null));
@@ -556,6 +561,9 @@ export function ProfilePage() {
             {savingHome ? "Salvando..." : "Salvar home"}
           </button>
         </div>
+
+        <div className={divider} />
+        <DevModeCard />
 
         <div className={divider} />
         <div className="flex flex-col gap-3">

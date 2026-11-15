@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { lazy, Suspense, useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "@/components/Avatar";
 import { LetrosoGame } from "./LetrosoGame";
@@ -7,6 +7,9 @@ import { SudokuGame } from "./SudokuGame";
 import { getSudokuOverallEntries } from "./sudokuService";
 import { Word500Game } from "./Word500Game";
 import { getWord500OverallEntries } from "./word500Service";
+import { getFronteirasOverallEntries } from "./fronteirasService";
+import { OverallRankingModal, type GameMode } from "./LetrecoOverallModal";
+import { useDevMode } from "@/lib/useDevMode";
 import {
   WORD_LENGTH,
   MAX_ATTEMPTS,
@@ -322,64 +325,22 @@ function Leaderboard({
   );
 }
 
-// ─── Ranking geral (acumulado) ────────────────────────────────
-
-function OverallLeaderboard({
-  entries,
-  meId,
-}: {
-  entries: OverallEntry[];
-  meId: string | undefined;
-}) {
-  if (entries.length === 0) {
-    return (
-      <p className="text-center text-sm text-[var(--text-muted)] py-6">
-        Ainda não há pontuação acumulada. Bora jogar! 🟩
-      </p>
-    );
-  }
-  const medal = ["🥇", "🥈", "🥉"];
-  return (
-    <div className="flex flex-col gap-1.5">
-      {entries.map((e, i) => {
-        const isMe = e.user_id === meId;
-        return (
-          <div
-            key={e.user_id}
-            className={`flex items-center gap-3 px-3 py-2 rounded-xl border ${
-              isMe
-                ? "bg-[rgba(201,165,90,0.1)] border-[rgba(201,165,90,0.3)]"
-                : "bg-[var(--bg-card)] border-[rgba(255,255,255,0.05)]"
-            }`}
-          >
-            <span className="w-6 text-center text-sm font-bold text-[var(--text-muted)]">
-              {medal[i] ?? i + 1}
-            </span>
-            <Avatar url={e.avatar_url} name={e.display_name} size="sm" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-[var(--text-primary)] truncate">
-                {e.display_name.split(" ")[0]}
-                {isMe && <span className="text-[var(--gold)]"> (você)</span>}
-              </p>
-              <p className="text-[0.65rem] text-[var(--text-muted)]">
-                {e.wins} vitória{e.wins !== 1 ? "s" : ""} · {e.games} jogo
-                {e.games !== 1 ? "s" : ""}
-              </p>
-            </div>
-            <span className="text-sm font-bold text-[var(--gold)] shrink-0">
-              {e.totalScore} pts
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 // ─── Página ───────────────────────────────────────────────────
 
 type Tab = "ranking" | "stats";
-type GameMode = "letreco" | "letroso" | "sudoku" | "word500";
+// Fronteiras (jogo em teste) só carrega — e só aparece — no modo desenvolvedor.
+const FronteirasGame = lazy(() =>
+  import("./FronteirasGame").then((m) => ({ default: m.FronteirasGame })),
+);
+
+const OVERALL_FETCHERS: Record<GameMode, () => Promise<OverallEntry[]>> = {
+  letreco: getOverallLeaderboard,
+  letroso: getLetrosoOverallEntries,
+  sudoku: getSudokuOverallEntries,
+  word500: getWord500OverallEntries,
+  fronteiras: getFronteirasOverallEntries,
+};
+
 
 export function LetrecoPage() {
   const { user } = useAuth();
@@ -414,6 +375,7 @@ export function LetrecoPage() {
   const [tab, setTab] = useState<Tab>("ranking");
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [overall, setOverall] = useState<OverallEntry[] | null>(null);
+  const [devMode] = useDevMode();
   const [gameMode, setGameMode] = useState<GameMode>("letreco");
   const [stats, setStats] = useState<LetrecoStats | null>(null);
   const [shareLabel, setShareLabel] = useState("Compartilhar resultado");
@@ -481,14 +443,7 @@ export function LetrecoPage() {
   const openOverall = useCallback(async () => {
     setShowOverall(true);
     setOverall(null);
-    const lb =
-      gameMode === "letroso"
-        ? await getLetrosoOverallEntries()
-        : gameMode === "sudoku"
-          ? await getSudokuOverallEntries()
-          : gameMode === "word500"
-            ? await getWord500OverallEntries()
-            : await getOverallLeaderboard();
+    const lb = await OVERALL_FETCHERS[gameMode]();
     setOverall(lb);
   }, [gameMode]);
 
@@ -791,6 +746,9 @@ export function LetrecoPage() {
             ["letroso", "🔠 Letroso", "6–10 letras"],
             ["sudoku", "🧩 Sudoku", "tempo + erros"],
             ["word500", "🎯 Word500", "8 tentativas"],
+            ...(devMode
+              ? ([["fronteiras", "🗺️ Fronteiras · beta", "conecte países"]] as const)
+              : []),
           ] as const
         ).map(([mode, label, sub]) => (
           <button
@@ -899,6 +857,19 @@ export function LetrecoPage() {
 
       {/* Modo Word500 */}
       {gameMode === "word500" && <Word500Game />}
+
+      {/* Modo Fronteiras (só no modo desenvolvedor) */}
+      {devMode && gameMode === "fronteiras" && (
+        <Suspense
+          fallback={
+            <div className="flex justify-center py-12">
+              <div className="spinner" />
+            </div>
+          }
+        >
+          <FronteirasGame />
+        </Suspense>
+      )}
 
       {/* ── Modo Letreco (conteúdo original abaixo) ── */}
       {gameMode === "letreco" && (
@@ -1097,52 +1068,12 @@ export function LetrecoPage() {
 
       {/* Modal de ranking geral (acumulado) — fora dos blocos de modo */}
       {showOverall && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/65 backdrop-blur-sm z-[100] animate-[fadeIn_0.2s_ease-out]"
-            onClick={() => setShowOverall(false)}
-          />
-          <div className="fixed bottom-0 left-0 right-0 z-[101] bg-[var(--bg-deep)] rounded-t-2xl p-5 pb-[calc(1.5rem+var(--safe-bottom))] animate-[slideUp_0.3s_ease-out] max-w-lg mx-auto max-h-[88dvh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-1">
-              <h2
-                className="text-lg font-bold text-[var(--gold)]"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                {gameMode === "letroso"
-                  ? "Ranking Letroso 🔠"
-                  : gameMode === "sudoku"
-                    ? "Ranking Sudoku 🧩"
-                    : gameMode === "word500"
-                      ? "Ranking Word500 🎯"
-                      : "Ranking Letreco 🟩"}
-              </h2>
-              <button
-                onClick={() => setShowOverall(false)}
-                className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="text-xs text-[var(--text-muted)] mb-4">
-              {gameMode === "letroso"
-                ? "Letroso"
-                : gameMode === "sudoku"
-                  ? "Sudoku"
-                  : gameMode === "word500"
-                    ? "Word500"
-                    : "Letreco"}{" "}
-              · pontuação acumulada de todos os dias
-            </p>
-
-            {overall ? (
-              <OverallLeaderboard entries={overall} meId={user?.id} />
-            ) : (
-              <div className="flex justify-center py-6">
-                <div className="spinner" />
-              </div>
-            )}
-          </div>
-        </>
+        <OverallRankingModal
+          gameMode={gameMode}
+          entries={overall}
+          meId={user?.id}
+          onClose={() => setShowOverall(false)}
+        />
       )}
     </div>
   );

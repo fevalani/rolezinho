@@ -28,6 +28,7 @@ import { LetrecoPage } from "@/features/letreco/LetrecoPage";
 import { LetrosoGame } from "@/features/letreco/LetrosoGame";
 import { SudokuGame } from "@/features/letreco/SudokuGame";
 import { Word500Game } from "@/features/letreco/Word500Game";
+import { FronteirasGame } from "@/features/letreco/FronteirasGame";
 import { RankingPage } from "@/features/ranking/RankingPage";
 import { RankingDetailPage } from "@/features/ranking/RankingDetailPage";
 import { DuelosPage } from "@/features/duelos/DuelosPage";
@@ -66,6 +67,7 @@ const PAGES: Case[] = [
   { name: "LetrosoGame", Component: LetrosoGame, pattern: "/letroso", route: "/letroso" },
   { name: "SudokuGame", Component: SudokuGame, pattern: "/sudoku", route: "/sudoku" },
   { name: "Word500Game", Component: Word500Game, pattern: "/word500", route: "/word500" },
+  { name: "FronteirasGame", Component: FronteirasGame, pattern: "/fronteiras", route: "/fronteiras" },
   { name: "RankingPage", Component: RankingPage, pattern: "/ranking", route: "/ranking" },
   { name: "RankingDetailPage", Component: RankingDetailPage, pattern: "/ranking/:tableId", route: "/ranking/r1" },
   { name: "DuelosPage", Component: DuelosPage, pattern: "/duelos", route: "/duelos" },

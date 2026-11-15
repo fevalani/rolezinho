@@ -61,7 +61,7 @@ Registro dos módulos exibidos na Home: `APP_FEATURES` em [src/lib/types.ts](../
 | `/rpg`, `/rpg/mesa/:tableId`, `/rpg/ficha/:sheetId` | `rpg` — mesas, fichas, feed, rolagens, biblioteca | `rpg_tables`, `rpg_table_members`, `rpg_sheets`, `rpg_sheet_table_link`, `rpg_sessions`, `rpg_table_rolls`, `rpg_feed_posts`, `rpg_library_entries`, `rpg_notion_connections`, `rpg_notion_pages`; RPCs `increment_member_stats`, `increment_table_session_count` | Notion via `api/notion-proxy` |
 | `/bolao`, `/bolao/:poolId` | `bolao` — bolão esportivo | `bolao_championships`, `bolao_matches`, `bolao_pools`, `bolao_pool_members`, `bolao_predictions`; RPCs `create_bolao_pool`, `score_match_predictions`, `reset_pool_scores`, `update_pool_*` | football-data (`api/fd-proxy`), TheSportsDB (`api/sportsdb-proxy`), Lance (`api/lance-proxy`), RapidAPI; lembretes locais 1h antes |
 | `/arena`, `/arena/:duelId` | `arena` — "Briga de Bar", apostas hipotéticas | `arena_duels`, `arena_bets`, `arena_wallets` | Gemini |
-| `/letreco` | `letreco` — Letreco, Letroso, Sudoku, Word500 (card "Jogos Diários") | `letreco_games`, `letreco_suggested_words`, `letroso_games`, `letroso_dictionary`, `sudoku_games`, `word500_games`; RPC `validate_letroso_word` | listas locais `.txt` (palavras, sudokus) |
+| `/letreco` | `letreco` — Letreco, Letroso, Sudoku, Word500 e Fronteiras (só no modo desenvolvedor) (card "Jogos Diários") | `letreco_games`, `letreco_suggested_words`, `letroso_games`, `letroso_dictionary`, `sudoku_games`, `word500_games`, `fronteiras_games`; RPC `validate_letroso_word` | listas locais `.txt` (palavras, sudokus) |
 | `/ranking`, `/ranking/:tableId` | `ranking` — tabelas de classificação com edição colaborativa e aprovação | `ranking_tables`, `ranking_categories`, `ranking_entries`, `ranking_entry_values`, `ranking_pending_edits`; RPCs `submit_ranking_value`, `approve_ranking_edit`, `reject_ranking_edit` | — |
 | `/duelos`, `/duelos/:id` | `duelos` — comparação par a par (`pairwiseEngine`) | `duel_items`, `duel_comparisons`, `duel_rankings` | — |
 
@@ -121,7 +121,7 @@ Arquivos locais: `.env.local` (dev) e `.env.production`.
 
 ## 10. Pendências conhecidas
 
-- **Migrations SQL** rodadas à mão no Supabase e não confirmadas: bolão, Briga de Bar (`arena_migration*.sql`), ranking, `letreco_*`, `letroso_*` (+ `scripts/seed_letroso_dictionary.py`), `sudoku_difficulty_migration.sql` e `game_leaderboard_fk_fix_migration.sql`. O `word500_games` também é marcado como "MIGRATION PENDENTE" no próprio service.
+- **Migrations SQL** rodadas à mão no Supabase e não confirmadas: bolão, Briga de Bar (`arena_migration*.sql`), ranking, `letreco_*`, `letroso_*` (+ `scripts/seed_letroso_dictionary.py`), `sudoku_difficulty_migration.sql` e `game_leaderboard_fk_fix_migration.sql`. `fronteiras_migration.sql` (jogo Fronteiras). O `word500_games` também é marcado como "MIGRATION PENDENTE" no próprio service.
 - **GTM/GA4:** container `GTM-W9N74BPN`, GA4 `G-DLC61NDXP1` (import em `docs/gtm/gtm-rolezinho-import.json`). Falta testar pela Agenda, publicar o container e criar as dimensões `app_platform`, `provider` e `result`. A causa de "não funciona direito" segue sem diagnóstico. A coleta automática de e-mail/telefone está ligada no container (sugerido desligar).
 - **RPG + Notion:** sync é manual e de mão única; falta sync automático, mapear páginas para NPCs/locais e ocultar páginas dos jogadores.
 - **Temas sazonais:** nunca conferidos visualmente no app real.
