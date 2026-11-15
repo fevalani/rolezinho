@@ -1,0 +1,126 @@
+/* Tema sazonal: PROCLAMAÇÃO DA REPÚBLICA  (data-season="republica" no <html>)
+   Cores: variáveis de global.css sobrescritas. Decorações: desenhadas em
+   pseudo-elementos a partir dos pontos [data-decor] marcados nos componentes.
+   SVGs em /public/seasons/republica/. Ver src/lib/seasonal/themes.ts. */
+
+/* ── Cores — escuro: verde-pinheiro profundo + dourado ── */
+/* ── Cores — escuro: azul-marinho + amarelo da bandeira ── */
+:root[data-season="republica"] {
+  --bg-abyss: #040b1a;
+  --bg-deep: #081529;
+  --bg-primary: #0b1d38;
+  --bg-card: #102847;
+  --bg-elevated: #173459;
+  --bg-hover: #1e4170;
+
+  --gold-dark: #a38b1c;
+  --gold: #f2d22e;
+  --gold-bright: #ffe55c;
+  --gold-glow: #fff0a0;
+
+  --text-primary: #f2f4f8;
+  --text-secondary: #a3b2c7;
+  --text-muted: #6b7f99;
+
+  --green: #2fbf6a;
+  --shadow-gold: 0 0 24px rgba(242, 210, 46, 0.16);
+}
+
+/* ── Cores — claro: creme esverdeado + verde da bandeira ── */
+:root[data-season="republica"][data-theme="light"] {
+  --bg-abyss: #eef3ea;
+  --bg-deep: #fbfdf8;
+  --bg-primary: #f3f7ee;
+  --bg-card: #ffffff;
+  --bg-elevated: #e8f0e1;
+  --bg-hover: #dbe7d1;
+
+  --gold-dark: #00692c;
+  --gold: #008a3a;
+  --gold-bright: #17a74f;
+  --gold-glow: #5cc98a;
+
+  --text-primary: #12261b;
+  --text-secondary: #46594c;
+  --text-muted: #7a8b7f;
+
+  --shadow-gold: 0 0 24px rgba(0, 138, 58, 0.15);
+}
+
+/* ── Decorações ───────────────────────────────── */
+
+/* Barrete frígio — canto superior direito do elemento (logo / avatar) */
+[data-season="republica"] [data-decor="hat"] {
+  position: relative;
+}
+[data-season="republica"] [data-decor="hat"]::after {
+  content: "";
+  position: absolute;
+  top: -32%;
+  right: -22%;
+  width: 62%;
+  aspect-ratio: 1;
+  background: url("/seasons/republica/hat.svg") center / contain no-repeat;
+  transform: rotate(18deg);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Bandeira — pendurada no fim da linha (título de categoria) */
+[data-season="republica"] [data-decor="stocking"] {
+  position: relative;
+  padding-right: 28px;
+}
+[data-season="republica"] [data-decor="stocking"]::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  width: 20px;
+  height: 27px;
+  background: url("/seasons/republica/flag.svg") center / contain no-repeat;
+  transform: translateY(-50%) rotate(-8deg);
+  pointer-events: none;
+}
+
+/* Bandeirinhas — faixa logo abaixo do elemento (cabeçalho sticky) */
+[data-season="republica"] [data-decor="garland"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 22px;
+  background: url("/seasons/republica/garland.svg") left top / auto 22px repeat-x;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Estrelas — fio no topo do elemento (hero da Home), piscando de leve */
+[data-season="republica"] [data-decor="lights"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 30px;
+  background: url("/seasons/republica/lights.svg") left top / auto 30px repeat-x;
+  pointer-events: none;
+  z-index: 2;
+  animation: republicaTwinkle 2.8s ease-in-out infinite;
+}
+@keyframes republicaTwinkle {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-season="republica"] [data-decor="lights"]::after {
+    animation: none;
+  }
+}

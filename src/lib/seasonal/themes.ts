@@ -92,6 +92,22 @@ export const SEASONAL_THEMES: SeasonalTheme[] = [
       "Meias nos títulos das categorias",
     ],
   },
+  {
+    id: "republica",
+    name: "Proclamação da República",
+    emoji: "🇧🇷",
+    description:
+      "Azul-marinho e amarelo da bandeira, com barrete frígio, bandeirinhas, estrelas e a bandeira do Brasil.",
+    defaultStart: "11-15",
+    defaultEnd: "11-15",
+    swatches: ["#081529", "#f2d22e", "#009c3b", "#002776"],
+    decorations: [
+      "Barrete frígio na logo e no avatar do menu",
+      "Bandeirinhas verde, amarelo e azul sob o cabeçalho",
+      "Fio de estrelas no topo da Home",
+      "Bandeira do Brasil nos títulos das categorias",
+    ],
+  },
 ];
 
 export function getTheme(id: string | null | undefined) {
