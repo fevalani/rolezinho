@@ -25,6 +25,7 @@ export function ThemesAdminPage() {
   } = useSeasonalTheme();
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
+  const [ok, setOk] = useState("");
 
   if (!isAdminUser(user)) return <Navigate to="/" replace />;
 
@@ -41,19 +42,29 @@ export function ThemesAdminPage() {
     }
     setBusy(id);
     setMsg("");
+    setOk("");
     const { error } = await updateWindow(id, start, end);
     setBusy(null);
-    if (error)
+    if (error) {
       setMsg(
         error.includes("start_md") || error.includes("end_md")
           ? "Colunas de período não existem — rode supabase/seasonal_themes_window_migration.sql."
-          : `Erro: ${error}`,
+          : `Erro ao salvar: ${error}`,
       );
+      return;
+    }
+    const t = SEASONAL_THEMES.find((x) => x.id === id);
+    setOk(
+      start && end
+        ? `✓ Período salvo: ${formatMd(start)} a ${formatMd(end)}`
+        : `✓ Período restaurado para o padrão${t ? ` (${formatMd(t.defaultStart)} a ${formatMd(t.defaultEnd)})` : ""}`,
+    );
   };
 
   const toggleApproval = async (id: string, value: boolean) => {
     setBusy(id);
     setMsg("");
+    setOk("");
     const { error } = await approve(id, value);
     setBusy(null);
     if (error)
@@ -77,6 +88,11 @@ export function ThemesAdminPage() {
         entrar sozinho na data. Rascunho nunca liga para os outros.
       </p>
 
+      {ok && (
+        <p className="mb-4 text-sm text-emerald-400 bg-[rgba(52,211,153,0.1)] border border-[rgba(52,211,153,0.25)] rounded-xl px-3 py-2">
+          {ok}
+        </p>
+      )}
       {msg && (
         <p className="mb-4 text-sm text-(--red) bg-[rgba(196,64,64,0.1)] border border-[rgba(196,64,64,0.25)] rounded-xl px-3 py-2">
           {msg}
@@ -188,9 +204,73 @@ export function ThemesAdminPage() {
   );
 }
 
-/** MM-DD <-> input type="date" (usa um ano fixo só para o seletor). */
-const toInput = (md: string) => `2000-${md}`;
-const fromInput = (v: string) => v.slice(5);
+const MONTHS = [
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro",
+];
+const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/** Seletor de dia + mês (sem ano). Atualiza na hora, sem janela nativa. */
+function MdPicker({
+  value,
+  onChange,
+  label,
+}: {
+  value: string; // "MM-DD"
+  onChange: (md: string) => void;
+  label: string;
+}) {
+  const month = Number(value.slice(0, 2));
+  const day = Number(value.slice(3, 5));
+  const maxDay = DAYS_IN_MONTH[month - 1];
+  const cls =
+    "input-field !w-auto !py-1 !px-2 text-sm";
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <select
+        aria-label={`${label} — dia`}
+        className={cls}
+        value={day}
+        onChange={(e) => onChange(`${pad2(month)}-${pad2(Number(e.target.value))}`)}
+      >
+        {Array.from({ length: maxDay }, (_, i) => i + 1).map((d) => (
+          <option key={d} value={d}>
+            {d}
+          </option>
+        ))}
+      </select>
+      <span className="text-xs text-(--text-muted)">de</span>
+      <select
+        aria-label={`${label} — mês`}
+        className={cls}
+        value={month}
+        onChange={(e) => {
+          const m = Number(e.target.value);
+          const d = Math.min(day, DAYS_IN_MONTH[m - 1]);
+          onChange(`${pad2(m)}-${pad2(d)}`);
+        }}
+      >
+        {MONTHS.map((name, i) => (
+          <option key={name} value={i + 1}>
+            {name}
+          </option>
+        ))}
+      </select>
+    </span>
+  );
+}
 
 function WindowEditor({
   start,
@@ -217,29 +297,34 @@ function WindowEditor({
   return (
     <div className="mt-2">
       <p className="text-xs text-(--text-muted)">
-        📅 No ar de <b>{formatMd(start)}</b> a <b>{formatMd(end)}</b>, todo ano
+        📅 Salvo: <b>{formatMd(start)}</b> a <b>{formatMd(end)}</b>, todo ano
         {isDefault ? " (padrão)" : ""}
       </p>
+
+      <div className="flex flex-col gap-2 mt-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-(--text-muted) w-8">De</span>
+          <MdPicker label="Início" value={s} onChange={setS} />
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-(--text-muted) w-8">Até</span>
+          <MdPicker label="Fim" value={e} onChange={setE} />
+        </div>
+      </div>
+
+      {dirty && (
+        <p className="text-xs text-amber-400 mt-2">
+          Não salvo ainda: {formatMd(s)} a {formatMd(e)}
+        </p>
+      )}
+
       <div className="flex items-center gap-2 mt-2 flex-wrap">
-        <input
-          type="date"
-          value={toInput(s)}
-          onChange={(ev) => ev.target.value && setS(fromInput(ev.target.value))}
-          className="input-field !w-auto !py-1 !px-2 text-xs"
-        />
-        <span className="text-xs text-(--text-muted)">até</span>
-        <input
-          type="date"
-          value={toInput(e)}
-          onChange={(ev) => ev.target.value && setE(fromInput(ev.target.value))}
-          className="input-field !w-auto !py-1 !px-2 text-xs"
-        />
         <button
           disabled={!dirty || busy}
           onClick={() => onSave(s, e)}
           className="px-3 py-1.5 rounded-xl text-xs font-bold text-(--gold) bg-[rgba(201,165,90,0.12)] border border-[rgba(201,165,90,0.25)] disabled:opacity-40"
         >
-          Salvar período
+          {busy ? "Salvando…" : "Salvar período"}
         </button>
         {!isDefault && (
           <button
@@ -251,6 +336,7 @@ function WindowEditor({
           </button>
         )}
       </div>
+
       {wraps && (
         <p className="text-[11px] text-(--text-muted) mt-1">
           O fim é antes do início: o período atravessa a virada do ano.
