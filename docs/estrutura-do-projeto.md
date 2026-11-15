@@ -121,7 +121,7 @@ Arquivos locais: `.env.local` (dev) e `.env.production`.
 
 ## 10. Pendências conhecidas
 
-- **Migrations SQL** rodadas à mão no Supabase e não confirmadas: bolão, Briga de Bar (`arena_migration*.sql`), ranking, `letreco_*`, `letroso_*` (+ `scripts/seed_letroso_dictionary.py`), `sudoku_difficulty_migration.sql` e `game_leaderboard_fk_fix_migration.sql`. `fronteiras_migration.sql` (jogo Fronteiras). O `word500_games` também é marcado como "MIGRATION PENDENTE" no próprio service.
+- **Migrations SQL** rodadas à mão no Supabase e não confirmadas: bolão, Briga de Bar (`arena_migration*.sql`), ranking, `letreco_*`, `letroso_*` (+ `scripts/seed_letroso_dictionary.py`), `sudoku_difficulty_migration.sql` e `game_leaderboard_fk_fix_migration.sql`. `fronteiras_migration.sql` (jogo Fronteiras) já foi rodada. O `word500_games` também é marcado como "MIGRATION PENDENTE" no próprio service.
 - **GTM/GA4:** container `GTM-W9N74BPN`, GA4 `G-DLC61NDXP1` (import em `docs/gtm/gtm-rolezinho-import.json`). Falta testar pela Agenda, publicar o container e criar as dimensões `app_platform`, `provider` e `result`. A causa de "não funciona direito" segue sem diagnóstico. A coleta automática de e-mail/telefone está ligada no container (sugerido desligar).
 - **RPG + Notion:** sync é manual e de mão única; falta sync automático, mapear páginas para NPCs/locais e ocultar páginas dos jogadores.
 - **Temas sazonais:** nunca conferidos visualmente no app real.

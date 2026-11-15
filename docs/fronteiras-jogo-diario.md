@@ -6,7 +6,7 @@ e destino) e o jogador tenta descobrir **a cadeia de países vizinhos** que liga
 ao outro, no menor número de palpites possível.
 
 > Status: **implementado (nov/2026), em teste, só no modo desenvolvedor** (Perfil → "Modo desenvolvedor").
-> Falta rodar `supabase/fronteiras_migration.sql` no Supabase; até lá o jogo abre, mas não salva palpites nem placar.
+> `supabase/fronteiras_migration.sql` já foi rodada no Supabase (nov/2026); em produção desde a v0.0.86.
 > As decisões da seção 9 foram tomadas (ver "Decisões tomadas" no fim); o resto do texto é o planejamento original.
 
 ---
@@ -98,7 +98,7 @@ create table if not exists public.travle_games (
 - Índices em `game_date` e `user_id`; RLS: select para autenticados, insert/update só do próprio usuário (idêntico ao Word500).
 - As cores **não** são persistidas: recalculadas no cliente a partir de `guesses` + par do dia.
 - O gabarito está no cliente, como no Word500 — aceitável entre amigos; pontuação à prova de fraude exigiria RPC `SECURITY DEFINER`.
-- Registrar a migration como **pendente até ser rodada**.
+- Migration rodada em nov/2026.
 
 ---
 

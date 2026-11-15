@@ -7,7 +7,7 @@ import type {
 } from "./fronteirasTypes";
 
 // Tabela: fronteiras_games
-// MIGRATION PENDENTE — criar via supabase/fronteiras_migration.sql
+// Migration: supabase/fronteiras_migration.sql (já rodada)
 
 function mapRow(d: Record<string, unknown>): FronteirasGame {
   return {
