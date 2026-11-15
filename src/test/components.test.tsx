@@ -32,8 +32,9 @@ describe("LoginPage", () => {
 
   it("shows submit button", async () => {
     renderWithProviders(<LoginPage />);
-    expect(await screen.findByTestId("submit-btn")).toBeInTheDocument();
-    expect(await screen.findByText("Entrar")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Entrar" }),
+    ).toBeInTheDocument();
   });
 
   it("has toggle between login and signup", async () => {
@@ -53,9 +54,9 @@ describe("Types", () => {
     });
   });
 
-  it("APP_FEATURES has taverna enabled", async () => {
+  it("APP_FEATURES has dados (Taverna) enabled", async () => {
     const { APP_FEATURES } = await import("@/lib/types");
-    const taverna = APP_FEATURES.find((f) => f.id === "taverna");
+    const taverna = APP_FEATURES.find((f) => f.id === "dados");
     expect(taverna).toBeDefined();
     expect(taverna!.enabled).toBe(true);
   });

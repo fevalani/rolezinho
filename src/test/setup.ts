@@ -1,12 +1,15 @@
-import '@testing-library/jest-dom';
+import "@testing-library/jest-dom";
+import { beforeEach, vi } from "vitest";
+import { mockDb } from "./supabaseMock";
 
 // Mock crypto
 if (!globalThis.crypto) {
-  Object.defineProperty(globalThis, 'crypto', {
+  Object.defineProperty(globalThis, "crypto", {
     value: {
       randomUUID: () => `test-${Math.random().toString(36).slice(2)}`,
       getRandomValues: (arr: Uint32Array) => {
-        for (let i = 0; i < arr.length; i++) arr[i] = Math.floor(Math.random() * 0xFFFFFFFF);
+        for (let i = 0; i < arr.length; i++)
+          arr[i] = Math.floor(Math.random() * 0xffffffff);
         return arr;
       },
     },
@@ -14,45 +17,59 @@ if (!globalThis.crypto) {
 }
 
 // Mock import.meta.env
-Object.defineProperty(import.meta, 'env', {
+Object.defineProperty(import.meta, "env", {
   value: {
-    VITE_SUPABASE_URL: 'https://test.supabase.co',
-    VITE_SUPABASE_ANON_KEY: 'test-key',
+    VITE_SUPABASE_URL: "https://test.supabase.co",
+    VITE_SUPABASE_ANON_KEY: "test-key",
   },
 });
 
-// Mock Supabase
-vi.mock('@/lib/supabase', () => ({
-  supabase: {
-    auth: {
-      getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
-      onAuthStateChange: vi.fn().mockReturnValue({
-        data: { subscription: { unsubscribe: vi.fn() } },
-      }),
-      signInWithPassword: vi.fn().mockResolvedValue({ error: null }),
-      signUp: vi.fn().mockResolvedValue({ data: { user: null, session: null }, error: null }),
-      signOut: vi.fn(),
-    },
-    from: vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({ data: null }),
-        }),
-        order: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue({ data: [], error: null }),
-        }),
-      }),
-      insert: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({ data: null, error: null }),
-        }),
-      }),
-    }),
-    channel: vi.fn().mockReturnValue({
-      on: vi.fn().mockReturnValue({
-        subscribe: vi.fn(),
-      }),
-    }),
-    removeChannel: vi.fn(),
-  },
-}));
+// Testes não podem depender das chaves reais do .env.local do desenvolvedor
+for (const k of [
+  "VITE_TMDB_KEY",
+  "VITE_GOOGLE_BOOKS_KEY",
+  "VITE_GEMINI_KEY",
+  "VITE_FOOTBALL_DATA_KEY",
+  "VITE_RAPIDAPI_KEY",
+  "VITE_PUBLIC_URL",
+])
+  vi.stubEnv(k, "");
+
+// APIs de navegador que o jsdom não tem
+if (!window.matchMedia) {
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })) as unknown as typeof window.matchMedia;
+}
+window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
+Element.prototype.scrollIntoView = vi.fn();
+class NoopObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return [];
+  }
+}
+if (!("IntersectionObserver" in globalThis))
+  vi.stubGlobal("IntersectionObserver", NoopObserver);
+if (!("ResizeObserver" in globalThis))
+  vi.stubGlobal("ResizeObserver", NoopObserver);
+
+// Mock Supabase (comportamento configurável em ./supabaseMock)
+vi.mock("@/lib/supabase", async () => {
+  const m = await import("./supabaseMock");
+  return { supabase: m.supabaseMock };
+});
+
+beforeEach(() => {
+  mockDb.reset();
+  localStorage.clear();
+});
