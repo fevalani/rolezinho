@@ -1,0 +1,125 @@
+/* Tema sazonal: ANO NOVO  (data-season="anonovo" no <html>)
+   Cores: variáveis de global.css sobrescritas. Decorações: desenhadas em
+   pseudo-elementos a partir dos pontos [data-decor] marcados nos componentes.
+   SVGs em /public/seasons/anonovo/. Ver src/lib/seasonal/themes.ts. */
+
+/* ── Cores — escuro: verde-pinheiro profundo + dourado ── */
+/* ── Cores — escuro: noite violeta + dourado champanhe ── */
+:root[data-season="anonovo"] {
+  --bg-abyss: #05040c;
+  --bg-deep: #0a0816;
+  --bg-primary: #100d22;
+  --bg-card: #17132f;
+  --bg-elevated: #1f1a3d;
+  --bg-hover: #29234e;
+
+  --gold-dark: #a8893c;
+  --gold: #f0cf7a;
+  --gold-bright: #ffe29a;
+  --gold-glow: #fff1c4;
+
+  --text-primary: #f5f1ff;
+  --text-secondary: #aaa3c4;
+  --text-muted: #706a8e;
+
+  --shadow-gold: 0 0 24px rgba(240, 207, 122, 0.18);
+}
+
+/* ── Cores — claro: marfim + dourado envelhecido ── */
+:root[data-season="anonovo"][data-theme="light"] {
+  --bg-abyss: #f5f0e6;
+  --bg-deep: #fffdf8;
+  --bg-primary: #faf6ec;
+  --bg-card: #ffffff;
+  --bg-elevated: #f1eadb;
+  --bg-hover: #e7dec9;
+
+  --gold-dark: #7a5e12;
+  --gold: #a6811f;
+  --gold-bright: #c9a032;
+  --gold-glow: #e8c565;
+
+  --text-primary: #241f33;
+  --text-secondary: #5a5470;
+  --text-muted: #8b8599;
+
+  --shadow-gold: 0 0 24px rgba(166, 129, 31, 0.16);
+}
+
+/* ── Decorações ───────────────────────────────── */
+
+/* Chapéu de festa — canto superior direito do elemento (logo / avatar) */
+[data-season="anonovo"] [data-decor="hat"] {
+  position: relative;
+}
+[data-season="anonovo"] [data-decor="hat"]::after {
+  content: "";
+  position: absolute;
+  top: -32%;
+  right: -22%;
+  width: 62%;
+  aspect-ratio: 1;
+  background: url("/seasons/anonovo/hat.svg") center / contain no-repeat;
+  transform: rotate(18deg);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Taça — pendurada no fim da linha (título de categoria) */
+[data-season="anonovo"] [data-decor="stocking"] {
+  position: relative;
+  padding-right: 28px;
+}
+[data-season="anonovo"] [data-decor="stocking"]::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  width: 20px;
+  height: 27px;
+  background: url("/seasons/anonovo/glass.svg") center / contain no-repeat;
+  transform: translateY(-50%) rotate(-8deg);
+  pointer-events: none;
+}
+
+/* Serpentinas — faixa logo abaixo do elemento (cabeçalho sticky) */
+[data-season="anonovo"] [data-decor="garland"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 22px;
+  background: url("/seasons/anonovo/garland.svg") left top / auto 22px repeat-x;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Brilhos — fio no topo do elemento (hero da Home), piscando de leve */
+[data-season="anonovo"] [data-decor="lights"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 30px;
+  background: url("/seasons/anonovo/lights.svg") left top / auto 30px repeat-x;
+  pointer-events: none;
+  z-index: 2;
+  animation: anonovoTwinkle 2.8s ease-in-out infinite;
+}
+@keyframes anonovoTwinkle {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-season="anonovo"] [data-decor="lights"]::after {
+    animation: none;
+  }
+}

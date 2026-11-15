@@ -136,6 +136,25 @@ export const SEASONAL_THEMES: SeasonalTheme[] = [
       "Bandeira do Brasil nos títulos das categorias",
     ],
   },
+  {
+    id: "anonovo",
+    name: "Ano Novo",
+    emoji: "🎆",
+    occasion: "Ano Novo",
+    occasionMd: "01-01",
+    description:
+      "Noite violeta e dourado champanhe, com chapéu de festa, serpentinas, brilhos e taça.",
+    // Atravessa a virada do ano (fim anterior ao início)
+    defaultStart: "12-29",
+    defaultEnd: "01-02",
+    swatches: ["#0a0816", "#f0cf7a", "#c9ccd6", "#c43f8f"],
+    decorations: [
+      "Chapéu de festa na logo e no avatar do menu",
+      "Serpentinas sob o cabeçalho",
+      "Fio de brilhos no topo da Home",
+      "Taça de champanhe nos títulos das categorias",
+    ],
+  },
 ];
 
 export function getTheme(id: string | null | undefined) {

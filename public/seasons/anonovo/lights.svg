@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="34" viewBox="0 0 80 34">
+  <path d="M0 3Q20 11 40 3Q60 11 80 3" fill="none" stroke="#6b6580" stroke-width="1.6"/>
+  <line x1="10" y1="6" x2="10" y2="13" stroke="#6b6580" stroke-width="1"/><path d="M0-8 2.2-2.2 8 0 2.2 2.2 0 8-2.2 2.2-8 0-2.2-2.2Z" transform="translate(10 21) scale(1.1)" fill="#f0cf7a"/>
+  <line x1="30" y1="6" x2="30" y2="13" stroke="#6b6580" stroke-width="1"/><path d="M0-8 2.2-2.2 8 0 2.2 2.2 0 8-2.2 2.2-8 0-2.2-2.2Z" transform="translate(30 21) scale(1.1)" fill="#ffffff"/>
+  <line x1="50" y1="6" x2="50" y2="13" stroke="#6b6580" stroke-width="1"/><path d="M0-8 2.2-2.2 8 0 2.2 2.2 0 8-2.2 2.2-8 0-2.2-2.2Z" transform="translate(50 21) scale(1.1)" fill="#f0cf7a"/>
+  <line x1="70" y1="6" x2="70" y2="13" stroke="#6b6580" stroke-width="1"/><path d="M0-8 2.2-2.2 8 0 2.2 2.2 0 8-2.2 2.2-8 0-2.2-2.2Z" transform="translate(70 21) scale(1.1)" fill="#e87bb8"/>
+</svg>

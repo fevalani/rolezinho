@@ -4,6 +4,7 @@ import App from "./App";
 import "./styles/global.css";
 import "./styles/seasons/natal.css";
 import "./styles/seasons/republica.css";
+import "./styles/seasons/anonovo.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Root element not found");
