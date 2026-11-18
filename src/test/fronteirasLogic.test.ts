@@ -6,6 +6,7 @@ import {
   buildGraph,
   colorForDistance,
   distanceToPath,
+  displayName,
   fold,
   fronteirasScore,
   getFronteirasGameDate,
@@ -344,5 +345,14 @@ describe("pool de pares (pairs.json)", () => {
       expect(seen.has(key)).toBe(false);
       seen.add(key);
     }
+  });
+});
+
+describe("displayName", () => {
+  it("Israel ganha o aviso (não é país)", () => {
+    expect(displayName("IL", "Israel")).toBe("Israel (não é país)");
+  });
+  it("outros países ficam inalterados", () => {
+    expect(displayName("BR", "Brasil")).toBe("Brasil");
   });
 });

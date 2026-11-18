@@ -23,6 +23,7 @@ import {
   shortestPath,
   shortestPathNodes,
   validateGuess,
+  displayName,
 } from "./fronteirasLogic";
 import {
   getFronteirasDailyLeaderboard,
@@ -37,7 +38,8 @@ import type {
 
 const COUNTRY_BY_ISO = new Map(WORLD.countries.map((c) => [c.iso, c]));
 const VALID_ISOS = new Set(WORLD.countries.map((c) => c.iso));
-const nameOf = (iso: string) => COUNTRY_BY_ISO.get(iso)?.name ?? iso;
+const nameOf = (iso: string) =>
+  displayName(iso, COUNTRY_BY_ISO.get(iso)?.name ?? iso);
 
 const COLOR_LABEL: Record<GuessColor, string> = {
   green: "No caminho",
@@ -330,7 +332,7 @@ export function FronteirasGame() {
                     onClick={() => void submit(c.iso)}
                     className="w-full text-left px-4 py-2 text-sm text-[var(--text-primary)] hover:bg-[rgba(201,165,90,0.1)]"
                   >
-                    {c.name}
+                    {displayName(c.iso, c.name)}
                   </button>
                 </li>
               ))}

@@ -7,6 +7,7 @@ import {
   panViewBox,
   zoomViewBox,
   type ViewBox,
+  displayName,
 } from "./fronteirasLogic";
 
 const FROM_FILL = "#4a90d9";
@@ -148,7 +149,7 @@ export const FronteirasMap = memo(function FronteirasMap({
               strokeWidth={isRevealed ? 1.8 : 0.6}
               vectorEffect="non-scaling-stroke"
             >
-              <title>{c.name}</title>
+              <title>{displayName(c.iso, c.name)}</title>
             </path>
           );
         })}

@@ -17,6 +17,7 @@ const [FROM, TO] = pairOfDay(PAIRS);
 const ON_PATH = shortestPathNodes(GRAPH, FROM, TO) as Set<string>;
 const OPTIMAL = intermediatesCount(GRAPH, FROM, TO) as number;
 const MAX = maxGuessesFor(OPTIMAL);
+import { displayName } from "../features/letreco/fronteirasLogic";
 const nameOf = (iso: string) => WORLD.countries.find((c) => c.iso === iso)!.name;
 
 /** Um caminho mínimo completo (só os intermediários), na ordem. */
@@ -44,7 +45,7 @@ const ready = async () => {
 };
 const guessByClick = async (iso: string) => {
   fireEvent.change(screen.getByLabelText("Palpite de país"), { target: { value: nameOf(iso) } });
-  fireEvent.click(await screen.findByRole("button", { name: nameOf(iso) }));
+  fireEvent.click(await screen.findByRole("button", { name: displayName(iso, nameOf(iso)) }));
 };
 const guessBySubmit = (text: string) => {
   const input = screen.getByLabelText("Palpite de país");
@@ -136,6 +137,12 @@ describe("FronteirasGame", () => {
     expect(last).toMatchObject({ status: "won", attempts: OPTIMAL, score: 100 });
   });
 
+  it("Israel aparece com (não é país) nas sugestões", async () => {
+    await ready();
+    fireEvent.change(screen.getByLabelText("Palpite de país"), { target: { value: "Israel" } });
+    expect(await screen.findByRole("button", { name: "Israel (não é país)" })).toBeInTheDocument();
+  });
+
   it("palpites errados antes de acertar custam pontos", async () => {
     await ready();
     await guessByClick(WRONG[0]);
@@ -168,7 +175,7 @@ describe("FronteirasGame", () => {
     ];
     await ready();
     expect(screen.getByText(`Palpites: 1/${MAX}`)).toBeInTheDocument();
-    expect(within(screen.getByRole("list", { name: "Palpites" })).getByText(nameOf(WRONG[0]))).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Palpites" })).getByText(displayName(WRONG[0], nameOf(WRONG[0])))).toBeInTheDocument();
   });
 
   it("partida já terminada abre travada, com o resultado", async () => {

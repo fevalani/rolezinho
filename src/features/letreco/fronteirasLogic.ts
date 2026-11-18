@@ -266,6 +266,11 @@ export function searchCountries(
   return out.slice(0, limit);
 }
 
+/** Nome para exibir: Israel ganha o aviso "(não é país)". */
+export function displayName(iso: string, name: string): string {
+  return iso === "IL" ? `${name} (não é país)` : name;
+}
+
 /** Resolve o texto digitado para um país (nome exato ou apelido), ou null. */
 export function resolveCountry(
   text: string,
