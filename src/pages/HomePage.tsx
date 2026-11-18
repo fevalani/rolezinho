@@ -9,6 +9,8 @@ import { Avatar } from "@/components/Avatar";
 import { useSeasonalTheme } from "@/lib/seasonal/SeasonalThemeContext";
 import { formatMdLong, occasionMdFor } from "@/lib/seasonal/themes";
 import { JumbledText } from "@/components/JumbledText";
+import { fetchEdition } from "@/features/wrapped/wrappedService";
+import type { WrappedEdition } from "@/features/wrapped/wrappedTypes";
 
 interface TodayBirthday {
   id: string;
@@ -60,6 +62,15 @@ export function HomePage() {
   );
 
   const [todayBirthdays, setTodayBirthdays] = useState<TodayBirthday[]>([]);
+
+  const [wrapped, setWrapped] = useState<WrappedEdition | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchEdition().then((e) => alive && setWrapped(e));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const loadBirthdays = useCallback(async () => {
     const today = getTodayMMDD();
@@ -230,6 +241,23 @@ export function HomePage() {
                 </div>
               )}
             </div>
+          </button>
+        )}
+
+        {/* Wrapped: retrospectiva ativa */}
+        {wrapped && (
+          <button
+            onClick={() => navigate(`/wrapped/${wrapped.slug}`)}
+            className="w-full flex items-center gap-3 py-3.5 px-4 rounded-xl text-left text-white
+              bg-gradient-to-r from-[#7c5cff] to-[#e8c86e] hover:-translate-y-0.5 transition-all anim-slideUp"
+          >
+            <span className="text-2xl shrink-0">🎁</span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-bold leading-tight">{wrapped.pageTitle}</span>
+              <span className="block text-xs opacity-90 mt-0.5">
+                {wrapped.subtitle ?? "Veja a sua retrospectiva"}
+              </span>
+            </span>
           </button>
         )}
 

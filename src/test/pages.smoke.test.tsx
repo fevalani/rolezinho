@@ -36,6 +36,8 @@ import { RankingPage } from "@/features/ranking/RankingPage";
 import { RankingDetailPage } from "@/features/ranking/RankingDetailPage";
 import { DuelosPage } from "@/features/duelos/DuelosPage";
 import { DuelosPlayPage } from "@/features/duelos/DuelosPlayPage";
+import { WrappedPage } from "@/features/wrapped/WrappedPage";
+import { WrappedAdminPage } from "@/features/wrapped/WrappedAdminPage";
 
 vi.mock("@capacitor/core", async (orig) => ({
   ...(await orig<typeof import("@capacitor/core")>()),
@@ -78,6 +80,8 @@ const PAGES: Case[] = [
   { name: "RankingDetailPage", Component: RankingDetailPage, pattern: "/ranking/:tableId", route: "/ranking/r1" },
   { name: "DuelosPage", Component: DuelosPage, pattern: "/duelos", route: "/duelos" },
   { name: "DuelosPlayPage", Component: DuelosPlayPage, pattern: "/duelos/:id", route: "/duelos/d1" },
+  { name: "WrappedPage", Component: WrappedPage, pattern: "/wrapped", route: "/wrapped" },
+  { name: "WrappedAdminPage", Component: WrappedAdminPage, pattern: "/wrapped-admin", route: "/wrapped-admin" },
 ];
 
 // Igual ao ProtectedRoute do App: só monta a tela depois da sessão carregada.

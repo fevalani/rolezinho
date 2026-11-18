@@ -1,0 +1,177 @@
+.wrapped-root {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--w-bg);
+  color: #fff;
+  overflow: hidden;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.wrapped-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at var(--w-x, 15%) var(--w-y, 10%), color-mix(in srgb, var(--w-primary) 70%, transparent), transparent 60%),
+    radial-gradient(circle at calc(100% - var(--w-x, 15%)) calc(100% - var(--w-y, 10%)), color-mix(in srgb, var(--w-secondary) 70%, transparent), transparent 60%),
+    var(--w-bg);
+  animation: wrappedDrift 9s ease-in-out infinite alternate;
+}
+.wrapped-bgimg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.35;
+}
+.wrapped-bars {
+  position: absolute;
+  top: calc(var(--safe-top) + 10px);
+  left: 12px;
+  right: 12px;
+  display: flex;
+  gap: 4px;
+  z-index: 3;
+}
+.wrapped-bar {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  overflow: hidden;
+}
+.wrapped-bar > i {
+  display: block;
+  height: 100%;
+  background: #fff;
+}
+.wrapped-slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  padding: calc(var(--safe-top) + 64px) 28px calc(var(--safe-bottom) + 48px);
+  max-width: 520px;
+  margin: 0 auto;
+  z-index: 2;
+}
+.wrapped-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 8vw, 2.8rem);
+  line-height: 1.1;
+  font-weight: 800;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
+  animation: wrappedRise 0.6s both;
+}
+.wrapped-text {
+  font-size: 1.15rem;
+  color: rgba(255, 255, 255, 0.85);
+  animation: wrappedRise 0.6s 0.15s both;
+}
+.wrapped-big {
+  font-size: clamp(3.4rem, 18vw, 6.5rem);
+  line-height: 1;
+  font-weight: 900;
+  color: var(--w-primary);
+  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+  animation: wrappedPop 0.7s 0.2s both cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.wrapped-emoji {
+  font-size: 3rem;
+  animation: wrappedPop 0.6s both;
+}
+.wrapped-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(6px);
+  animation: wrappedRise 0.5s both;
+}
+.wrapped-rank {
+  font-size: 1.6rem;
+  font-weight: 900;
+  width: 2rem;
+  text-align: center;
+  color: var(--w-primary);
+}
+.wrapped-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.wrapped-fact {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  animation: wrappedRise 0.5s both;
+}
+.wrapped-btn {
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-weight: 700;
+  background: var(--w-primary);
+  color: #111;
+}
+.wrapped-btn.ghost {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+.wrapped-close {
+  position: absolute;
+  top: calc(var(--safe-top) + 22px);
+  right: 14px;
+  z-index: 4;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  font-size: 1.1rem;
+}
+@keyframes wrappedRise {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes wrappedPop {
+  from { opacity: 0; transform: scale(0.4); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes wrappedDrift {
+  from { filter: hue-rotate(0deg); transform: scale(1); }
+  to { filter: hue-rotate(25deg); transform: scale(1.15); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wrapped-bg, .wrapped-title, .wrapped-text, .wrapped-big, .wrapped-emoji,
+  .wrapped-row, .wrapped-fact { animation: none; }
+}
+.wrapped-mode {
+  position: absolute;
+  top: calc(var(--safe-top) + 22px);
+  left: 14px;
+  z-index: 4;
+  display: flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+}
+.wrapped-mode button {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.75);
+}
+.wrapped-mode button.on {
+  background: #fff;
+  color: #111;
+}

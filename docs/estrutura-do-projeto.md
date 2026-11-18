@@ -64,6 +64,7 @@ Registro dos módulos exibidos na Home: `APP_FEATURES` em [src/lib/types.ts](../
 | `/letreco` | `letreco` — Letreco, Letroso, Sudoku, Word500 e Fronteiras (só no modo desenvolvedor) (card "Jogos Diários") | `letreco_games`, `letreco_suggested_words`, `letroso_games`, `letroso_dictionary`, `sudoku_games`, `word500_games`, `fronteiras_games`; RPC `validate_letroso_word` | listas locais `.txt` (palavras, sudokus) |
 | `/ranking`, `/ranking/:tableId` | `ranking` — tabelas de classificação com edição colaborativa e aprovação | `ranking_tables`, `ranking_categories`, `ranking_entries`, `ranking_entry_values`, `ranking_pending_edits`; RPCs `submit_ranking_value`, `approve_ranking_edit`, `reject_ranking_edit` | — |
 | `/duelos`, `/duelos/:id` | `duelos` — comparação par a par (`pairwiseEngine`) | `duel_items`, `duel_comparisons`, `duel_rankings` | — |
+| `/wrapped`, `/wrapped/:slug`, `/wrapped-admin` | `wrapped` — retrospectiva anual em stories; edições em JSON configuradas pelo admin; slides automáticos do usuário (músicas, Cultura, jogos, dados, bolão, agenda); card de compartilhar via canvas | `wrapped_editions` (+ leitura de `music_picks`, `cultura_*`, `dice_rolls`, `*_games`, `bolao_predictions`, `agenda_rsvps`) | — (`/wrapped-admin` só admin; **migration `wrapped_migration.sql` pendente**) |
 
 Outras tabelas transversais: `profiles` (inclui `app_version`, `app_last_seen_at`, `hidden_features`, `theme`, `home_layout`), `push_tokens`.
 

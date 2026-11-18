@@ -37,6 +37,8 @@ import { RankingPage } from "./features/ranking/RankingPage";
 import { RankingDetailPage } from "./features/ranking/RankingDetailPage";
 import { DuelosPage } from "./features/duelos/DuelosPage";
 import { DuelosPlayPage } from "./features/duelos/DuelosPlayPage";
+import { WrappedPage } from "./features/wrapped/WrappedPage";
+import { WrappedAdminPage } from "./features/wrapped/WrappedAdminPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -126,6 +128,10 @@ function AppRoutes() {
         <Route path="/ranking/:tableId" element={<RankingDetailPage />} />
         <Route path="/duelos" element={<DuelosPage />} />
         <Route path="/duelos/:id" element={<DuelosPlayPage />} />
+        <Route path="/wrapped" element={<WrappedPage />} />
+        <Route path="/wrapped/:slug" element={<WrappedPage />} />
+        <Route path="/wrapped/:slug/:modo" element={<WrappedPage />} />
+        <Route path="/wrapped-admin" element={<WrappedAdminPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
