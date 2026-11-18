@@ -137,10 +137,11 @@ describe("FronteirasGame", () => {
     expect(last).toMatchObject({ status: "won", attempts: OPTIMAL, score: 100 });
   });
 
-  it("Israel aparece com (não é país) nas sugestões", async () => {
+  it("Israel aparece com (suposto país) em itálico nas sugestões", async () => {
     await ready();
     fireEvent.change(screen.getByLabelText("Palpite de país"), { target: { value: "Israel" } });
-    expect(await screen.findByRole("button", { name: "Israel (não é país)" })).toBeInTheDocument();
+    const btn = await screen.findByRole("button", { name: "Israel (suposto país)" });
+    expect(btn.querySelector("i")?.textContent).toBe("(suposto país)");
   });
 
   it("palpites errados antes de acertar custam pontos", async () => {

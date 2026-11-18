@@ -349,8 +349,8 @@ describe("pool de pares (pairs.json)", () => {
 });
 
 describe("displayName", () => {
-  it("Israel ganha o aviso (não é país)", () => {
-    expect(displayName("IL", "Israel")).toBe("Israel (não é país)");
+  it("Israel ganha o aviso (suposto país)", () => {
+    expect(displayName("IL", "Israel")).toBe("Israel (suposto país)");
   });
   it("outros países ficam inalterados", () => {
     expect(displayName("BR", "Brasil")).toBe("Brasil");

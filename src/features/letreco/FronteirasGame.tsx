@@ -23,8 +23,8 @@ import {
   shortestPath,
   shortestPathNodes,
   validateGuess,
-  displayName,
 } from "./fronteirasLogic";
+import { CountryName } from "./CountryName";
 import {
   getFronteirasDailyLeaderboard,
   getFronteirasTodayGame,
@@ -38,8 +38,8 @@ import type {
 
 const COUNTRY_BY_ISO = new Map(WORLD.countries.map((c) => [c.iso, c]));
 const VALID_ISOS = new Set(WORLD.countries.map((c) => c.iso));
-const nameOf = (iso: string) =>
-  displayName(iso, COUNTRY_BY_ISO.get(iso)?.name ?? iso);
+const nameOf = (iso: string) => COUNTRY_BY_ISO.get(iso)?.name ?? iso;
+const nameNode = (iso: string) => <CountryName iso={iso} name={nameOf(iso)} />;
 
 const COLOR_LABEL: Record<GuessColor, string> = {
   green: "No caminho",
@@ -266,9 +266,9 @@ export function FronteirasGame() {
           className="text-base font-bold text-[var(--text-primary)]"
           style={{ fontFamily: "var(--font-display)" }}
         >
-          <span style={{ color: "#4a90d9" }}>{nameOf(from)}</span>
+          <span style={{ color: "#4a90d9" }}>{nameNode(from)}</span>
           {" → "}
-          <span style={{ color: "#a064d6" }}>{nameOf(to)}</span>
+          <span style={{ color: "#a064d6" }}>{nameNode(to)}</span>
         </p>
         <p className="text-xs text-[var(--text-muted)] mt-0.5">
           Palpites: {guesses.length}/{maxGuesses}
@@ -332,7 +332,7 @@ export function FronteirasGame() {
                     onClick={() => void submit(c.iso)}
                     className="w-full text-left px-4 py-2 text-sm text-[var(--text-primary)] hover:bg-[rgba(201,165,90,0.1)]"
                   >
-                    {displayName(c.iso, c.name)}
+                    <CountryName iso={c.iso} name={c.name} />
                   </button>
                 </li>
               ))}
@@ -364,7 +364,7 @@ export function FronteirasGame() {
                   style={{ background: COLOR_FILL[color] }}
                 />
                 <span className="flex-1 text-sm font-semibold text-[var(--text-primary)]">
-                  {nameOf(iso)}
+                  {nameNode(iso)}
                 </span>
                 <span className="text-[0.65rem] text-[var(--text-muted)]">
                   {COLOR_LABEL[color]}
@@ -391,7 +391,12 @@ export function FronteirasGame() {
           {showExample && (
             <p className="text-center text-xs text-[var(--text-muted)]">
               Exemplo de caminho mais curto:{" "}
-              {[from, ...example, to].map(nameOf).join(" → ")}
+              {[from, ...example, to].map((iso, i) => (
+                <span key={`${iso}-${i}`}>
+                  {i > 0 && " → "}
+                  {nameNode(iso)}
+                </span>
+              ))}
             </p>
           )}
           <button
