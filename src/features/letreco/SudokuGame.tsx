@@ -52,11 +52,10 @@ function SudokuLeaderboard({
         return (
           <div
             key={e.user_id}
-            className={`flex items-center gap-3 px-3 py-2 rounded-xl border ${
-              isMe
-                ? "bg-[rgba(201,165,90,0.1)] border-[rgba(201,165,90,0.3)]"
-                : "bg-[var(--bg-card)] border-[rgba(255,255,255,0.05)]"
-            }`}
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl border ${isMe
+              ? "bg-[rgba(201,165,90,0.1)] border-[rgba(201,165,90,0.3)]"
+              : "bg-[var(--bg-card)] border-[rgba(255,255,255,0.05)]"
+              }`}
           >
             <span className="w-6 text-center text-sm font-bold text-[var(--text-muted)]">
               {medal[i] ?? i + 1}
@@ -193,6 +192,11 @@ export function SudokuGame() {
   // puzzle diferente do ranqueado do dia dentro do mesmo pool da dificuldade
   // já escolhida — Sudoku não tem outro pool de puzzles no projeto).
   const [ranked, setRanked] = useState(true);
+  const [manualPaused, setManualPaused] = useState(false);
+  const [isHidden, setIsHidden] = useState(() =>
+    typeof document !== "undefined" ? document.hidden : false,
+  );
+  const isPaused = manualPaused || isHidden;
   const rankedSnapshot = useRef<{
     puzzle: string;
     solution: string;
@@ -201,13 +205,36 @@ export function SudokuGame() {
     status: GameStatus;
     score: number;
     elapsedSeconds: number;
+    accumulatedMs: number;
     notes: Record<number, number[]>;
     startedAtIso: string;
-    startedAtMs: number;
+    //startedAtMs: number;
   } | null>(null);
 
   const startedAtIso = useRef<string>("");
-  const startedAtMs = useRef<number>(0);
+  //const startedAtMs = useRef<number>(0);
+  const accumulatedMs = useRef<number>(0);
+  const activeSinceMs = useRef<number | null>(null);
+
+  //Espelho para os escutadores de visibilitychange/pagehide obterem o valor mais recente
+  const boardRef = useRef(board);
+  const mistakesRef = useRef(mistakes);
+  const manualPausedRef = useRef(manualPaused);
+  useEffect(() => {
+    boardRef.current = board;
+  }, [board]);
+  useEffect(() => {
+    mistakesRef.current = mistakes;
+  }, [mistakes]);
+  useEffect(() => {
+    manualPausedRef.current = manualPaused;
+  }, [manualPaused]);
+
+  const elapsedStorageKey = useMemo(
+    () => (user ? `sudoku-elapsed:${user.id}:${gameDate}` : null),
+    [user, gameDate],
+  );
+
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conflictTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -223,6 +250,28 @@ export function SudokuGame() {
     const lb = await getSudokuDailyLeaderboard(gameDate);
     setLeaderboard(lb);
   }, [gameDate]);
+
+  const getCurrentElapsedSeconds = useCallback(() => {
+    const extra =
+      activeSinceMs.current !== null ? Date.now() - activeSinceMs.current : 0;
+    return Math.floor((accumulatedMs.current + Math.max(0, extra)) / 1000);
+  }, []);
+
+  const pauseTimer = useCallback(() => {
+    if (activeSinceMs.current != null) {
+      accumulatedMs.current += Math.max(0, Date.now() - activeSinceMs.current);
+      activeSinceMs.current = null;
+    }
+    const secs = Math.floor(accumulatedMs.current / 1000);
+    setElapsedSeconds(secs);
+    return secs;
+  }, []);
+
+  const resumeTimer = useCallback(() => {
+    if (activeSinceMs.current == null) {
+      activeSinceMs.current = Date.now();
+    }
+  }, []);
 
   // Chave de armazenamento local do rascunho — sobrevive a reload, outra aba ou trocar de app
   const notesStorageKey = useMemo(
@@ -247,10 +296,35 @@ export function SudokuGame() {
         setStatus(game.status);
         setScore(game.score);
         startedAtIso.current = game.started_at;
-        startedAtMs.current = Date.parse(game.started_at);
-        if (game.status === "won") {
-          setElapsedSeconds(game.elapsed_seconds);
+
+        //startedAtMs.current = Date.parse(game.started_at);
+
+
+        let restoredSeconds = game.elapsed_seconds;
+        //if (game.status === "won") {
+        //setElapsedSeconds(game.elapsed_seconds);
+
+        if (game.status === "playing") {
+          try {
+            const rawElapsed = localStorage.getItem(
+              `sudoku-elapsed:${user.id}:${gameDate}`,
+            );
+            if (rawElapsed) {
+              const parsed = Number(rawElapsed);
+              if (Number.isFinite(parsed) && parsed > restoredSeconds) {
+                restoredSeconds = parsed;
+              }
+            }
+          } catch {
+            /* localStorage indisponível — segue sem rascunho salvo */
+          }
         }
+
+        accumulatedMs.current = restoredSeconds * 1000;
+        activeSinceMs.current =
+          game.status === "playing" && !document.hidden ? Date.now() : null;
+        setElapsedSeconds(restoredSeconds);
+
         try {
           const raw = localStorage.getItem(
             `sudoku-notes:${user.id}:${gameDate}`,
@@ -281,22 +355,27 @@ export function SudokuGame() {
     }
   }, [notes, notesStorageKey, difficulty, ranked]);
 
-  // Cronômetro (recalcula a partir de started_at — sobrevive a reload)
-  useEffect(() => {
-    if (loading || status !== "playing" || !difficulty) return;
-    const tick = () =>
-      setElapsedSeconds(Math.floor((Date.now() - startedAtMs.current) / 1000));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [loading, status, difficulty]);
+  // ################## REMOVER BLOCO APÓS TESTE COM NOVO CRONÔMETRO ##################
+  // Cronômetro (recalcula a partir de started_at — sobrevive a reload) -  
+  // useEffect(() => {
+  //   if (loading || status !== "playing" || !difficulty) return;
+  //   const tick = () =>
+  //     setElapsedSeconds(Math.floor((Date.now() - startedAtMs.current) / 1000));
+  //   tick();
+  //   const id = setInterval(tick, 1000);
+  //   return () => clearInterval(id);
+  // }, [loading, status, difficulty]);
+  // ################## REMOVER BLOCO APÓS TESTE COM NOVO CRONÔMETRO ##################
+
 
   const startNewGame = useCallback(
     (diff: SudokuDifficulty) => {
       const { puzzle: p, solution: s } = getSudokuOfDay(diff);
       const iso = new Date().toISOString();
       startedAtIso.current = iso;
-      startedAtMs.current = Date.now();
+      //startedAtMs.current = Date.now();
+      accumulatedMs.current = 0;
+      activeSinceMs.current = document.hidden ? null : Date.now();
 
       setDifficulty(diff);
       setPuzzle(p);
@@ -330,6 +409,7 @@ export function SudokuGame() {
       nextMistakes: number,
       nextStatus: GameStatus,
       nextScore: number,
+      nextElapsedSeconds: number,
     ) => {
       // Modo treino não persiste nem conta pro ranking — só o ranqueado grava.
       if (!user || !difficulty || !ranked) return;
@@ -337,23 +417,99 @@ export function SudokuGame() {
         difficulty,
         board: nextBoard,
         mistakes: nextMistakes,
-        elapsed_seconds:
-          nextStatus === "won"
-            ? Math.floor((Date.now() - startedAtMs.current) / 1000)
-            : elapsedSeconds,
+        elapsed_seconds: nextElapsedSeconds,
+        // nextStatus === "won"
+        //   ? Math.floor((Date.now() - startedAtMs.current) / 1000)
+        //   : elapsedSeconds,
         status: nextStatus,
         score: nextScore,
         started_at: startedAtIso.current,
       });
     },
-    [user, gameDate, elapsedSeconds, difficulty, ranked],
+    [user, gameDate, difficulty, ranked],
   );
+
+  //Pausa automática ao sair da página
+  useEffect(() => {
+    if (loading || status !== "playing" || !difficulty) return;
+
+    setIsHidden(document.hidden);
+    if (document.hidden) {
+      pauseTimer();
+    }
+    const saveElapsedBackup = (secs: number) => {
+      if (!ranked || !elapsedStorageKey) return;
+      try {
+        localStorage.setItem(elapsedStorageKey, String(secs));
+      } catch {
+        /* localStorage indisponível — rascunho fica só na sessão atual */
+      }
+    };
+
+    const handlePauseAndPersist = () => {
+      const secs = pauseTimer();
+      if (ranked) {
+        saveElapsedBackup(secs);
+        persist(boardRef.current, mistakesRef.current, "playing", 0, secs);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setIsHidden(true);
+        handlePauseAndPersist();
+      } else {
+        setIsHidden(false);
+        if (!manualPausedRef.current) {
+          resumeTimer();
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePauseAndPersist);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePauseAndPersist);
+    };
+  }, [
+    loading,
+    status,
+    difficulty,
+    ranked,
+    elapsedStorageKey,
+    pauseTimer,
+    resumeTimer,
+    persist,
+  ]);
+
+  //Cronometro enquanto estiver ativo
+  useEffect(() => {
+    if (loading || status !== "playing" || !difficulty || isPaused || document.hidden) return;
+    resumeTimer();
+    setElapsedSeconds(getCurrentElapsedSeconds());
+    const id = setInterval(() => {
+      setElapsedSeconds(getCurrentElapsedSeconds());
+    }, 1000);
+    return () => clearInterval(id);
+  }, [
+    loading,
+    status,
+    difficulty,
+    isPaused,
+    resumeTimer,
+    getCurrentElapsedSeconds,
+  ])
+
 
   const startPracticeRound = useCallback(() => {
     if (!difficulty) return;
     const { puzzle: p, solution: s } = getSudokuPracticePuzzle(difficulty);
     startedAtIso.current = new Date().toISOString();
-    startedAtMs.current = Date.now();
+    //startedAtMs.current = Date.now();
+    accumulatedMs.current = 0;
+    activeSinceMs.current = document.hidden ? null : Date.now();
+    setManualPaused(false);
     setPuzzle(p);
     setSolution(s);
     setBoard(p);
@@ -367,49 +523,58 @@ export function SudokuGame() {
   }, [difficulty]);
 
   const toggleRanked = useCallback(() => {
-    setRanked((wasRanked) => {
-      if (wasRanked) {
-        rankedSnapshot.current = {
-          puzzle,
-          solution,
-          board,
-          mistakes,
-          status,
-          score,
-          elapsedSeconds,
-          notes,
-          startedAtIso: startedAtIso.current,
-          startedAtMs: startedAtMs.current,
-        };
-        startPracticeRound();
-      } else {
-        const snap = rankedSnapshot.current;
-        if (snap) {
-          setPuzzle(snap.puzzle);
-          setSolution(snap.solution);
-          setBoard(snap.board);
-          setMistakes(snap.mistakes);
-          setStatus(snap.status);
-          setScore(snap.score);
-          setElapsedSeconds(snap.elapsedSeconds);
-          setNotes(snap.notes);
-          startedAtIso.current = snap.startedAtIso;
-          startedAtMs.current = snap.startedAtMs;
-        }
-        setSelected(null);
-        setShowResult(false);
+    //setRanked((wasRanked) => {
+    if (ranked) {
+      const rankedSecs = pauseTimer();
+      rankedSnapshot.current = {
+        puzzle,
+        solution,
+        board,
+        mistakes,
+        status,
+        score,
+        elapsedSeconds: rankedSecs,
+        accumulatedMs: accumulatedMs.current,
+        notes,
+        startedAtIso: startedAtIso.current,
+        //startedAtMs: startedAtMs.current,
+      };
+      startPracticeRound();
+      setRanked(false);
+    } else {
+      const snap = rankedSnapshot.current;
+      if (snap) {
+        setPuzzle(snap.puzzle);
+        setSolution(snap.solution);
+        setBoard(snap.board);
+        setMistakes(snap.mistakes);
+        setStatus(snap.status);
+        setScore(snap.score);
+        setElapsedSeconds(snap.elapsedSeconds);
+        setNotes(snap.notes);
+        startedAtIso.current = snap.startedAtIso;
+        accumulatedMs.current = snap.accumulatedMs;
+        //startedAtMs.current = snap.startedAtMs;
+        activeSinceMs.current =
+          snap.status === "playing" && !document.hidden ? Date.now() : null;
       }
-      return !wasRanked;
-    });
+      setManualPaused(false);
+      setSelected(null);
+      setShowResult(false);
+      setRanked(true);
+    }
+    //return !wasRanked;
   }, [
+    ranked,
     puzzle,
     solution,
     board,
     mistakes,
     status,
     score,
-    elapsedSeconds,
+    //elapsedSeconds,
     notes,
+    pauseTimer,
     startPracticeRound,
   ]);
 
@@ -491,7 +656,7 @@ export function SudokuGame() {
         flashTimer.current = setTimeout(() => setFlashIndex(null), 450);
         const nextMistakes = mistakes + 1;
         setMistakes(nextMistakes);
-        persist(board, nextMistakes, "playing", 0);
+        persist(board, nextMistakes, "playing", 0, getCurrentElapsedSeconds());
         return;
       }
 
@@ -500,14 +665,27 @@ export function SudokuGame() {
       clearDigitFromPeerNotes(selected, digit);
 
       if (isBoardComplete(nextBoard)) {
-        const finalElapsed = Math.floor(
-          (Date.now() - startedAtMs.current) / 1000,
-        );
+        // const finalElapsed = Math.floor(
+        //   (Date.now() - startedAtMs.current) / 1000,
+        // );
+        const finalElapsed = pauseTimer();
         const finalScore = sudokuPointsFor(finalElapsed, mistakes, difficulty);
         setElapsedSeconds(finalElapsed);
         setScore(finalScore);
         setStatus("won");
-        persist(nextBoard, mistakes, "won", finalScore);
+        persist(nextBoard, mistakes, "won", finalScore, finalElapsed);
+
+
+        // Redundância para não apagar o backup do tempo da partida ranqueada.
+        if (ranked && elapsedStorageKey) {
+          try {
+            localStorage.removeItem(elapsedStorageKey);
+          } catch {
+            /* ignore */
+          }
+        }
+
+
         // Modal de resultado/placar só faz sentido no ranqueado.
         if (ranked) {
           setTimeout(() => {
@@ -516,7 +694,7 @@ export function SudokuGame() {
           }, 500);
         }
       } else {
-        persist(nextBoard, mistakes, "playing", 0);
+        persist(nextBoard, mistakes, "playing", 0, getCurrentElapsedSeconds());
         setSelected(null);
       }
     },
@@ -537,6 +715,9 @@ export function SudokuGame() {
       toggleNote,
       clearNotes,
       clearDigitFromPeerNotes,
+      getCurrentElapsedSeconds,
+      pauseTimer,
+      elapsedStorageKey,
     ],
   );
 
@@ -629,14 +810,12 @@ export function SudokuGame() {
                     toggleRanked();
                     setShowMenu(false);
                   }}
-                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ${
-                    ranked ? "bg-[rgba(255,255,255,0.15)]" : "bg-[var(--green)]"
-                  }`}
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ${ranked ? "bg-[rgba(255,255,255,0.15)]" : "bg-[var(--green)]"
+                    }`}
                 >
                   <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${
-                      ranked ? "translate-x-0.5" : "translate-x-[1.375rem]"
-                    }`}
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${ranked ? "translate-x-0.5" : "translate-x-[1.375rem]"
+                      }`}
                   />
                 </button>
               </div>
@@ -685,16 +864,14 @@ export function SudokuGame() {
             role="switch"
             aria-checked={notesBlockMode}
             onClick={() => setNotesBlockMode((v) => !v)}
-            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ${
-              notesBlockMode
-                ? "bg-[var(--green)]"
-                : "bg-[rgba(255,255,255,0.15)]"
-            }`}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ${notesBlockMode
+              ? "bg-[var(--green)]"
+              : "bg-[rgba(255,255,255,0.15)]"
+              }`}
           >
             <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${
-                notesBlockMode ? "translate-x-[1.375rem]" : "translate-x-0.5"
-              }`}
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${notesBlockMode ? "translate-x-[1.375rem]" : "translate-x-0.5"
+                }`}
             />
           </button>
         </div>
@@ -738,9 +915,8 @@ export function SudokuGame() {
                 key={i}
                 onClick={() => status === "playing" && setSelected(i)}
                 disabled={status !== "playing"}
-                className={`aspect-square flex items-center justify-center text-xl sm:text-2xl font-bold select-none transition-colors ${bg} ${
-                  given ? "text-[var(--text-primary)]" : "text-[var(--gold)]"
-                }`}
+                className={`aspect-square flex items-center justify-center text-xl sm:text-2xl font-bold select-none transition-colors ${bg} ${given ? "text-[var(--text-primary)]" : "text-[var(--gold)]"
+                  }`}
                 style={{
                   borderTop:
                     r % 3 === 0
@@ -760,19 +936,17 @@ export function SudokuGame() {
                   value
                 ) : cellNotes && cellNotes.length > 0 ? (
                   <div
-                    className={`grid grid-cols-3 grid-rows-3 w-full h-full ${
-                      notesBlockMode ? "gap-[1px] p-[2px]" : ""
-                    }`}
+                    className={`grid grid-cols-3 grid-rows-3 w-full h-full ${notesBlockMode ? "gap-[1px] p-[2px]" : ""
+                      }`}
                   >
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) =>
                       notesBlockMode ? (
                         <span
                           key={n}
-                          className={`rounded-[2px] transition-colors ${
-                            cellNotes.includes(n)
-                              ? "bg-[var(--gold)]"
-                              : "bg-transparent"
-                          }`}
+                          className={`rounded-[2px] transition-colors ${cellNotes.includes(n)
+                            ? "bg-[var(--gold)]"
+                            : "bg-transparent"
+                            }`}
                         />
                       ) : (
                         <span
@@ -796,11 +970,10 @@ export function SudokuGame() {
           <div className="flex flex-col items-center gap-2">
             <button
               onClick={() => setPencilMode((v) => !v)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 ${
-                pencilMode
-                  ? "bg-[rgba(201,165,90,0.18)] text-[var(--gold)] border-[rgba(201,165,90,0.4)]"
-                  : "bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] border-[rgba(255,255,255,0.08)]"
-              }`}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 ${pencilMode
+                ? "bg-[rgba(201,165,90,0.18)] text-[var(--gold)] border-[rgba(201,165,90,0.4)]"
+                : "bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] border-[rgba(255,255,255,0.08)]"
+                }`}
             >
               ✏️ Rascunho {pencilMode ? "ativo" : "desligado"}
             </button>
@@ -812,11 +985,10 @@ export function SudokuGame() {
                     key={d}
                     onClick={() => handleNumber(d)}
                     disabled={selected === null || complete}
-                    className={`w-10 h-10 rounded-md text-base font-bold border active:scale-95 disabled:opacity-40 transition-all ${
-                      pencilMode
-                        ? "bg-transparent text-[var(--gold)] border-[rgba(201,165,90,0.4)]"
-                        : "bg-[var(--bg-elevated)] text-[var(--text-primary)] border-[rgba(255,255,255,0.08)]"
-                    }`}
+                    className={`w-10 h-10 rounded-md text-base font-bold border active:scale-95 disabled:opacity-40 transition-all ${pencilMode
+                      ? "bg-transparent text-[var(--gold)] border-[rgba(201,165,90,0.4)]"
+                      : "bg-[var(--bg-elevated)] text-[var(--text-primary)] border-[rgba(255,255,255,0.08)]"
+                      }`}
                   >
                     {d}
                   </button>
