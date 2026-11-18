@@ -1,0 +1,32 @@
+{
+  "_comentario": "Copie para wrapped_config.json (ignorado pelo git). Tudo aqui pode ser sobrescrito por flags da linha de comando.",
+
+  "model": {
+    "name": "qwen3-vl:8b-instruct",
+    "url": "http://localhost:11434",
+    "vision": true
+  },
+
+  "period": { "year": 2026, "start": null, "end": null },
+
+  "takeout": {
+    "path": "./raw_photos",
+
+    "_momento": "Por padrão as fotos ilustram o MOMENTO: a foto tirada perto de cada pico de conversa vira a imagem daquele evento (e algumas viram slides de piada). Não precisa saber quem está na foto.",
+    "moment_margin_hours": 2,
+    "candidates_per_moment": 3,
+    "extra_candidates": 12,
+    "max_analyzed": 60,
+
+    "_people_groups": "OPCIONAL. Só serve para dar a um vencedor de categoria uma foto DELE. Chave = nome do membro no chat; google_people = nomes dos rostos no Google Fotos; albums = álbuns só dessa pessoa. Pode apagar este bloco.",
+    "people_groups": {
+      "Ana":  { "google_people": ["Ana", "Aninha"], "albums": [] }
+    },
+
+    "candidates_per_member": 6,
+    "max_published": 8,
+    "joke_slides": 3,
+    "skip_sensitive": true,
+    "publish": true
+  }
+}

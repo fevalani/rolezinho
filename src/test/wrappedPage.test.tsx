@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { render } from "@testing-library/react";
 import { AuthProvider } from "@/lib/AuthContext";
@@ -29,7 +29,6 @@ const mount = (route = "/wrapped") =>
     <Routes>
       <Route path="/wrapped" element={<WrappedPage />} />
       <Route path="/wrapped/:slug" element={<WrappedPage />} />
-      <Route path="/wrapped/:slug/:modo" element={<WrappedPage />} />
       <Route path="/" element={<p>home</p>} />
     </Routes>,
     { route },
@@ -62,9 +61,9 @@ describe("WrappedPage", () => {
     mockDb.tables.sudoku_games = [{ game_date: "2026-03-01", status: "won", score: 10 }];
     mount();
     await screen.findByText("Preparado?");
-    expect(document.querySelectorAll(".wrapped-bar")).toHaveLength(4);
+    await waitFor(() => expect(document.querySelectorAll(".wrapped-bar")).toHaveLength(4));
     fireEvent.keyDown(window, { key: "ArrowRight" });
-    expect(await screen.findByText("Nos jogos diários")).toBeInTheDocument();
+    expect(await screen.findByText("Nos jogos do grupo")).toBeInTheDocument();
   });
 
   it("toque nas laterais avança/volta e segurar não avança", async () => {
@@ -111,31 +110,48 @@ describe("WrappedPage", () => {
     expect(screen.getByRole("button", { name: "Baixar imagem" })).toBeInTheDocument();
   });
 
-  it("modo grupo soma todos, mostra ranking de membros e alterna com 'Você'", async () => {
+  it("é o Wrapped comum: soma os dados de todos e mostra o ranking de membros", async () => {
     mockDb.tables.wrapped_editions = [
       { ...edition, config: { ...edition.config, slides: [{ position: 1, type: "auto_user_stats", metricKey: "top_members" }, { position: 2, type: "auto_user_stats", metricKey: "top_music" }] } },
     ];
     mockDb.tables.profiles = [{ id: "u2", display_name: "Beto Lima" }];
     mockDb.tables.music_picks = [{ user_id: "u2", pick_date: "2026-03-02", title: "x", artist: "Queen", thumbnail: null }];
-    mount("/wrapped/2026/grupo");
-    await screen.findByRole("tab", { name: "Grupo" });
+    mount("/wrapped/2026");
+    await screen.findByText("Wrapped 2026");
     await waitFor(() => expect(document.querySelectorAll(".wrapped-bar")).toHaveLength(4));
     fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(await screen.findByText("Quem mais apareceu")).toBeInTheDocument();
     expect(screen.getByText("Beto")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Grupo" })).toHaveAttribute("aria-selected", "true");
     fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(await screen.findByText("O que o grupo mais ouviu")).toBeInTheDocument();
-    // alternar para o modo pessoal remove o slide de membros
-    fireEvent.click(screen.getByRole("tab", { name: "Você" }));
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Você" })).toHaveAttribute("aria-selected", "true"));
-    expect(screen.queryByText("Quem mais apareceu")).not.toBeInTheDocument();
+    // não existe versão personalizada por pessoa: sem seletor "Você | Grupo"
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 
   it("edição fora da janela é bloqueada para usuário comum e liberada para admin", async () => {
     mockDb.tables.wrapped_editions = [{ ...edition, ends_at: "2000-01-01" }];
     mount("/wrapped/2026");
     expect(await screen.findByText(/Nenhuma retrospectiva/)).toBeInTheDocument();
+  });
+
+  it("mostra 'Quem mais joga' com os dados de todos", async () => {
+    mockDb.tables.wrapped_editions = [
+      { ...edition, config: { ...edition.config, slides: [{ position: 1, type: "auto_user_stats", metricKey: "top_players" }, { position: 2, type: "auto_user_stats", metricKey: "top_music_members" }] } },
+    ];
+    mockDb.tables.profiles = [{ id: "u2", display_name: "Beto Lima" }, { id: "u3", display_name: "Caio Dias" }];
+    mockDb.tables.sudoku_games = [
+      { user_id: "u2", game_date: "2026-03-01", status: "won", score: 1 },
+      { user_id: "u2", game_date: "2026-03-02", status: "won", score: 1 },
+      { user_id: "u3", game_date: "2026-03-01", status: "lost", score: 0 },
+    ];
+    mount("/wrapped/2026");
+    await screen.findByText("Wrapped 2026");
+    await waitFor(() => expect(document.querySelectorAll(".wrapped-bar")).toHaveLength(3)); // abertura, jogos, encerramento
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(await screen.findByText("Quem mais joga")).toBeInTheDocument();
+    expect(screen.getByText("Beto")).toBeInTheDocument();
+    expect(screen.getByText("2 partidas · 2 vitórias")).toBeInTheDocument();
+    expect(screen.getByText("Caio")).toBeInTheDocument();
   });
 
   it("fechar volta para a Home", async () => {
@@ -173,6 +189,75 @@ describe("Wrapped fora da janela (admin)", () => {
       { route: "/wrapped/2026" },
     );
     expect(await screen.findByText("Preparado?")).toBeInTheDocument();
+  });
+});
+
+describe("WrappedAdminPage — quem vê", () => {
+  const ed = { slug: "2026", is_active: true, config: { pageTitle: "Wrapped 2026", slides: [{ type: "intro", title: "Oi" }] } };
+  const people = [
+    { id: "u1", display_name: "Ana Souza", avatar_url: null },
+    { id: "u2", display_name: "Beto Lima", avatar_url: null },
+    { id: "u3", display_name: "Caio Dias", avatar_url: null },
+  ];
+  const open = async () => {
+    loginAs(ADMIN_USER);
+    mockDb.tables.wrapped_editions = [ed];
+    mockDb.tables.profiles = [...people];
+    mockDb.tables.wrapped_viewers = [{ slug: "2026", user_id: "u2" }];
+    renderWithProviders(<WrappedAdminPage />);
+    expect(await screen.findByText(/1 pessoa vê/)).toBeInTheDocument();          // contagem na lista
+    fireEvent.click(screen.getByRole("button", { name: "Quem vê" }));
+    return await screen.findByRole("region", { name: /Quem vê a edição 2026/ });
+  };
+
+  it("lista os usuários do app com quem já vê marcado", async () => {
+    const panel = await open();
+    const boxes = within(panel).getAllByRole("checkbox") as HTMLInputElement[];
+    expect(boxes.map((b) => b.checked)).toEqual([false, true, false]);
+    expect(within(panel).getByText("Ana Souza")).toBeInTheDocument();
+    expect(within(panel).getByText("1 de 3")).toBeInTheDocument();
+  });
+
+  it("busca, seleciona todos, limpa e marca individualmente", async () => {
+    const panel = await open();
+    fireEvent.change(within(panel).getByLabelText("Buscar usuário"), { target: { value: "caio" } });
+    expect(within(panel).getAllByRole("checkbox")).toHaveLength(1);
+    fireEvent.change(within(panel).getByLabelText("Buscar usuário"), { target: { value: "zzz" } });
+    expect(within(panel).getByText("Nenhum usuário encontrado.")).toBeInTheDocument();
+    fireEvent.change(within(panel).getByLabelText("Buscar usuário"), { target: { value: "" } });
+    fireEvent.click(within(panel).getByRole("button", { name: "Selecionar todos" }));
+    expect(within(panel).getByText("3 de 3")).toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole("button", { name: "Limpar" }));
+    expect(within(panel).getByText("0 de 3")).toBeInTheDocument();
+    fireEvent.click(within(panel).getByLabelText("Ana Souza"));
+    expect(within(panel).getByText("1 de 3")).toBeInTheDocument();
+  });
+
+  it("salva só a diferença: tira o Beto, põe a Ana", async () => {
+    const panel = await open();
+    fireEvent.click(within(panel).getByLabelText("Ana Souza"));
+    fireEvent.click(within(panel).getByLabelText("Beto Lima"));
+    fireEvent.click(within(panel).getByRole("button", { name: "Salvar quem vê" }));
+    expect(await within(panel).findByText(/Lista salva: 1 pessoa/)).toBeInTheDocument();
+    const up = mockDb.writes.find((w) => w.table === "wrapped_viewers" && w.op === "upsert")!;
+    expect(up.args[0]).toEqual([{ slug: "2026", user_id: "u1" }]);
+    const q = mockDb.queries.filter((x) => x.table === "wrapped_viewers").flatMap((x) => x.calls);
+    expect(q).toContainEqual(["in", ["user_id", ["u2"]]]);
+  });
+
+  it("mostra o erro se o banco recusar", async () => {
+    const panel = await open();
+    mockDb.errors.wrapped_viewers = { message: "permission denied" };
+    fireEvent.click(within(panel).getByLabelText("Ana Souza"));
+    fireEvent.click(within(panel).getByRole("button", { name: "Salvar quem vê" }));
+    expect(await within(panel).findByText(/Erro ao salvar: permission denied/)).toBeInTheDocument();
+  });
+
+  it("usuário comum não abre o painel de admin", async () => {
+    loginAs(TEST_USER);
+    renderWithProviders(<WrappedAdminPage />);
+    expect(await screen.findByText(/Acesso restrito/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Quem vê" })).not.toBeInTheDocument();
   });
 });
 

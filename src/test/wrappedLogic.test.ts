@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildSlides,
   clampIndex,
+  computeBoards,
   computeMemberRanking,
   computeStats,
   resolveAuto,
@@ -72,6 +73,10 @@ describe("parseEdition", () => {
     expect(safeUrl("javascript:alert(1)")).toBeUndefined();
     expect(safeUrl("https://a.com/x.png")).toBe("https://a.com/x.png");
     expect(safeUrl('https://a.com/x"onerror')).toBeUndefined();
+    expect(safeUrl("/wrapped/2026/media/foto-01.jpg")).toBe("/wrapped/2026/media/foto-01.jpg");
+    for (const bad of ["//evil.com/x.png", "/../etc/passwd", "/a/../b.png", "/x y.png", "/a?b=c", "javascript:alert(1)", "foto.jpg"]) {
+      expect(safeUrl(bad)).toBeUndefined();
+    }
     const r = parseEdition({
       slug: "1",
       pageTitle: "T",
@@ -279,5 +284,95 @@ describe("janela de exibição", () => {
     expect(parseEdition({ ...base, startsAt: "01/12/2026" }).errors[0]).toMatch(/AAAA-MM-DD/);
     expect(parseEdition({ ...base, startsAt: "2026-12-10", endsAt: "2026-12-01" }).errors[0]).toMatch(/anterior/);
     expect(parseEdition(base).edition!.startsAt).toBeUndefined();
+  });
+});
+
+describe("rankings de pessoas por módulo (grupo)", () => {
+  const names = { a: "Ana Souza", b: "Beto Lima", c: "Caio" };
+  const raw: WrappedRaw = {
+    musics: [
+      { user_id: "a", pick_date: "2026-01-01", title: "x", artist: "Q", thumbnail: null },
+      { user_id: "a", pick_date: "2026-01-02", title: "y", artist: "Q", thumbnail: null },
+      { user_id: "b", pick_date: "2026-01-03", title: "z", artist: "Q", thumbnail: null },
+    ],
+    culturaPosts: [
+      { user_id: "b", item_id: "i", personal_rating: 8, created_at: "2026-02-01T00:00:00Z" },
+      { user_id: "b", item_id: "j", personal_rating: 9, created_at: "2026-02-08T00:00:00Z" },
+      { user_id: "a", item_id: "k", personal_rating: null, created_at: "2026-02-09T00:00:00Z" },
+    ],
+    culturaItems: [],
+    dice: [
+      { user_id: "c", dice_type: "d20", result: 20, created_at: "2026-03-01T00:00:00Z" },
+      { user_id: "c", dice_type: "d20", result: 3, created_at: "2026-03-01T00:00:00Z" },
+      { user_id: "a", dice_type: "d6", result: 6, created_at: "2026-03-01T00:00:00Z" },
+    ],
+    games: [
+      { user_id: "c", game: "sudoku", game_date: "2026-04-01", status: "won", score: 1 },
+      { user_id: "c", game: "letreco", game_date: "2026-04-02", status: "lost", score: 0 },
+      { user_id: "a", game: "sudoku", game_date: "2026-04-01", status: "won", score: 1 },
+      { user_id: "a", game: "letroso", game_date: "2026-04-02", status: "won", score: 1 },
+      { user_id: "a", game: "word500", game_date: "2026-04-03", status: "won", score: 1 },
+    ],
+    predictions: [
+      { user_id: "b", points_earned: 5, created_at: "2026-05-01T00:00:00Z" },
+      { user_id: "b", points_earned: null, created_at: "2026-05-02T00:00:00Z" },
+      { user_id: "a", points_earned: 3, created_at: "2026-05-01T00:00:00Z" },
+    ],
+    rsvps: [
+      { user_id: "c", status: "confirmed", updated_at: "2026-06-01T00:00:00Z" },
+      { user_id: "c", status: "maybe", updated_at: "2026-06-02T00:00:00Z" },
+      { user_id: "a", status: "maybe", updated_at: "2026-06-02T00:00:00Z" },
+    ],
+  };
+
+  it("ordena por quantidade, usa o primeiro nome e explica o valor", () => {
+    const b = computeBoards(raw, names);
+    expect(b.players).toEqual([
+      { rank: 1, label: "Ana", sublabel: "3 partidas · 3 vitórias" },
+      { rank: 2, label: "Caio", sublabel: "2 partidas · 1 vitória" },
+    ]);
+    expect(b.music).toEqual([
+      { rank: 1, label: "Ana", sublabel: "2 indicações" },
+      { rank: 2, label: "Beto", sublabel: "1 indicação" },
+    ]);
+    expect(b.cultura![0]).toEqual({ rank: 1, label: "Beto", sublabel: "2 posts · nota média 8,5" });
+    expect(b.cultura![1].sublabel).toBe("1 post"); // sem nota: não inventa média
+    expect(b.dice).toEqual([
+      { rank: 1, label: "Caio", sublabel: "2 rolagens · 1 crítico" },
+      { rank: 2, label: "Ana", sublabel: "1 rolagem" },
+    ]);
+    expect(b.bolao).toEqual([
+      { rank: 1, label: "Beto", sublabel: "5 pontos · 2 palpites" },
+      { rank: 2, label: "Ana", sublabel: "3 pontos · 1 palpite" },
+    ]);
+    expect(b.agenda).toEqual([{ rank: 1, label: "Caio", sublabel: "1 presença confirmada" }]); // "talvez" não conta
+  });
+
+  it("limita a 5, ignora linhas sem user_id e devolve undefined sem dados", () => {
+    const many: WrappedRaw = { ...raw, musics: Array.from({ length: 7 }, (_, i) => ({ user_id: `u${i}`, pick_date: "2026-01-01", title: "t", artist: null, thumbnail: null })) };
+    expect(computeBoards(many, {}).music).toHaveLength(5);
+    expect(computeBoards(many, {}).music![0].label).toBe("Alguém"); // perfil desconhecido
+    const none = computeBoards({ ...empty, games: [{ game: "sudoku", game_date: "2026-01-01", status: "won", score: 1 }] }, {});
+    expect(none).toEqual({ players: undefined, music: undefined, cultura: undefined, dice: undefined, bolao: undefined, agenda: undefined });
+    expect(computeBoards({ ...raw, predictions: [{ user_id: "a", points_earned: null, created_at: "2026-01-01T00:00:00Z" }] }, names).bolao).toBeUndefined();
+  });
+
+  it("os slides só existem no grupo, com dados, e o título do admin vence", () => {
+    const boards = computeBoards(raw, names);
+    const stats = computeStats(empty, 2026);
+    const keys = ["top_players", "top_music_members", "top_cultura_members", "top_dice_members", "top_bolao_members", "top_agenda_members"] as const;
+    const titles = keys.map((k) => resolveAuto(k, stats, {}, "group", [], boards)!.title);
+    expect(titles).toEqual(["Quem mais joga", "Quem mais indica música", "Quem mais posta em Cultura", "Quem mais rola dados", "Quem lidera o bolão", "Quem mais confirma presença"]);
+    for (const k of keys) {
+      expect(resolveAuto(k, stats, {}, "user", [], boards)).toBeNull(); // no modo pessoal não faz sentido
+      expect(resolveAuto(k, stats, {}, "group", [], {})).toBeNull(); // sem dados: omitido
+    }
+    expect(resolveAuto("top_players", stats, { title: "Os viciados" }, "group", [], boards)!.title).toBe("Os viciados");
+  });
+
+  it("parseEdition aceita as novas chaves", () => {
+    const r = parseEdition({ slug: "x", pageTitle: "T", slides: [{ type: "auto_user_stats", metricKey: "top_players" }, { type: "auto_user_stats", metricKey: "top_bolao_members" }] });
+    expect(r.warnings).toEqual([]);
+    expect(r.edition!.slides.map((s) => s.metricKey)).toEqual(["top_players", "top_bolao_members"]);
   });
 });

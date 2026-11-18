@@ -16,7 +16,13 @@ export type AutoMetricKey =
   | "bolao"
   | "agenda"
   | "peak_weekday"
-  | "top_members";
+  | "top_members"
+  | "top_players"
+  | "top_music_members"
+  | "top_cultura_members"
+  | "top_dice_members"
+  | "top_bolao_members"
+  | "top_agenda_members";
 
 export interface WrappedTheme {
   primary?: string;
@@ -71,6 +77,11 @@ export interface WrappedRaw {
   predictions: { user_id?: string; points_earned: number | null; created_at: string }[];
   rsvps: { user_id?: string; status: string; updated_at: string }[];
 }
+
+/** Rankings de pessoas por módulo do app (modo grupo). */
+export type MemberBoards = Partial<
+  Record<"players" | "music" | "cultura" | "dice" | "bolao" | "agenda", WrappedItem[]>
+>;
 
 export interface WrappedStats {
   year: number;

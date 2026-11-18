@@ -24,3 +24,15 @@ dist-ssr
 *.sw?
 .vercel
 .env*
+
+# Wrapped pipeline — dados privados do grupo (conversas, áudios, fotos) NUNCA vão pro git
+scripts/wrapped-pipeline/raw_data/*
+!scripts/wrapped-pipeline/raw_data/.gitkeep
+scripts/wrapped-pipeline/output/
+scripts/wrapped-pipeline/**/__pycache__/
+# fotos curadas copiadas para o front (públicas na web após deploy — só suba de propósito)
+public/wrapped/
+# Wrapped pipeline — fotos brutas do Google Fotos/Takeout e config pessoal (nomes das pessoas)
+scripts/wrapped-pipeline/raw_photos/*
+!scripts/wrapped-pipeline/raw_photos/.gitkeep
+scripts/wrapped-pipeline/wrapped_config.json

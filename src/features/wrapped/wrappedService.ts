@@ -70,6 +70,63 @@ export async function deleteEdition(slug: string): Promise<{ error: string | nul
   return { error: error?.message ?? null };
 }
 
+export interface AppUser {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+/** Usuários do app (perfis), para o admin escolher quem pode ver o Wrapped. */
+export async function fetchAppUsers(): Promise<AppUser[]> {
+  const rows = await safeRows(
+    supabase.from("profiles").select("id, display_name, avatar_url").order("display_name", { ascending: true }),
+  );
+  return rows.map((r) => ({
+    id: r.id as string,
+    displayName: ((r.display_name as string) ?? "").trim() || "Sem nome",
+    avatarUrl: (r.avatar_url as string | null) ?? null,
+  }));
+}
+
+/** Quem pode ver a edição (ids dos perfis). Só o admin lê a lista toda (RLS). */
+export async function fetchViewers(slug: string): Promise<string[]> {
+  const rows = await safeRows(supabase.from("wrapped_viewers").select("user_id").eq("slug", slug));
+  return rows.map((r) => r.user_id as string);
+}
+
+/** Quantos usuários podem ver cada edição (para a lista do admin). */
+export async function fetchViewerCounts(): Promise<Record<string, number>> {
+  const rows = await safeRows(supabase.from("wrapped_viewers").select("slug"));
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.slug as string] = (out[r.slug as string] ?? 0) + 1;
+  return out;
+}
+
+/** Grava a lista de quem vê a edição (só aplica a diferença; falha de leitura não apaga nada). */
+export async function saveViewers(slug: string, userIds: string[]): Promise<{ error: string | null }> {
+  try {
+    const { data, error } = await supabase.from("wrapped_viewers").select("user_id").eq("slug", slug);
+    if (error) return { error: error.message };
+    const current = new Set(((data ?? []) as Row[]).map((r) => r.user_id as string));
+    const wanted = new Set(userIds);
+    const removed = [...current].filter((id) => !wanted.has(id));
+    const added = [...wanted].filter((id) => !current.has(id));
+    if (removed.length) {
+      const { error: e } = await supabase.from("wrapped_viewers").delete().eq("slug", slug).in("user_id", removed);
+      if (e) return { error: e.message };
+    }
+    if (added.length) {
+      const { error: e } = await supabase
+        .from("wrapped_viewers")
+        .upsert(added.map((user_id) => ({ slug, user_id })), { onConflict: "slug,user_id" });
+      if (e) return { error: e.message };
+    }
+    return { error: null };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
 const GAME_TABLES: [GameKey, string][] = [
   ["letreco", "letreco_games"],
   ["letroso", "letroso_games"],

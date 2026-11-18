@@ -1,0 +1,3 @@
+# O pipeline usa SÓ a biblioteca padrão do Python (3.10+): nada para instalar,
+# nenhuma dependência de rede além do Ollama em localhost.
+# (testes: python3 -m unittest discover -s tests -t .)

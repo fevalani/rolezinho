@@ -154,24 +154,3 @@
   .wrapped-bg, .wrapped-title, .wrapped-text, .wrapped-big, .wrapped-emoji,
   .wrapped-row, .wrapped-fact { animation: none; }
 }
-.wrapped-mode {
-  position: absolute;
-  top: calc(var(--safe-top) + 22px);
-  left: 14px;
-  z-index: 4;
-  display: flex;
-  padding: 3px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.35);
-}
-.wrapped-mode button {
-  padding: 6px 14px;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.75);
-}
-.wrapped-mode button.on {
-  background: #fff;
-  color: #111;
-}

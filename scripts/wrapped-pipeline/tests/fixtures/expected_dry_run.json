@@ -1,0 +1,365 @@
+{
+  "slug": "2026",
+  "pageTitle": "Wrapped 2026 — O Grupo",
+  "subtitle": "Tudo o que rolou no grupo este ano",
+  "isActive": false,
+  "slides": [
+    {
+      "position": 1,
+      "type": "intro",
+      "title": "Wrapped 2026 — O Grupo",
+      "description": "480 mensagens de 4 pessoas em 102 dias."
+    },
+    {
+      "position": 2,
+      "type": "highlight",
+      "title": "480 mensagens",
+      "description": "O grupo bateu papo em 102 dias diferentes de 2026."
+    },
+    {
+      "position": 3,
+      "type": "custom_ranking",
+      "title": "As Palestrinhas",
+      "items": [
+        {
+          "rank": 1,
+          "label": "Beto",
+          "sublabel": "170 mensagens"
+        },
+        {
+          "rank": 2,
+          "label": "Ana",
+          "sublabel": "167 mensagens"
+        },
+        {
+          "rank": 3,
+          "label": "Caio",
+          "sublabel": "106 mensagens"
+        },
+        {
+          "rank": 4,
+          "label": "Dani",
+          "sublabel": "37 mensagens"
+        }
+      ]
+    },
+    {
+      "position": 4,
+      "type": "custom_ranking",
+      "title": "Os Reis do Textão",
+      "items": [
+        {
+          "rank": 1,
+          "label": "Dani",
+          "sublabel": "20 caracteres por mensagem"
+        },
+        {
+          "rank": 2,
+          "label": "Caio",
+          "sublabel": "18 caracteres por mensagem"
+        },
+        {
+          "rank": 3,
+          "label": "Beto",
+          "sublabel": "18 caracteres por mensagem"
+        },
+        {
+          "rank": 4,
+          "label": "Ana",
+          "sublabel": "17 caracteres por mensagem"
+        }
+      ]
+    },
+    {
+      "position": 5,
+      "type": "custom_ranking",
+      "title": "Os Fantasmas",
+      "items": [
+        {
+          "rank": 1,
+          "label": "Dani",
+          "sublabel": "só 37 mensagens"
+        },
+        {
+          "rank": 2,
+          "label": "Caio",
+          "sublabel": "só 106 mensagens"
+        },
+        {
+          "rank": 3,
+          "label": "Ana",
+          "sublabel": "só 167 mensagens"
+        },
+        {
+          "rank": 4,
+          "label": "Beto",
+          "sublabel": "só 170 mensagens"
+        }
+      ]
+    },
+    {
+      "position": 6,
+      "type": "custom_ranking",
+      "title": "As Corujas do Grupo",
+      "description": "Quem estava acordado quando todo mundo dormia.",
+      "items": [
+        {
+          "rank": 1,
+          "label": "Caio",
+          "sublabel": "2 mensagens de madrugada (1h–5h)"
+        },
+        {
+          "rank": 2,
+          "label": "Dani",
+          "sublabel": "1 mensagens de madrugada (1h–5h)"
+        }
+      ]
+    },
+    {
+      "position": 7,
+      "type": "highlight",
+      "title": "Sábado, 21h",
+      "description": "Sábado foi o dia mais movimentado (199 mensagens) e 21h o horário de pico (144 mensagens)."
+    },
+    {
+      "position": 8,
+      "type": "custom_ranking",
+      "title": "Os Sommeliers de Áudio",
+      "items": [
+        {
+          "rank": 1,
+          "label": "Caio",
+          "sublabel": "1 áudios"
+        }
+      ]
+    },
+    {
+      "position": 9,
+      "type": "custom_ranking",
+      "title": "Os Reis da Figurinha",
+      "items": [
+        {
+          "rank": 1,
+          "label": "Dani",
+          "sublabel": "1 figurinhas"
+        }
+      ]
+    },
+    {
+      "position": 10,
+      "type": "custom_ranking",
+      "title": "Os Fotógrafos",
+      "items": [
+        {
+          "rank": 1,
+          "label": "Beto",
+          "sublabel": "3 fotos"
+        },
+        {
+          "rank": 2,
+          "label": "Caio",
+          "sublabel": "3 fotos"
+        },
+        {
+          "rank": 3,
+          "label": "Dani",
+          "sublabel": "3 fotos"
+        }
+      ]
+    },
+    {
+      "position": 11,
+      "type": "custom_ranking",
+      "title": "As Palavras do Ano",
+      "items": [
+        {
+          "rank": 1,
+          "label": "localização",
+          "sublabel": "61 vezes"
+        },
+        {
+          "rank": 2,
+          "label": "manda",
+          "sublabel": "61 vezes"
+        },
+        {
+          "rank": 3,
+          "label": "grupo",
+          "sublabel": "56 vezes"
+        },
+        {
+          "rank": 4,
+          "label": "gelo",
+          "sublabel": "52 vezes"
+        },
+        {
+          "rank": 5,
+          "label": "leva",
+          "sublabel": "52 vezes"
+        }
+      ]
+    },
+    {
+      "position": 12,
+      "type": "custom_ranking",
+      "title": "O Emoji de Cada Um",
+      "items": [
+        {
+          "rank": 1,
+          "label": "Ana",
+          "sublabel": "☕ · 19 vezes"
+        },
+        {
+          "rank": 2,
+          "label": "Beto",
+          "sublabel": "☕ · 17 vezes"
+        },
+        {
+          "rank": 3,
+          "label": "Caio",
+          "sublabel": "☕ · 14 vezes"
+        },
+        {
+          "rank": 4,
+          "label": "Dani",
+          "sublabel": "😂 · 6 vezes"
+        }
+      ]
+    },
+    {
+      "position": 13,
+      "type": "custom_ranking",
+      "title": "Quem Faz o Grupo Rir",
+      "items": [
+        {
+          "rank": 1,
+          "label": "Dani",
+          "sublabel": "29 mensagens que viraram risada"
+        },
+        {
+          "rank": 2,
+          "label": "Caio",
+          "sublabel": "31 mensagens que viraram risada"
+        },
+        {
+          "rank": 3,
+          "label": "Beto",
+          "sublabel": "34 mensagens que viraram risada"
+        },
+        {
+          "rank": 4,
+          "label": "Ana",
+          "sublabel": "32 mensagens que viraram risada"
+        }
+      ]
+    },
+    {
+      "position": 14,
+      "type": "auto_user_stats",
+      "metricKey": "summary"
+    },
+    {
+      "position": 15,
+      "type": "auto_user_stats",
+      "metricKey": "top_members"
+    },
+    {
+      "position": 16,
+      "type": "auto_user_stats",
+      "metricKey": "top_players"
+    },
+    {
+      "position": 17,
+      "type": "auto_user_stats",
+      "metricKey": "games"
+    },
+    {
+      "position": 18,
+      "type": "auto_user_stats",
+      "metricKey": "top_music"
+    },
+    {
+      "position": 19,
+      "type": "auto_user_stats",
+      "metricKey": "top_music_members"
+    },
+    {
+      "position": 20,
+      "type": "auto_user_stats",
+      "metricKey": "top_cultura_members"
+    },
+    {
+      "position": 21,
+      "type": "auto_user_stats",
+      "metricKey": "top_dice_members"
+    },
+    {
+      "position": 22,
+      "type": "auto_user_stats",
+      "metricKey": "top_bolao_members"
+    },
+    {
+      "position": 23,
+      "type": "media",
+      "title": "Foto de Dani",
+      "imageUrl": "/wrapped/2026/media/foto-01.jpg",
+      "description": "Rolê · Dani · 14/03/2026"
+    },
+    {
+      "position": 24,
+      "type": "media",
+      "title": "Foto de Caio",
+      "imageUrl": "/wrapped/2026/media/foto-02.jpg",
+      "description": "Rolê · Caio · 14/03/2026"
+    },
+    {
+      "position": 25,
+      "type": "media",
+      "title": "Foto de Dani",
+      "imageUrl": "/wrapped/2026/media/foto-03.jpg",
+      "description": "Rolê · Dani · 20/06/2026"
+    },
+    {
+      "position": 26,
+      "type": "media",
+      "title": "Foto de Caio",
+      "imageUrl": "/wrapped/2026/media/foto-04.jpg",
+      "description": "Rolê · Caio · 20/06/2026"
+    },
+    {
+      "position": 27,
+      "type": "media",
+      "title": "Foto de Dani",
+      "imageUrl": "/wrapped/2026/media/foto-05.jpg",
+      "description": "Rolê · Dani · 05/09/2026"
+    },
+    {
+      "position": 28,
+      "type": "media",
+      "title": "Foto de Caio",
+      "imageUrl": "/wrapped/2026/media/foto-06.jpg",
+      "description": "Rolê · Caio · 05/09/2026"
+    },
+    {
+      "position": 29,
+      "type": "media",
+      "title": "Foto de Beto",
+      "imageUrl": "/wrapped/2026/media/foto-07.jpg",
+      "description": "Rolê · Beto · 14/03/2026"
+    },
+    {
+      "position": 30,
+      "type": "media",
+      "title": "Foto de Beto",
+      "imageUrl": "/wrapped/2026/media/foto-08.jpg",
+      "description": "Rolê · Beto · 20/06/2026"
+    },
+    {
+      "position": 31,
+      "type": "media",
+      "title": "Foto de Beto",
+      "imageUrl": "/wrapped/2026/media/foto-09.jpg",
+      "description": "Rolê · Beto · 05/09/2026"
+    }
+  ]
+}

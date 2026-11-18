@@ -2,6 +2,7 @@ import type {
   AutoMetricKey,
   CustomSlideType,
   GameKey,
+  MemberBoards,
   ResolvedSlide,
   WrappedMode,
   WrappedEdition,
@@ -33,6 +34,12 @@ const METRIC_ALIASES: Record<string, AutoMetricKey> = {
   summary: "summary",
   total_activity: "summary",
   top_members: "top_members",
+  top_players: "top_players",
+  top_music_members: "top_music_members",
+  top_cultura_members: "top_cultura_members",
+  top_dice_members: "top_dice_members",
+  top_bolao_members: "top_bolao_members",
+  top_agenda_members: "top_agenda_members",
   top_music: "top_music",
   top_artists: "top_music",
   top_cultura: "top_cultura",
@@ -47,10 +54,14 @@ const METRIC_ALIASES: Record<string, AutoMetricKey> = {
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,39}$/i;
 const COLOR_RE = /^(#[0-9a-f]{3,8}|rgba?\([0-9\s.,%]+\)|hsla?\([0-9\s.,%deg]+\))$/i;
 
-/** Só http(s): evita `javascript:`/`data:` vindos de JSON editado à mão. */
+/**
+ * Só http(s) ou caminho da própria origem (`/wrapped/2026/media/foto-01.jpg`, gerado pelo
+ * pipeline local): evita `javascript:`/`data:` e URLs `//host` vindos de JSON editado à mão.
+ */
 export function safeUrl(v: unknown): string | undefined {
   if (typeof v !== "string") return undefined;
   const s = v.trim();
+  if (/^\/(?!\/)[A-Za-z0-9._~\-/%]+$/.test(s) && !s.includes("..")) return s;
   if (!/^https?:\/\//i.test(s) || /["'()\s<>]/.test(s)) return undefined;
   return s;
 }
@@ -414,6 +425,64 @@ export function computeMemberRanking(raw: WrappedRaw, names: Record<string, stri
 // ═══════════════════════════════════════════
 
 const nf = (n: number) => n.toLocaleString("pt-BR");
+const plural = (n: number, one: string, many: string) => `${nf(n)} ${n === 1 ? one : many}`;
+
+/**
+ * Quem mais fez o quê em cada módulo do app (top 5 por módulo). Precisa de `user_id` nas linhas,
+ * então só funciona nos dados do grupo. `names` = id do perfil → nome.
+ */
+export function computeBoards(raw: WrappedRaw, names: Record<string, string>): MemberBoards {
+  const first = (id: string) => (names[id] ?? "Alguém").split(" ")[0];
+  const byUser = <T extends { user_id?: string }>(rows: T[]) => {
+    const m = new Map<string, T[]>();
+    for (const r of rows) if (r.user_id) m.set(r.user_id, [...(m.get(r.user_id) ?? []), r]);
+    return m;
+  };
+  const top = <T,>(rows: Map<string, T[]>, score: (r: T[]) => number, sub: (r: T[]) => string) => {
+    const items = [...rows.entries()]
+      .map(([id, r]) => ({ id, n: score(r), sub: sub(r) }))
+      .filter((x) => x.n > 0)
+      .sort((a, b) => b.n - a.n || first(a.id).localeCompare(first(b.id)))
+      .slice(0, 5)
+      .map((x, i): WrappedItem => ({ rank: i + 1, label: first(x.id), sublabel: x.sub }));
+    return items.length ? items : undefined;
+  };
+  return {
+    players: top(
+      byUser(raw.games),
+      (r) => r.length,
+      (r) => `${plural(r.length, "partida", "partidas")} · ${plural(r.filter((g) => g.status === "won").length, "vitória", "vitórias")}`,
+    ),
+    music: top(byUser(raw.musics), (r) => r.length, (r) => plural(r.length, "indicação", "indicações")),
+    cultura: top(
+      byUser(raw.culturaPosts),
+      (r) => r.length,
+      (r) => {
+        const rated = r.filter((p) => p.personal_rating != null);
+        const avg = rated.length ? rated.reduce((a, p) => a + (p.personal_rating ?? 0), 0) / rated.length : null;
+        return plural(r.length, "post", "posts") + (avg == null ? "" : ` · nota média ${avg.toFixed(1).replace(".", ",")}`);
+      },
+    ),
+    dice: top(
+      byUser(raw.dice),
+      (r) => r.length,
+      (r) => {
+        const crits = r.filter((d) => d.dice_type === "d20" && d.result === 20).length;
+        return plural(r.length, "rolagem", "rolagens") + (crits ? ` · ${plural(crits, "crítico", "críticos")}` : "");
+      },
+    ),
+    bolao: top(
+      byUser(raw.predictions),
+      (r) => r.reduce((a, p) => a + (p.points_earned ?? 0), 0),
+      (r) => `${nf(r.reduce((a, p) => a + (p.points_earned ?? 0), 0))} pontos · ${plural(r.length, "palpite", "palpites")}`,
+    ),
+    agenda: top(
+      byUser(raw.rsvps.filter((x) => x.status === "confirmed")),
+      (r) => r.length,
+      (r) => plural(r.length, "presença confirmada", "presenças confirmadas"),
+    ),
+  };
+}
 
 /** Slide automático; `null` quando o usuário não tem dados dessa métrica. */
 export function resolveAuto(
@@ -422,10 +491,30 @@ export function resolveAuto(
   cfg: { title?: string; description?: string },
   mode: WrappedMode = "user",
   members: WrappedItem[] = [],
+  boards: MemberBoards = {},
 ): Omit<ResolvedSlide, "key"> | null {
   const g = mode === "group";
   const t = (user: string, group = user) => cfg.title ?? (g ? group : user);
   switch (key) {
+    case "top_players":
+    case "top_music_members":
+    case "top_cultura_members":
+    case "top_dice_members":
+    case "top_bolao_members":
+    case "top_agenda_members": {
+      const def = {
+        top_players: ["players", "🎮", "Quem mais joga"],
+        top_music_members: ["music", "🎵", "Quem mais indica música"],
+        top_cultura_members: ["cultura", "🎬", "Quem mais posta em Cultura"],
+        top_dice_members: ["dice", "🎲", "Quem mais rola dados"],
+        top_bolao_members: ["bolao", "⚽", "Quem lidera o bolão"],
+        top_agenda_members: ["agenda", "📅", "Quem mais confirma presença"],
+      } as const;
+      const [board, emoji, title] = def[key];
+      const items = g ? boards[board] : undefined;
+      if (!items?.length) return null; // só no grupo e só com dados
+      return { kind: "list", emoji, title: t("", title), description: cfg.description, items };
+    }
     case "top_members":
       if (!g || !members.length) return null;
       return { kind: "list", emoji: "🏆", title: t("", "Quem mais apareceu"), description: cfg.description, items: members };
@@ -555,7 +644,7 @@ export function summaryFacts(s: WrappedStats): { label: string; value: string }[
 export function buildSlides(
   edition: WrappedEdition,
   stats: WrappedStats,
-  opts: { mode?: WrappedMode; members?: WrappedItem[] } = {},
+  opts: { mode?: WrappedMode; members?: WrappedItem[]; boards?: MemberBoards } = {},
 ): ResolvedSlide[] {
   const out: ResolvedSlide[] = [];
   edition.slides.forEach((c, i) => {
@@ -565,7 +654,7 @@ export function buildSlides(
         out.push({ key, kind: "intro", title: c.title ?? edition.pageTitle, description: c.description ?? edition.subtitle, imageUrl: c.imageUrl, backgroundImageUrl: c.backgroundImageUrl });
         break;
       case "auto_user_stats": {
-        const r = resolveAuto(c.metricKey!, stats, c, opts.mode, opts.members);
+        const r = resolveAuto(c.metricKey!, stats, c, opts.mode, opts.members, opts.boards);
         if (r) out.push({ key, backgroundImageUrl: c.backgroundImageUrl, imageUrl: c.imageUrl, ...r });
         break;
       }

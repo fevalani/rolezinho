@@ -130,7 +130,6 @@ function AppRoutes() {
         <Route path="/duelos/:id" element={<DuelosPlayPage />} />
         <Route path="/wrapped" element={<WrappedPage />} />
         <Route path="/wrapped/:slug" element={<WrappedPage />} />
-        <Route path="/wrapped/:slug/:modo" element={<WrappedPage />} />
         <Route path="/wrapped-admin" element={<WrappedAdminPage />} />
       </Route>
 

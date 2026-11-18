@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deleteEdition, fetchEdition, fetchEditions, fetchProfileNames, fetchUserRaw, saveEdition } from "@/features/wrapped/wrappedService";
+import { deleteEdition, fetchEdition, fetchAppUsers, fetchEditions, fetchProfileNames, fetchViewerCounts, fetchViewers, saveViewers, fetchUserRaw, saveEdition } from "@/features/wrapped/wrappedService";
 import { mockDb } from "./supabaseMock";
 
 const row = {
@@ -92,5 +92,38 @@ describe("wrappedService", () => {
   it("saveEdition grava starts_at/ends_at (null quando ausentes)", async () => {
     await saveEdition({ slug: "1", pageTitle: "T", isActive: true, startsAt: "2026-12-01", slides: [] }, "u");
     expect(mockDb.writes.find((w) => w.table === "wrapped_editions")!.args[0]).toMatchObject({ starts_at: "2026-12-01", ends_at: null });
+  });
+  it("fetchAppUsers devolve os perfis com nome padrão e tolera erro", async () => {
+    mockDb.tables.profiles = [{ id: "a", display_name: " Ana ", avatar_url: "u.png" }, { id: "b", display_name: "", avatar_url: null }];
+    expect(await fetchAppUsers()).toEqual([
+      { id: "a", displayName: "Ana", avatarUrl: "u.png" },
+      { id: "b", displayName: "Sem nome", avatarUrl: null },
+    ]);
+    mockDb.errors.profiles = { message: "x" };
+    expect(await fetchAppUsers()).toEqual([]);
+  });
+  it("fetchViewers e fetchViewerCounts", async () => {
+    mockDb.tables.wrapped_viewers = [{ slug: "2026", user_id: "a" }, { slug: "2026", user_id: "b" }, { slug: "2025", user_id: "a" }];
+    expect(await fetchViewers("2026")).toEqual(["a", "b", "a"]); // o mock não filtra; o filtro vai na consulta
+    const q = mockDb.queries.find((x) => x.table === "wrapped_viewers")!;
+    expect(q.calls).toContainEqual(["eq", ["slug", "2026"]]);
+    expect(await fetchViewerCounts()).toEqual({ "2026": 2, "2025": 1 });
+    mockDb.errors.wrapped_viewers = { message: "x" };
+    expect(await fetchViewers("2026")).toEqual([]);
+  });
+  it("saveViewers aplica só a diferença; sem mudança não escreve; erro de leitura não apaga nada", async () => {
+    mockDb.tables.wrapped_viewers = [{ slug: "2026", user_id: "a" }, { slug: "2026", user_id: "b" }];
+    expect((await saveViewers("2026", ["b", "c"])).error).toBeNull();
+    const calls = mockDb.queries.filter((x) => x.table === "wrapped_viewers").flatMap((x) => x.calls);
+    expect(calls).toContainEqual(["in", ["user_id", ["a"]]]); // removeu só o "a"
+    const up = mockDb.writes.find((w) => w.op === "upsert")!;
+    expect(up.args).toEqual([[{ slug: "2026", user_id: "c" }], { onConflict: "slug,user_id" }]); // adicionou só o "c"
+    mockDb.writes = [];
+    await saveViewers("2026", ["a", "b"]);
+    expect(mockDb.writes).toEqual([]);                     // nada mudou
+    mockDb.errors.wrapped_viewers = { message: "denied" };
+    mockDb.writes = [];
+    expect((await saveViewers("2026", [])).error).toBe("denied");
+    expect(mockDb.writes).toEqual([]);                     // leitura falhou: não apagou ninguém
   });
 });

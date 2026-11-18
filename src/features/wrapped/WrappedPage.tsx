@@ -8,6 +8,7 @@ import {
   SLIDE_MS,
   buildSlides,
   clampIndex,
+  computeBoards,
   computeMemberRanking,
   computeStats,
   editionYear,
@@ -15,7 +16,7 @@ import {
   resolveGesture,
 } from "./wrappedLogic";
 import { canvasToBlob, downloadImage, drawShareCard, shareImage } from "./wrappedShare";
-import type { ResolvedSlide, WrappedEdition, WrappedMode } from "./wrappedTypes";
+import type { ResolvedSlide, WrappedEdition } from "./wrappedTypes";
 import "./wrapped.css";
 
 type Load =
@@ -24,9 +25,8 @@ type Load =
   | { state: "ready"; edition: WrappedEdition; slides: ResolvedSlide[]; facts: { label: string; value: string }[] };
 
 export function WrappedPage() {
-  const { slug, modo } = useParams<{ slug?: string; modo?: string }>();
-  const mode: WrappedMode = modo === "grupo" ? "group" : "user";
-  const { user, profile } = useAuth();
+  const { slug } = useParams<{ slug?: string }>();
+  const { user } = useAuth();
   const [load, setLoad] = useState<Load>({ state: "loading" });
 
   useEffect(() => {
@@ -36,23 +36,22 @@ export function WrappedPage() {
       const edition = await fetchEdition(slug);
       if (!alive) return;
       if (!edition || (!isEditionLive(edition) && !isAdminUser(user))) return setLoad({ state: "empty" });
-      const group = mode === "group";
-      const [raw, names] = await Promise.all([
-        fetchUserRaw(group ? null : user.id, edition.slug),
-        group ? fetchProfileNames() : Promise.resolve({}),
-      ]);
+      // Wrapped comum (do grupo): dados de todo mundo, sem versão personalizada por pessoa.
+      const [raw, names] = await Promise.all([fetchUserRaw(null, edition.slug), fetchProfileNames()]);
       if (!alive) return;
       const stats = computeStats(raw, editionYear(edition.slug));
-      const slides = buildSlides(edition, stats, { mode, members: group ? computeMemberRanking(raw, names) : [] });
+      const slides = buildSlides(edition, stats, {
+        mode: "group",
+        members: computeMemberRanking(raw, names),
+        boards: computeBoards(raw, names),
+      });
       const outro = slides[slides.length - 1];
       setLoad({ state: "ready", edition, slides, facts: outro.facts ?? [] });
     })();
     return () => {
       alive = false;
     };
-  }, [slug, user, mode]);
-
-  const name = mode === "group" ? "O grupo" : (profile?.display_name ?? "Você");
+  }, [slug, user]);
 
   if (load.state === "loading") {
     return (
@@ -62,7 +61,7 @@ export function WrappedPage() {
     );
   }
   if (load.state === "empty") return <WrappedEmpty />;
-  return <Stories key={mode} edition={load.edition} slides={load.slides} facts={load.facts} userName={name} mode={mode} />;
+  return <Stories edition={load.edition} slides={load.slides} facts={load.facts} />;
 }
 
 function WrappedEmpty() {
@@ -85,14 +84,10 @@ function Stories({
   edition,
   slides,
   facts,
-  userName,
-  mode,
 }: {
   edition: WrappedEdition;
   slides: ResolvedSlide[];
   facts: { label: string; value: string }[];
-  userName: string;
-  mode: WrappedMode;
 }) {
   const navigate = useNavigate();
   const [index, setIndex] = useState(0);
@@ -181,8 +176,8 @@ function Stories({
   } as React.CSSProperties;
 
   const cardInput = useMemo(
-    () => ({ title: edition.pageTitle, userName, facts, theme: edition.theme }),
-    [edition, userName, facts],
+    () => ({ title: edition.pageTitle, userName: "O grupo", facts, theme: edition.theme }),
+    [edition, facts],
   );
   const makeBlob = async () => {
     const canvas = document.createElement("canvas");
@@ -228,19 +223,6 @@ function Stories({
           <div className="wrapped-bar" key={s.key}>
             <i style={{ width: i < index ? "100%" : i === index ? `${progress * 100}%` : "0%" }} />
           </div>
-        ))}
-      </div>
-      <div className="wrapped-mode" role="tablist" aria-label="Modo">
-        {(["user", "group"] as const).map((m) => (
-          <button
-            key={m}
-            role="tab"
-            aria-selected={mode === m}
-            className={mode === m ? "on" : ""}
-            onClick={() => mode !== m && navigate(m === "group" ? `/wrapped/${edition.slug}/grupo` : `/wrapped/${edition.slug}`, { replace: true })}
-          >
-            {m === "user" ? "Você" : "Grupo"}
-          </button>
         ))}
       </div>
       <button className="wrapped-close" aria-label="Fechar" onClick={close}>
