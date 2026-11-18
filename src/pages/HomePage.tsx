@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { usePullToRefresh } from "@/lib/usePullToRefresh";
 import { hapticTap } from "@/lib/haptics";
-import { APP_FEATURES, type Feature } from "@/lib/types";
+import type { Feature } from "@/lib/types";
+import { useFeatures } from "@/lib/FeatureFlagsContext";
 import { supabase } from "@/lib/supabase";
 import { Avatar } from "@/components/Avatar";
 import { useSeasonalTheme } from "@/lib/seasonal/SeasonalThemeContext";
@@ -36,9 +37,9 @@ const FEATURE_CATEGORIES: { label: string; ids: string[] }[] = [
   { label: "💰 Financeiro", ids: ["splitwise"] },
 ];
 
-function groupFeaturesByCategory(
-  features: Feature[],
-): { label: string; features: Feature[] }[] {
+function groupFeaturesByCategory<T extends Feature>(
+  features: T[],
+): { label: string; features: T[] }[] {
   const groups = FEATURE_CATEGORIES.map((cat) => ({
     label: cat.label,
     features: features.filter((f) => cat.ids.includes(f.id)),
@@ -57,7 +58,8 @@ export function HomePage() {
   const navigate = useNavigate();
   const firstName = profile?.display_name?.split(" ")[0] ?? "Aventureiro";
 
-  const visibleFeatures = APP_FEATURES.filter(
+  const features = useFeatures();
+  const visibleFeatures = features.filter(
     (f) => !(profile?.hidden_features ?? []).includes(f.id),
   );
 
@@ -300,6 +302,11 @@ export function HomePage() {
                     {!feat.enabled && (
                       <span className="text-[0.55rem] px-1.5 py-0.5 rounded-md bg-[rgba(201,165,90,0.08)] text-(--gold-dark) font-semibold uppercase tracking-wide">
                         Em breve
+                      </span>
+                    )}
+                    {feat.enabled && feat.offForOthers && (
+                      <span className="text-[0.55rem] px-1.5 py-0.5 rounded-md bg-[rgba(196,64,64,0.12)] text-(--red) font-semibold uppercase tracking-wide">
+                        Só admin
                       </span>
                     )}
                   </button>

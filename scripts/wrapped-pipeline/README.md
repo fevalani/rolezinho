@@ -102,7 +102,7 @@ Opções úteis: `--slug`, `--title`, `--subtitle`, `--aliases`, `--top-peaks 15
 
 ## 4. Levar para o app
 
-1. Abra `/wrapped-admin` (só admin), cole o conteúdo de `wrapped_output.json`, ajuste o que quiser
+1. Abra `/admin/wrapped` (só admin), cole o conteúdo de `wrapped_output.json`, ajuste o que quiser
    (por exemplo `startsAt`/`endsAt`, `isActive: true`) e clique em **Validar e salvar**.
 2. O editor mostra avisos para slides descartados. Só existe o Wrapped comum (do grupo, sem versão por pessoa);
    misture com os automáticos (`auto_user_stats`) se quiser.

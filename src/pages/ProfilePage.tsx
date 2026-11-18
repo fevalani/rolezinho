@@ -5,7 +5,8 @@ import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { getInitials } from "@/lib/utils";
 import { DevModeCard } from "@/components/DevModeCard";
-import { APP_FEATURES, type ThemeMode } from "@/lib/types";
+import type { ThemeMode } from "@/lib/types";
+import { useFeatures } from "@/lib/FeatureFlagsContext";
 
 const EMOJI_AVATARS = [
   "🧙",
@@ -51,6 +52,7 @@ function displayToBirthday(input: string): string | null {
 }
 
 export function ProfilePage() {
+  const availableFeatures = useFeatures().filter((f) => f.enabled);
   const { user, profile, updateProfile, changePassword } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -488,9 +490,9 @@ export function ProfilePage() {
               Minha Home
             </h2>
             <span className="text-xs text-(--text-muted)">
-              {APP_FEATURES.filter((f) => f.enabled).length -
+              {availableFeatures.length -
                 hiddenFeatures.length}{" "}
-              de {APP_FEATURES.filter((f) => f.enabled).length} visíveis
+              de {availableFeatures.length} visíveis
             </span>
           </div>
           <p className="text-xs text-(--text-muted) -mt-1">
@@ -498,7 +500,7 @@ export function ProfilePage() {
           </p>
 
           <div className="flex flex-col gap-2">
-            {APP_FEATURES.filter((f) => f.enabled).map((feat) => {
+            {availableFeatures.map((feat) => {
               const isHidden = hiddenFeatures.includes(feat.id);
               return (
                 <button

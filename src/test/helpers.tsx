@@ -22,6 +22,8 @@ export function loginAs(user: typeof TEST_USER = TEST_USER) {
   mockDb.session = {
     user: { id: user.id, email: user.email, user_metadata: {} },
   };
+  // o papel de admin vem do banco (função is_app_admin): só a conta ADMIN_USER é admin nos testes
+  mockDb.rpcResults.is_app_admin = user.email === ADMIN_USER.email;
   const profile = {
     id: user.id,
     email: user.email,
@@ -40,8 +42,8 @@ export function loginAs(user: typeof TEST_USER = TEST_USER) {
 
 /** Só monta a tela com a sessão E o perfil já carregados (app "assentado"). */
 function Settled({ children }: { children: ReactNode }) {
-  const { loading, user, profile } = useAuth();
-  if (loading || (user && !profile)) return null;
+  const { loading, user, profile, adminLoading } = useAuth();
+  if (loading || adminLoading || (user && !profile)) return null;
   return <>{children}</>;
 }
 

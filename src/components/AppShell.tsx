@@ -3,20 +3,21 @@ import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { useBetaMode } from "@/lib/useBetaMode";
 import { hapticTap } from "@/lib/haptics";
-import { APP_FEATURES } from "@/lib/types";
+import { useFeatures } from "@/lib/FeatureFlagsContext";
 import { Avatar } from "@/components/Avatar";
-import { isAdminUser } from "@/lib/admin";
+import { useAdmin } from "@/lib/useAdmin";
 import { SeasonalPreviewBanner } from "@/components/SeasonalPreviewBanner";
 
 export function AppShell() {
-  const { user, profile, signOut } = useAuth();
+  const { profile, signOut } = useAuth();
+  const { isAdmin } = useAdmin();
+  const features = useFeatures();
   const isBeta = useBetaMode();
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
   const [scrolled, setScrolled] = useState(false);
-  const versionTaps = useRef({ n: 0, t: 0 });
 
   // Header condensado ao rolar — só no modo beta, o resto do app não muda.
   // `condensed` já ignora `scrolled` quando isBeta é false, então não precisa
@@ -35,20 +36,6 @@ export function AppShell() {
     if (isBeta) hapticTap();
     setMenuOpen(false);
     navigate(path);
-  };
-
-  // Acesso escondido (só admin): 7 toques na versão abrem /temas.
-  const handleVersionTap = () => {
-    if (!isAdminUser(user)) return;
-    const now = Date.now();
-    const v = versionTaps.current;
-    v.n = now - v.t > 1500 ? 1 : v.n + 1;
-    v.t = now;
-    if (v.n >= 7) {
-      v.n = 0;
-      setMenuOpen(false);
-      navigate("/temas");
-    }
   };
 
   return (
@@ -190,7 +177,7 @@ export function AppShell() {
                 Features
               </div>
 
-              {APP_FEATURES.map((feat) => (
+              {features.map((feat) => (
                 <button
                   key={feat.id}
                   onClick={() => feat.enabled && handleNav(feat.path)}
@@ -212,8 +199,34 @@ export function AppShell() {
                       Em breve
                     </span>
                   )}
+                  {feat.enabled && feat.offForOthers && (
+                    <span className="ml-auto text-[0.6rem] px-2 py-0.5 rounded-md bg-[rgba(196,64,64,0.12)] text-(--red) font-semibold uppercase tracking-wide">
+                      Só admin
+                    </span>
+                  )}
                 </button>
               ))}
+
+              {/* Administração: só admin, no fim da lista */}
+              {isAdmin && (
+                <>
+                  <div className="text-[0.65rem] text-(--text-muted) uppercase tracking-widest font-semibold px-4 pt-4 pb-1.5">
+                    Administração
+                  </div>
+                  <button
+                    onClick={() => handleNav("/admin")}
+                    className={`flex items-center gap-3 w-full text-left px-4 py-2.5 rounded-lg text-[0.95rem] transition-colors
+                      ${
+                        location.pathname.startsWith("/admin")
+                          ? "bg-[rgba(201,165,90,0.07)] text-(--gold)"
+                          : "text-(--text-primary) hover:bg-[var(--bg-hover)]"
+                      }`}
+                  >
+                    <span className="w-6 text-center text-[1.05rem]">🛡️</span>
+                    <span>Painel admin</span>
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Footer */}
@@ -228,7 +241,6 @@ export function AppShell() {
                 Sair da conta
               </button>
               <span
-                onClick={handleVersionTap}
                 className="text-[0.65rem] text-(--text-muted) select-none"
                 style={{ fontFamily: "var(--font-mono)" }}
               >

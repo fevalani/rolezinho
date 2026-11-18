@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { isAdminUser } from "@/lib/admin";
+import { useAdmin } from "@/lib/useAdmin";
 import { hapticTap } from "@/lib/haptics";
 import { fetchEdition, fetchProfileNames, fetchUserRaw } from "./wrappedService";
 import {
@@ -27,15 +27,16 @@ type Load =
 export function WrappedPage() {
   const { slug } = useParams<{ slug?: string }>();
   const { user } = useAuth();
+  const { isAdmin, loading: adminLoading } = useAdmin();
   const [load, setLoad] = useState<Load>({ state: "loading" });
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || adminLoading) return; // espera o banco dizer se é admin (pré-visualização)
     let alive = true;
     (async () => {
       const edition = await fetchEdition(slug);
       if (!alive) return;
-      if (!edition || (!isEditionLive(edition) && !isAdminUser(user))) return setLoad({ state: "empty" });
+      if (!edition || (!isEditionLive(edition) && !isAdmin)) return setLoad({ state: "empty" });
       // Wrapped comum (do grupo): dados de todo mundo, sem versão personalizada por pessoa.
       const [raw, names] = await Promise.all([fetchUserRaw(null, edition.slug), fetchProfileNames()]);
       if (!alive) return;
@@ -51,7 +52,7 @@ export function WrappedPage() {
     return () => {
       alive = false;
     };
-  }, [slug, user]);
+  }, [slug, user, isAdmin, adminLoading]);
 
   if (load.state === "loading") {
     return (

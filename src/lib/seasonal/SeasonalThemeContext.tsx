@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { useAuth } from "@/lib/AuthContext";
-import { isAdminUser } from "@/lib/admin";
+import { useAdmin } from "@/lib/useAdmin";
 import {
   SEASONAL_THEMES,
   getTheme,
@@ -83,7 +83,7 @@ function readInitialPreview(): string | null {
 
 export function SeasonalThemeProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const admin = isAdminUser(user);
+  const { isAdmin: admin } = useAdmin();
   const [records, setRecords] = useState<Record<string, ThemeRecord>>({});
   const [occasions, setOccasions] = useState<Occasion[]>([]);
   const [previewRaw, setPreviewRaw] = useState<string | null>(readInitialPreview);

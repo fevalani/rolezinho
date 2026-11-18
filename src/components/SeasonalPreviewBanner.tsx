@@ -34,7 +34,7 @@ export function SeasonalPreviewBanner() {
       <button
         onClick={() => {
           stopPreview();
-          navigate("/temas");
+          navigate("/admin/temas");
         }}
         className="px-2.5 py-1 rounded-full font-bold text-(--text-secondary) bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.1)]"
       >

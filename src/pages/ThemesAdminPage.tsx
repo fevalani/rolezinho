@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { useAuth } from "@/lib/AuthContext";
-import { isAdminUser } from "@/lib/admin";
+import { useAdmin } from "@/lib/useAdmin";
 import {
   SEASONAL_THEMES,
   defaultWindowFor,
@@ -15,7 +14,7 @@ import { OccasionsAdmin } from "@/components/OccasionsAdmin";
 
 /** Tela de admin: lista os temas sazonais, pré-visualiza e aprova. */
 export function ThemesAdminPage() {
-  const { user } = useAuth();
+  const { isAdmin, loading: adminLoading } = useAdmin();
   const navigate = useNavigate();
   const {
     approvals,
@@ -30,7 +29,8 @@ export function ThemesAdminPage() {
   const [msg, setMsg] = useState("");
   const [ok, setOk] = useState("");
 
-  if (!isAdminUser(user)) return <Navigate to="/" replace />;
+  if (adminLoading) return null;
+  if (!isAdmin) return <Navigate to="/" replace />;
 
   const today = new Date();
 

@@ -18,6 +18,10 @@ interface AuthContextValue {
   profile: Profile | null;
   session: Session | null;
   loading: boolean;
+  /** Papel de admin (vem do banco: função is_app_admin). Só esconde/mostra UI — a RLS é quem protege. */
+  isAdmin: boolean;
+  /** true enquanto o banco ainda não respondeu se este usuário é admin */
+  adminLoading: boolean;
   signIn: (
     email: string,
     password: string,
@@ -51,6 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  // Resultado de is_app_admin() e de QUEM ele é (evita mostrar o papel de um usuário para outro)
+  const [adminState, setAdminState] = useState<{ userId: string; value: boolean } | null>(null);
 
   const syncAppVersion = useCallback(async (userId: string) => {
     try {
@@ -140,6 +146,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, [fetchProfile, syncAppVersion]);
 
+  // Pergunta ao banco se o usuário é admin (a regra mora na tabela app_admins).
+  const userId = user?.id ?? null;
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    (async () => {
+      let value = false;
+      try {
+        const { data, error } = await supabase.rpc("is_app_admin");
+        value = !error && data === true;
+      } catch {
+        value = false; // sem rede / função ausente: trata como não-admin
+      }
+      if (alive) setAdminState({ userId, value });
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [userId]);
+  const adminLoading = !!userId && adminState?.userId !== userId;
+  const isAdmin = !adminLoading && !!userId && adminState?.value === true;
+
   // Aplica o tema (claro/escuro) no documento inteiro via atributo — o CSS
   // troca as custom properties de cor num único lugar (global.css).
   useEffect(() => {
@@ -225,6 +253,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         session,
         loading,
+        isAdmin,
+        adminLoading,
         signIn,
         signUp,
         signOut,

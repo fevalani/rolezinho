@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { isAdminUser } from "@/lib/admin";
+import { useAdmin } from "@/lib/useAdmin";
 import {
   deleteEdition,
   fetchAppUsers,
@@ -24,6 +24,7 @@ interface ViewersPanel {
 
 export function WrappedAdminPage() {
   const { user } = useAuth();
+  const { isAdmin, loading: adminLoading } = useAdmin();
   const navigate = useNavigate();
   const [editions, setEditions] = useState<WrappedEdition[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -48,7 +49,8 @@ export function WrappedAdminPage() {
     return q ? panel.users.filter((u) => u.displayName.toLocaleLowerCase("pt-BR").includes(q)) : panel.users;
   }, [panel]);
 
-  if (!isAdminUser(user)) {
+  if (adminLoading) return null;
+  if (!isAdmin) {
     return <p className="p-6 text-center text-(--text-secondary)">Acesso restrito ao administrador.</p>;
   }
 

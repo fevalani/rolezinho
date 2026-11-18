@@ -27,8 +27,8 @@ function Probe() {
   );
 }
 function Ready({ children }: { children: React.ReactNode }) {
-  const { loading, user, profile } = useAuth();
-  return loading || (user && !profile) ? null : <>{children}</>;
+  const { loading, user, profile, adminLoading } = useAuth();
+  return loading || adminLoading || (user && !profile) ? null : <>{children}</>;
 }
 const mount = () =>
   render(

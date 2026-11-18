@@ -38,6 +38,7 @@ import { DuelosPage } from "@/features/duelos/DuelosPage";
 import { DuelosPlayPage } from "@/features/duelos/DuelosPlayPage";
 import { WrappedPage } from "@/features/wrapped/WrappedPage";
 import { WrappedAdminPage } from "@/features/wrapped/WrappedAdminPage";
+import { AdminPage, AdminSectionPage } from "@/features/admin/AdminPage";
 
 vi.mock("@capacitor/core", async (orig) => ({
   ...(await orig<typeof import("@capacitor/core")>()),
@@ -81,13 +82,18 @@ const PAGES: Case[] = [
   { name: "DuelosPage", Component: DuelosPage, pattern: "/duelos", route: "/duelos" },
   { name: "DuelosPlayPage", Component: DuelosPlayPage, pattern: "/duelos/:id", route: "/duelos/d1" },
   { name: "WrappedPage", Component: WrappedPage, pattern: "/wrapped", route: "/wrapped" },
+  { name: "AdminPage", Component: AdminPage, pattern: "/admin", route: "/admin" },
+  { name: "AdminSectionPage", Component: AdminSectionPage, pattern: "/admin/:section", route: "/admin/wrapped" },
+  { name: "AdminSectionFeatures", Component: AdminSectionPage, pattern: "/admin/:section", route: "/admin/features" },
+  { name: "AdminSectionUsuarios", Component: AdminSectionPage, pattern: "/admin/:section", route: "/admin/usuarios" },
+  { name: "AdminSectionAdmins", Component: AdminSectionPage, pattern: "/admin/:section", route: "/admin/admins" },
   { name: "WrappedAdminPage", Component: WrappedAdminPage, pattern: "/wrapped-admin", route: "/wrapped-admin" },
 ];
 
 // Igual ao ProtectedRoute do App: só monta a tela depois da sessão carregada.
 function Gate({ children }: { children: ReactNode }) {
-  const { loading } = useAuth();
-  return loading ? null : <>{children}</>;
+  const { loading, adminLoading } = useAuth();
+  return loading || adminLoading ? null : <>{children}</>;
 }
 
 function mount({ Component, pattern, route }: Case) {
@@ -110,7 +116,7 @@ function mount({ Component, pattern, route }: Case) {
 
 describe("telas montam sem quebrar (logado, banco vazio)", () => {
   it.each(PAGES)("$name", async (c) => {
-    loginAs(c.name === "ThemesAdminPage" ? ADMIN_USER : TEST_USER);
+    loginAs(c.name === "ThemesAdminPage" || c.name.startsWith("Admin") ? ADMIN_USER : TEST_USER);
     const { container } = mount(c);
     await flush();
     // o shell do app (cabeçalho) aparece quando a tela monta

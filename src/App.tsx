@@ -13,8 +13,9 @@ import { AuthProvider, useAuth } from "@/lib/AuthContext";
 import { scheduleMusicReminder } from "@/lib/notificationService";
 import { registerPushToken } from "@/lib/pushTokenService";
 import { trackPageView } from "@/lib/analytics";
+import { FeatureFlagsProvider } from "@/lib/FeatureFlagsContext";
 import { SeasonalThemeProvider } from "@/lib/seasonal/SeasonalThemeContext";
-import { ThemesAdminPage } from "@/pages/ThemesAdminPage";
+import { AdminPage, AdminRoute, AdminSectionPage } from "@/features/admin/AdminPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { HomePage } from "@/pages/HomePage";
 import { ProfilePage } from "@/pages/ProfilePage";
@@ -38,7 +39,6 @@ import { RankingDetailPage } from "./features/ranking/RankingDetailPage";
 import { DuelosPage } from "./features/duelos/DuelosPage";
 import { DuelosPlayPage } from "./features/duelos/DuelosPlayPage";
 import { WrappedPage } from "./features/wrapped/WrappedPage";
-import { WrappedAdminPage } from "./features/wrapped/WrappedAdminPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -109,7 +109,13 @@ function AppRoutes() {
       >
         <Route path="/" element={<HomePage />} />
         <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/temas" element={<ThemesAdminPage />} />
+        <Route path="/admin" element={<AdminRoute />}>
+          <Route index element={<AdminPage />} />
+          <Route path=":section" element={<AdminSectionPage />} />
+        </Route>
+        {/* endereços antigos (continuam funcionando) */}
+        <Route path="/temas" element={<Navigate to="/admin/temas" replace />} />
+        <Route path="/wrapped-admin" element={<Navigate to="/admin/wrapped" replace />} />
         <Route path="/dados" element={<TavernaPage />} />
         <Route path="/racha-conta" element={<RachaContaPage />} />
         <Route path="/aniversarios" element={<AniversariosPage />} />
@@ -130,7 +136,6 @@ function AppRoutes() {
         <Route path="/duelos/:id" element={<DuelosPlayPage />} />
         <Route path="/wrapped" element={<WrappedPage />} />
         <Route path="/wrapped/:slug" element={<WrappedPage />} />
-        <Route path="/wrapped-admin" element={<WrappedAdminPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -142,9 +147,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <SeasonalThemeProvider>
-          <AppRoutes />
-        </SeasonalThemeProvider>
+        <FeatureFlagsProvider>
+          <SeasonalThemeProvider>
+            <AppRoutes />
+          </SeasonalThemeProvider>
+        </FeatureFlagsProvider>
       </AuthProvider>
     </BrowserRouter>
   );

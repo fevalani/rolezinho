@@ -111,27 +111,41 @@ describe("AppShell", () => {
     );
   });
 
-  it("admin: 7 toques na versão abrem /temas", async () => {
+  it("admin: o menu tem a Administração no fim, depois das features, e abre o painel", async () => {
+    loginAs(ADMIN_USER);
+    mountApp();
+    await screen.findByText(/Olá, Admin/);
+    fireEvent.click(screen.getByLabelText("Abrir menu"));
+    const painel = await screen.findByText("Painel admin");
+    expect(screen.getByText("Administração")).toBeInTheDocument();
+    // vem depois da última feature do menu
+    const nav = painel.closest("nav")!;
+    const last = APP_FEATURES[APP_FEATURES.length - 1].name;
+    const text = nav.textContent ?? "";
+    expect(text.indexOf("Painel admin")).toBeGreaterThan(text.lastIndexOf(last));
+    fireEvent.click(painel);
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/admin"));
+  });
+
+  it("usuário comum: o menu não mostra a Administração", async () => {
+    loginAs();
+    mountApp();
+    await screen.findByText(/Olá, Fulano/);
+    fireEvent.click(screen.getByLabelText("Abrir menu"));
+    await screen.findByText("Meu Perfil");
+    expect(screen.queryByText("Painel admin")).not.toBeInTheDocument();
+    expect(screen.queryByText("Administração")).not.toBeInTheDocument();
+  });
+
+  it("os 7 toques escondidos na versão não existem mais", async () => {
     loginAs(ADMIN_USER);
     mountApp();
     await screen.findByText(/Olá, Admin/);
     fireEvent.click(screen.getByLabelText("Abrir menu"));
     const version = await screen.findByText(/^v(dev|\d)/);
-    for (let i = 0; i < 7; i++) fireEvent.click(version);
-    await waitFor(() =>
-      expect(screen.getByTestId("where")).toHaveTextContent("/temas"),
-    );
-  });
-
-  it("usuário comum: toques na versão não abrem /temas", async () => {
-    loginAs();
-    mountApp();
-    await screen.findByText(/Olá, Fulano/);
-    fireEvent.click(screen.getByLabelText("Abrir menu"));
-    const version = await screen.findByText(/^v(dev|\d)/);
     for (let i = 0; i < 9; i++) fireEvent.click(version);
     await flush();
-    expect(screen.getByTestId("where")).toHaveTextContent("/");
     expect(screen.getByTestId("where")).not.toHaveTextContent("/temas");
+    expect(screen.getByTestId("where")).not.toHaveTextContent("/admin");
   });
 });

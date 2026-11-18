@@ -1,8 +1,8 @@
 -- Wrapped (retrospectiva anual em stories). Rodar no SQL Editor do Supabase.
--- Edições configuradas pelo admin em /wrapped-admin (JSON em `config`).
+-- Edições configuradas pelo admin em /admin/wrapped (JSON em `config`).
 -- Usuário logado LÊ só edições ativas, dentro da janela starts_at..ends_at E em que está na lista
 -- wrapped_viewers; só o admin lê rascunhos, gerencia a lista e ESCREVE.
--- ATENÇÃO: depois de rodar, ninguém além do admin vê o Wrapped até você escolher quem em /wrapped-admin.
+-- ATENÇÃO: depois de rodar, ninguém além do admin vê o Wrapped até você escolher quem em /admin/wrapped.
 -- PENDENTE: rodar esta migration.
 
 create table if not exists public.wrapped_editions (
@@ -20,7 +20,7 @@ alter table public.wrapped_editions add column if not exists ends_at   date;
 
 alter table public.wrapped_editions enable row level security;
 
--- Quem pode ver cada edição (lista escolhida pelo admin em /wrapped-admin).
+-- Quem pode ver cada edição (lista escolhida pelo admin em /admin/wrapped).
 -- Sem linha aqui = ninguém além do admin vê. O conteúdo tem trechos de conversa privada.
 create table if not exists public.wrapped_viewers (
   slug        text not null references public.wrapped_editions(slug) on delete cascade,
