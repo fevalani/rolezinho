@@ -40,7 +40,7 @@ export function sudokuPointsFor(
 export function formatElapsed(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
   const hh = Math.floor(s / 3600);
-  const mm = Math.floor((s / 3600) / 60);
+  const mm = Math.floor((s % 3600) / 60);
   const ss = s % 60;
 
   if (hh > 0) {

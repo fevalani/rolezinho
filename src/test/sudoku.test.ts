@@ -139,6 +139,16 @@ describe("formatElapsed", () => {
     expect(formatElapsed(5)).toBe("0:05");
     expect(formatElapsed(65)).toBe("1:05");
     expect(formatElapsed(600)).toBe("10:00");
+    expect(formatElapsed(125)).toBe("2:05");
+    expect(formatElapsed(3599)).toBe("59:59");
+  });
+  it("mostra horas em partidas longas (h:mm:ss)", () => {
+    expect(formatElapsed(3600)).toBe("1:00:00");
+    expect(formatElapsed(3725)).toBe("1:02:05");
+    expect(formatElapsed(7384)).toBe("2:03:04");
+  });
+  it("ignora valores negativos", () => {
+    expect(formatElapsed(-5)).toBe("0:00");
   });
 });
 

@@ -433,7 +433,6 @@ export function SudokuGame() {
   useEffect(() => {
     if (loading || status !== "playing" || !difficulty) return;
 
-    setIsHidden(document.hidden);
     if (document.hidden) {
       pauseTimer();
     }
@@ -487,7 +486,6 @@ export function SudokuGame() {
   useEffect(() => {
     if (loading || status !== "playing" || !difficulty || isPaused || document.hidden) return;
     resumeTimer();
-    setElapsedSeconds(getCurrentElapsedSeconds());
     const id = setInterval(() => {
       setElapsedSeconds(getCurrentElapsedSeconds());
     }, 1000);

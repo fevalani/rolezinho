@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { SudokuGame } from "@/features/letreco/SudokuGame";
 import { getSudokuOfDay, getSudokuGameDate, SUDOKU_DIFFICULTIES, applyGuess } from "@/features/letreco/sudokuLogic";
 import { loginAs, renderWithProviders } from "./helpers";
@@ -123,5 +123,49 @@ describe("SudokuGame", () => {
     renderWithProviders(<SudokuGame />);
     await waitFor(() => expect(cells()).toHaveLength(81));
     expect(cells().every((c) => c.disabled)).toBe(true);
+  });
+
+  describe("cronômetro (só conta o tempo com a tela visível)", () => {
+    const setHidden = (hidden: boolean) => {
+      Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    const tick = (ms: number) => act(() => { vi.advanceTimersByTime(ms); });
+    const lastSave = () =>
+      mockDb.writes.filter((w) => w.table === "sudoku_games").pop()!.args[0] as { elapsed_seconds: number; status: string };
+
+    afterEach(() => {
+      vi.useRealTimers();
+      Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+    });
+
+    it("conta o tempo, pausa ao ocultar a página (gravando o tempo) e retoma ao voltar", async () => {
+      vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+      await start();
+      tick(90_000);
+      expect(screen.getByText(/1:30/)).toBeInTheDocument();
+
+      mockDb.writes.length = 0;
+      act(() => setHidden(true));
+      expect(lastSave()).toMatchObject({ status: "playing", elapsed_seconds: 90 });
+
+      tick(60_000); // tempo fora da tela não conta
+      act(() => setHidden(false));
+      tick(10_000);
+      expect(screen.getByText(/1:40/)).toBeInTheDocument();
+    });
+
+    it("retoma a partida a partir do tempo salvo (e do backup local, se maior)", async () => {
+      loginAs();
+      const { puzzle } = getSudokuOfDay("medio");
+      mockDb.tables.sudoku_games = [
+        { id: "s1", user_id: "user-1", game_date: getSudokuGameDate(), difficulty: "medio", board: puzzle, mistakes: 0, elapsed_seconds: 120, status: "playing", score: 0, started_at: new Date(Date.now() - 3600_000).toISOString() },
+      ];
+      localStorage.setItem(`sudoku-elapsed:user-1:${getSudokuGameDate()}`, "150");
+      renderWithProviders(<SudokuGame />);
+      await waitFor(() => expect(cells()).toHaveLength(81));
+      expect(screen.getByText(/2:30/)).toBeInTheDocument();
+      localStorage.clear();
+    });
   });
 });
