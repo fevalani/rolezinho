@@ -208,11 +208,9 @@ export function SudokuGame() {
     accumulatedMs: number;
     notes: Record<number, number[]>;
     startedAtIso: string;
-    //startedAtMs: number;
   } | null>(null);
 
   const startedAtIso = useRef<string>("");
-  //const startedAtMs = useRef<number>(0);
   const accumulatedMs = useRef<number>(0);
   const activeSinceMs = useRef<number | null>(null);
 
@@ -297,12 +295,7 @@ export function SudokuGame() {
         setScore(game.score);
         startedAtIso.current = game.started_at;
 
-        //startedAtMs.current = Date.parse(game.started_at);
-
-
         let restoredSeconds = game.elapsed_seconds;
-        //if (game.status === "won") {
-        //setElapsedSeconds(game.elapsed_seconds);
 
         if (game.status === "playing") {
           try {
@@ -355,25 +348,11 @@ export function SudokuGame() {
     }
   }, [notes, notesStorageKey, difficulty, ranked]);
 
-  // ################## REMOVER BLOCO APÓS TESTE COM NOVO CRONÔMETRO ##################
-  // Cronômetro (recalcula a partir de started_at — sobrevive a reload) -  
-  // useEffect(() => {
-  //   if (loading || status !== "playing" || !difficulty) return;
-  //   const tick = () =>
-  //     setElapsedSeconds(Math.floor((Date.now() - startedAtMs.current) / 1000));
-  //   tick();
-  //   const id = setInterval(tick, 1000);
-  //   return () => clearInterval(id);
-  // }, [loading, status, difficulty]);
-  // ################## REMOVER BLOCO APÓS TESTE COM NOVO CRONÔMETRO ##################
-
-
   const startNewGame = useCallback(
     (diff: SudokuDifficulty) => {
       const { puzzle: p, solution: s } = getSudokuOfDay(diff);
       const iso = new Date().toISOString();
       startedAtIso.current = iso;
-      //startedAtMs.current = Date.now();
       accumulatedMs.current = 0;
       activeSinceMs.current = document.hidden ? null : Date.now();
 
@@ -418,9 +397,6 @@ export function SudokuGame() {
         board: nextBoard,
         mistakes: nextMistakes,
         elapsed_seconds: nextElapsedSeconds,
-        // nextStatus === "won"
-        //   ? Math.floor((Date.now() - startedAtMs.current) / 1000)
-        //   : elapsedSeconds,
         status: nextStatus,
         score: nextScore,
         started_at: startedAtIso.current,
@@ -497,14 +473,12 @@ export function SudokuGame() {
     isPaused,
     resumeTimer,
     getCurrentElapsedSeconds,
-  ])
-
+  ]);
 
   const startPracticeRound = useCallback(() => {
     if (!difficulty) return;
     const { puzzle: p, solution: s } = getSudokuPracticePuzzle(difficulty);
     startedAtIso.current = new Date().toISOString();
-    //startedAtMs.current = Date.now();
     accumulatedMs.current = 0;
     activeSinceMs.current = document.hidden ? null : Date.now();
     setManualPaused(false);
@@ -521,7 +495,6 @@ export function SudokuGame() {
   }, [difficulty]);
 
   const toggleRanked = useCallback(() => {
-    //setRanked((wasRanked) => {
     if (ranked) {
       const rankedSecs = pauseTimer();
       rankedSnapshot.current = {
@@ -535,7 +508,6 @@ export function SudokuGame() {
         accumulatedMs: accumulatedMs.current,
         notes,
         startedAtIso: startedAtIso.current,
-        //startedAtMs: startedAtMs.current,
       };
       startPracticeRound();
       setRanked(false);
@@ -552,7 +524,6 @@ export function SudokuGame() {
         setNotes(snap.notes);
         startedAtIso.current = snap.startedAtIso;
         accumulatedMs.current = snap.accumulatedMs;
-        //startedAtMs.current = snap.startedAtMs;
         activeSinceMs.current =
           snap.status === "playing" && !document.hidden ? Date.now() : null;
       }
@@ -561,7 +532,6 @@ export function SudokuGame() {
       setShowResult(false);
       setRanked(true);
     }
-    //return !wasRanked;
   }, [
     ranked,
     puzzle,
@@ -570,11 +540,21 @@ export function SudokuGame() {
     mistakes,
     status,
     score,
-    //elapsedSeconds,
     notes,
     pauseTimer,
     startPracticeRound,
   ]);
+
+  // Lógica para funcionamento do botão de pause manual
+  const handleTogglePause = useCallback(() => {
+    if (status !== "playing") return;
+    if (manualPaused) {
+      setManualPaused(false);
+    } else {
+      pauseTimer();
+      setManualPaused(true);
+    }
+  }, [status, manualPaused, pauseTimer]);
 
   const toggleNote = useCallback((cell: number, digit: number) => {
     setNotes((prev) => {
@@ -618,7 +598,7 @@ export function SudokuGame() {
 
   const handleNumber = useCallback(
     (digit: number) => {
-      if (status !== "playing" || selected === null || !user || !difficulty)
+      if (status !== "playing" || selected === null || !user || !difficulty || isPaused)
         return;
       if (isGivenCell(puzzle, selected) || board[selected] !== "0") return;
       if (isDigitComplete(board, digit)) return;
@@ -663,16 +643,12 @@ export function SudokuGame() {
       clearDigitFromPeerNotes(selected, digit);
 
       if (isBoardComplete(nextBoard)) {
-        // const finalElapsed = Math.floor(
-        //   (Date.now() - startedAtMs.current) / 1000,
-        // );
         const finalElapsed = pauseTimer();
         const finalScore = sudokuPointsFor(finalElapsed, mistakes, difficulty);
         setElapsedSeconds(finalElapsed);
         setScore(finalScore);
         setStatus("won");
         persist(nextBoard, mistakes, "won", finalScore, finalElapsed);
-
 
         // Redundância para não apagar o backup do tempo da partida ranqueada.
         if (ranked && elapsedStorageKey) {
@@ -682,7 +658,6 @@ export function SudokuGame() {
             /* ignore */
           }
         }
-
 
         // Modal de resultado/placar só faz sentido no ranqueado.
         if (ranked) {
@@ -698,6 +673,7 @@ export function SudokuGame() {
     },
     [
       status,
+      isPaused,
       selected,
       user,
       difficulty,
@@ -772,14 +748,28 @@ export function SudokuGame() {
             </p>
           )}
         </div>
-        <button
-          onClick={() => setShowMenu((v) => !v)}
-          aria-label="Mais opções"
-          className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl text-lg font-bold leading-none bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] border border-[rgba(255,255,255,0.08)] transition-all"
-        >
-          ⋯
-        </button>
 
+        {/* Inclusão do botão de Play/Pause */}
+        <div className="flex items-center gap-2 shrink-0">
+          {status === "playing" && (
+            <button
+              onClick={handleTogglePause}
+              aria-label={manualPaused ? "Retomar partida" : "Pausar partida"}
+              title={manualPaused ? "Retomar" : "Pausar"}
+              className="w-9 h-9 flex items-center justify-center rounded-xl text-sm font-bold leading-none bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] border border-[rgba(255,255,255,0.08)] transition-all active:scale-95"
+            >
+              {manualPaused ? "▶️" : "⏸️"}
+            </button>
+          )}
+
+          <button
+            onClick={() => setShowMenu((v) => !v)}
+            aria-label="Mais opções"
+            className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl text-lg font-bold leading-none bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] border border-[rgba(255,255,255,0.08)] transition-all"
+          >
+            ⋯
+          </button>
+        </div>
         {showMenu && (
           <>
             <div
@@ -874,101 +864,123 @@ export function SudokuGame() {
           </button>
         </div>
 
+        {/* Blur no tabuleiro e overlay com botão para retomar a partida.*/}
         <div
-          className="grid grid-cols-9 mx-auto border-2 border-[rgba(255,255,255,0.25)] rounded-md overflow-hidden"
+          className="relative mx-auto rounded-md overflow-hidden"
           style={{ width: "min(100%, 360px)" }}
         >
-          {Array.from({ length: 81 }, (_, i) => {
-            const r = Math.floor(i / 9);
-            const c = i % 9;
-            const given = isGivenCell(puzzle, i);
-            const value = board[i];
-            const cellNotes = notes[i];
-            const isSelected = selected === i;
-            const selRow = selected !== null ? Math.floor(selected / 9) : null;
-            const selCol = selected !== null ? selected % 9 : null;
-            const selBox =
-              selRow !== null && selCol !== null
-                ? Math.floor(selRow / 3) * 3 + Math.floor(selCol / 3)
-                : null;
-            const box = Math.floor(r / 3) * 3 + Math.floor(c / 3);
-            const inPeer =
-              selected !== null &&
-              (r === selRow || c === selCol || box === selBox);
-            const sameDigit =
-              selected !== null &&
-              value !== "0" &&
-              value === board[selected] &&
-              !isSelected;
+          <div
+            className={`grid grid-cols-9 mx-auto border-2 border-[rgba(255,255,255,0.25)] rounded-md overflow-hidden transition-all duration-200 ${isPaused && status === "playing"
+              ? "blur-md pointer-events-none select-none opacity-50" : ""}`}
+          //style={{ width: "min(100%, 360px)" }}
+          >
+            {Array.from({ length: 81 }, (_, i) => {
+              const r = Math.floor(i / 9);
+              const c = i % 9;
+              const given = isGivenCell(puzzle, i);
+              const value = board[i];
+              const cellNotes = notes[i];
+              const isSelected = selected === i;
+              const selRow = selected !== null ? Math.floor(selected / 9) : null;
+              const selCol = selected !== null ? selected % 9 : null;
+              const selBox =
+                selRow !== null && selCol !== null
+                  ? Math.floor(selRow / 3) * 3 + Math.floor(selCol / 3)
+                  : null;
+              const box = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+              const inPeer =
+                selected !== null &&
+                (r === selRow || c === selCol || box === selBox);
+              const sameDigit =
+                selected !== null &&
+                value !== "0" &&
+                value === board[selected] &&
+                !isSelected;
 
-            let bg = "bg-transparent";
-            if (isSelected) bg = "bg-[rgba(201,165,90,0.28)]";
-            else if (flashIndex === i || flashConflicts.includes(i))
-              bg = "bg-[rgba(196,64,64,0.35)]";
-            else if (sameDigit) bg = "bg-[rgba(201,165,90,0.16)]";
-            else if (inPeer) bg = "bg-[rgba(255,255,255,0.04)]";
+              let bg = "bg-transparent";
+              if (isSelected) bg = "bg-[rgba(201,165,90,0.28)]";
+              else if (flashIndex === i || flashConflicts.includes(i))
+                bg = "bg-[rgba(196,64,64,0.35)]";
+              else if (sameDigit) bg = "bg-[rgba(201,165,90,0.16)]";
+              else if (inPeer) bg = "bg-[rgba(255,255,255,0.04)]";
 
-            return (
+              return (
+                <button
+                  key={i}
+                  onClick={() => status === "playing" && !isPaused && setSelected(i)}
+                  disabled={status !== "playing" || isPaused}
+                  className={`aspect-square flex items-center justify-center text-xl sm:text-2xl font-bold select-none transition-colors ${bg} ${given ? "text-[var(--text-primary)]" : "text-[var(--gold)]"
+                    }`}
+                  style={{
+                    borderTop:
+                      r % 3 === 0
+                        ? "2px solid rgba(255,255,255,0.25)"
+                        : "1px solid rgba(255,255,255,0.16)",
+                    borderLeft:
+                      c % 3 === 0
+                        ? "2px solid rgba(255,255,255,0.25)"
+                        : "1px solid rgba(255,255,255,0.16)",
+                    borderRight:
+                      c === 8 ? "2px solid rgba(255,255,255,0.25)" : undefined,
+                    borderBottom:
+                      r === 8 ? "2px solid rgba(255,255,255,0.25)" : undefined,
+                  }}
+                >
+                  {value !== "0" ? (
+                    value
+                  ) : cellNotes && cellNotes.length > 0 ? (
+                    <div
+                      className={`grid grid-cols-3 grid-rows-3 w-full h-full ${notesBlockMode ? "gap-[1px] p-[2px]" : ""
+                        }`}
+                    >
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) =>
+                        notesBlockMode ? (
+                          <span
+                            key={n}
+                            className={`rounded-[2px] transition-colors ${cellNotes.includes(n)
+                              ? "bg-[var(--gold)]"
+                              : "bg-transparent"
+                              }`}
+                          />
+                        ) : (
+                          <span
+                            key={n}
+                            className="flex items-center justify-center leading-none font-semibold text-[0.65rem] sm:text-xs text-[var(--text-secondary)]"
+                          >
+                            {cellNotes.includes(n) ? n : ""}
+                          </span>
+                        ),
+                      )}
+                    </div>
+                  ) : (
+                    ""
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+
+          {isPaused && status === "playing" && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[rgba(0,0,0,0.25)] backdrop-blur-sm">
+              <p className="text-sm font-semibold text-[var(--text-primary)]">
+                jogo pausado
+              </p>
               <button
-                key={i}
-                onClick={() => status === "playing" && setSelected(i)}
-                disabled={status !== "playing"}
-                className={`aspect-square flex items-center justify-center text-xl sm:text-2xl font-bold select-none transition-colors ${bg} ${given ? "text-[var(--text-primary)]" : "text-[var(--gold)]"
-                  }`}
-                style={{
-                  borderTop:
-                    r % 3 === 0
-                      ? "2px solid rgba(255,255,255,0.25)"
-                      : "1px solid rgba(255,255,255,0.16)",
-                  borderLeft:
-                    c % 3 === 0
-                      ? "2px solid rgba(255,255,255,0.25)"
-                      : "1px solid rgba(255,255,255,0.16)",
-                  borderRight:
-                    c === 8 ? "2px solid rgba(255,255,255,0.25)" : undefined,
-                  borderBottom:
-                    r === 8 ? "2px solid rgba(255,255,255,0.25)" : undefined,
-                }}
+                onClick={() => setManualPaused(false)}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-[rgba(201,165,90,0.2)] text-[var(--gold)] border border-[rgba(201,165,90,0.4)] hover:bg-[rgba(201,165,90,0.3)] transition-all active:scale-95"
               >
-                {value !== "0" ? (
-                  value
-                ) : cellNotes && cellNotes.length > 0 ? (
-                  <div
-                    className={`grid grid-cols-3 grid-rows-3 w-full h-full ${notesBlockMode ? "gap-[1px] p-[2px]" : ""
-                      }`}
-                  >
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) =>
-                      notesBlockMode ? (
-                        <span
-                          key={n}
-                          className={`rounded-[2px] transition-colors ${cellNotes.includes(n)
-                            ? "bg-[var(--gold)]"
-                            : "bg-transparent"
-                            }`}
-                        />
-                      ) : (
-                        <span
-                          key={n}
-                          className="flex items-center justify-center leading-none font-semibold text-[0.65rem] sm:text-xs text-[var(--text-secondary)]"
-                        >
-                          {cellNotes.includes(n) ? n : ""}
-                        </span>
-                      ),
-                    )}
-                  </div>
-                ) : (
-                  ""
-                )}
+                ▶️ retomar
               </button>
-            );
-          })}
+            </div>
+          )}
         </div>
-
         {status === "playing" ? (
           <div className="flex flex-col items-center gap-2">
             <button
               onClick={() => setPencilMode((v) => !v)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 ${pencilMode
+              disabled={isPaused}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 disabled:opacity-50 ${pencilMode
                 ? "bg-[rgba(201,165,90,0.18)] text-[var(--gold)] border-[rgba(201,165,90,0.4)]"
                 : "bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] border-[rgba(255,255,255,0.08)]"
                 }`}
@@ -982,7 +994,7 @@ export function SudokuGame() {
                   <button
                     key={d}
                     onClick={() => handleNumber(d)}
-                    disabled={selected === null || complete}
+                    disabled={isPaused || selected === null || complete}
                     className={`w-10 h-10 rounded-md text-base font-bold border active:scale-95 disabled:opacity-40 transition-all ${pencilMode
                       ? "bg-transparent text-[var(--gold)] border-[rgba(201,165,90,0.4)]"
                       : "bg-[var(--bg-elevated)] text-[var(--text-primary)] border-[rgba(255,255,255,0.08)]"
@@ -994,6 +1006,7 @@ export function SudokuGame() {
               })}
             </div>
           </div>
+
         ) : (
           <div className="flex flex-col items-center gap-3 max-w-[480px] mx-auto w-full">
             <div className="w-full text-center rounded-xl py-4 px-4 border bg-[rgba(58,186,122,0.1)] border-[rgba(58,186,122,0.3)]">

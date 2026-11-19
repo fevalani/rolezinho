@@ -155,6 +155,38 @@ describe("SudokuGame", () => {
       expect(screen.getByText(/1:40/)).toBeInTheDocument();
     });
 
+    it("botão de pausar congela o tempo, borra o tabuleiro e bloqueia as jogadas; retomar volta a contar", async () => {
+      vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+      const { puzzle, solution } = await start();
+      tick(30_000);
+      expect(screen.getByText(/0:30/)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Pausar partida" }));
+      expect(screen.getByText("jogo pausado")).toBeInTheDocument();
+      expect(cells().every((c) => c.disabled)).toBe(true);
+      tick(60_000); // pausado não conta
+      expect(screen.getByText(/0:30/)).toBeInTheDocument();
+
+      // número não entra enquanto pausado
+      const idx = puzzle.split("").findIndex((d) => d === "0");
+      expect(digitBtn(Number(solution[idx]))).toBeDisabled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Retomar partida" }));
+      expect(screen.queryByText("jogo pausado")).not.toBeInTheDocument();
+      tick(10_000);
+      expect(screen.getByText(/0:40/)).toBeInTheDocument();
+    });
+
+    it("o botão ▶️ retomar do overlay também despausa", async () => {
+      vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+      await start();
+      fireEvent.click(screen.getByRole("button", { name: "Pausar partida" }));
+      fireEvent.click(screen.getByText(/retomar$/));
+      expect(screen.queryByText("jogo pausado")).not.toBeInTheDocument();
+      tick(5_000);
+      expect(screen.getByText(/0:05/)).toBeInTheDocument();
+    });
+
     it("retoma a partida a partir do tempo salvo (e do backup local, se maior)", async () => {
       loginAs();
       const { puzzle } = getSudokuOfDay("medio");

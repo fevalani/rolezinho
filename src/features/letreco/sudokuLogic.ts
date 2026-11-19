@@ -44,7 +44,7 @@ export function formatElapsed(totalSeconds: number): string {
   const ss = s % 60;
 
   if (hh > 0) {
-    return `${hh}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2,"0")}`;
+    return `${hh}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
   }
   return `${mm}:${String(ss).padStart(2, "0")}`;
 }
