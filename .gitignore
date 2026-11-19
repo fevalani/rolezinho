@@ -36,3 +36,4 @@ public/wrapped/
 scripts/wrapped-pipeline/raw_photos/*
 !scripts/wrapped-pipeline/raw_photos/.gitkeep
 scripts/wrapped-pipeline/wrapped_config.json
+*.tsbuildinfo
