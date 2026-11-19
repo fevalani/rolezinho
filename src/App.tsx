@@ -17,6 +17,7 @@ import { FeatureFlagsProvider } from "@/lib/FeatureFlagsContext";
 import { SeasonalThemeProvider } from "@/lib/seasonal/SeasonalThemeContext";
 import { AdminPage, AdminRoute, AdminSectionPage } from "@/features/admin/AdminPage";
 import { LoginPage } from "@/pages/LoginPage";
+import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { HomePage } from "@/pages/HomePage";
 import { ProfilePage } from "@/pages/ProfilePage";
 import { AppShell } from "@/components/AppShell";
@@ -41,7 +42,7 @@ import { DuelosPlayPage } from "./features/duelos/DuelosPlayPage";
 import { WrappedPage } from "./features/wrapped/WrappedPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, recovering } = useAuth();
 
   if (loading) {
     return (
@@ -57,6 +58,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
         <div className="spinner" />
       </div>
     );
+  }
+
+  // Veio do link do e-mail de recuperação: define a senha nova antes de entrar no app.
+  if (user && recovering) {
+    return <ResetPasswordPage />;
   }
 
   if (!user) {

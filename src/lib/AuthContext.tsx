@@ -31,6 +31,12 @@ interface AuthContextValue {
     password: string,
     name: string,
   ) => Promise<{ error: string | null }>;
+  /** Envia o e-mail de redefinição de senha (não revela se o e-mail existe). */
+  resetPassword: (email: string) => Promise<{ error: string | null }>;
+  /** true quando o usuário abriu o link do e-mail de recuperação e ainda precisa definir a nova senha. */
+  recovering: boolean;
+  /** Encerra o modo de recuperação (após definir a senha nova ou desistir). */
+  finishRecovery: () => void;
   signOut: () => Promise<void>;
   updateProfile: (
     updates: Partial<
@@ -55,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [recovering, setRecovering] = useState(false);
   // Resultado de is_app_admin() e de QUEM ele é (evita mostrar o papel de um usuário para outro)
   const [adminState, setAdminState] = useState<{ userId: string; value: boolean } | null>(null);
 
@@ -131,7 +138,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, s) => {
+    } = supabase.auth.onAuthStateChange((event, s) => {
+      if (event === "PASSWORD_RECOVERY") setRecovering(true);
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
@@ -207,7 +215,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const resetPassword = useCallback(async (email: string) => {
+    // O link do e-mail volta para este mesmo site (no APK, o site carregado por OTA).
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    });
+    if (error) return { error: translateAuthError(error.message) };
+    return { error: null };
+  }, []);
+
+  const finishRecovery = useCallback(() => setRecovering(false), []);
+
   const signOut = useCallback(async () => {
+    setRecovering(false);
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
@@ -257,6 +277,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         adminLoading,
         signIn,
         signUp,
+        resetPassword,
+        recovering,
+        finishRecovery,
         signOut,
         updateProfile,
         changePassword,
@@ -286,6 +309,9 @@ function translateAuthError(msg: string): string {
     "Email rate limit exceeded": "Muitas tentativas. Aguarde um momento.",
     "For security purposes, you can only request this after":
       "Aguarde antes de tentar novamente",
+    "New password should be different from the old password":
+      "A nova senha deve ser diferente da anterior",
+    "Auth session missing": "Link expirado ou inválido. Peça um novo e-mail.",
   };
   for (const [en, pt] of Object.entries(map)) {
     if (msg.includes(en)) return pt;

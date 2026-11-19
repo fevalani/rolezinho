@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 
 export function LoginPage() {
-  const { signIn, signUp, loading } = useAuth();
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const { signIn, signUp, resetPassword, loading } = useAuth();
+  const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -22,6 +22,25 @@ export function LoginPage() {
 
     const trimEmail = email.trim().toLowerCase();
     const trimName = name.trim();
+
+    if (mode === "forgot") {
+      if (!trimEmail) {
+        setError("Informe seu email");
+        return;
+      }
+      setSubmitting(true);
+      const { error: err } = await resetPassword(trimEmail);
+      if (err) {
+        setError(err);
+      } else {
+        // Mensagem neutra: não revela se o e-mail tem conta.
+        setSuccess(
+          "Se esse email tiver uma conta, enviamos um link para redefinir a senha. Confira também o spam.",
+        );
+      }
+      setSubmitting(false);
+      return;
+    }
 
     if (!trimEmail || !password) {
       setError("Preencha todos os campos");
@@ -97,7 +116,9 @@ export function LoginPage() {
         >
           {mode === "login"
             ? "Entre na sua conta para acessar o app"
-            : "Crie sua conta"}
+            : mode === "signup"
+              ? "Crie sua conta"
+              : "Informe seu email para receber o link de redefinição"}
         </p>
 
         {/* Form */}
@@ -131,19 +152,21 @@ export function LoginPage() {
             }}
             autoComplete="email"
           />
-          <input
-            className={inputClass}
-            type="password"
-            placeholder="Senha (mínimo 6 caracteres)"
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-              clearMessages();
-            }}
-            autoComplete={
-              mode === "login" ? "current-password" : "new-password"
-            }
-          />
+          {mode !== "forgot" && (
+            <input
+              className={inputClass}
+              type="password"
+              placeholder="Senha (mínimo 6 caracteres)"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                clearMessages();
+              }}
+              autoComplete={
+                mode === "login" ? "current-password" : "new-password"
+              }
+            />
+          )}
 
           {error && (
             <p className="text-sm text-center py-2 px-3 rounded-lg text-(--red) bg-[rgba(196,64,64,0.08)] border border-[rgba(196,64,64,0.15)]">
@@ -165,9 +188,25 @@ export function LoginPage() {
               ? "Carregando..."
               : mode === "login"
                 ? "Entrar"
-                : "Criar conta"}
+                : mode === "signup"
+                  ? "Criar conta"
+                  : "Enviar link"}
           </button>
         </form>
+
+        {mode === "login" && (
+          <button
+            type="button"
+            className="text-sm text-(--text-muted) hover:text-(--gold) transition-colors p-1 -mt-2 anim-fade"
+            onClick={() => {
+              setMode("forgot");
+              setPassword("");
+              clearMessages();
+            }}
+          >
+            Esqueci minha senha
+          </button>
+        )}
 
         {/* Toggle */}
         <button
@@ -180,7 +219,9 @@ export function LoginPage() {
         >
           {mode === "login"
             ? "Não tem conta? Criar agora"
-            : "Já tem conta? Fazer login"}
+            : mode === "signup"
+              ? "Já tem conta? Fazer login"
+              : "Voltar para o login"}
         </button>
       </div>
     </div>

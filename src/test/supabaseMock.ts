@@ -28,7 +28,10 @@ export const mockDb = {
   /** Cada `supabase.from(tabela)` e os métodos encadeados nele (ex.: eq/in/order), para conferir filtros. */
   queries: [] as { table: string; calls: [string, unknown[]][] }[],
   session: null as null | { user: Record<string, unknown> },
+  /** Callbacks registrados via supabase.auth.onAuthStateChange (ver emitAuthEvent). */
+  authListeners: [] as ((event: string, session: unknown) => void)[],
   reset() {
+    this.authListeners = [];
     this.tables = {};
     this.rpcResults = {};
     this.errors = {};
@@ -102,9 +105,11 @@ function rpcBuilder(name: string) {
 export const supabaseMock = {
   auth: {
     getSession: vi.fn(async () => ({ data: { session: mockDb.session } })),
-    onAuthStateChange: vi.fn(() => ({
-      data: { subscription: { unsubscribe: vi.fn() } },
-    })),
+    onAuthStateChange: vi.fn((cb: (event: string, session: unknown) => void) => {
+      mockDb.authListeners.push(cb);
+      return { data: { subscription: { unsubscribe: vi.fn() } } };
+    }),
+    resetPasswordForEmail: vi.fn(async () => ({ data: {}, error: null })),
     signInWithPassword: vi.fn(async () => ({ error: null })),
     signUp: vi.fn(async () => ({
       data: { user: null, session: null },
@@ -135,3 +140,8 @@ export const supabaseMock = {
   }),
   removeChannel: vi.fn(),
 };
+
+/** Simula um evento do Supabase Auth (ex.: "PASSWORD_RECOVERY" ao abrir o link do e-mail). */
+export function emitAuthEvent(event: string, session: unknown = mockDb.session) {
+  mockDb.authListeners.forEach((cb) => cb(event, session));
+}

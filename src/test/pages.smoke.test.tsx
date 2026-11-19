@@ -9,6 +9,7 @@ import { loginAs, flush, ADMIN_USER, TEST_USER } from "./helpers";
 
 import { HomePage } from "@/pages/HomePage";
 import { ProfilePage } from "@/pages/ProfilePage";
+import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { ThemesAdminPage } from "@/pages/ThemesAdminPage";
 import { AppShell } from "@/components/AppShell";
 import { TavernaPage } from "@/features/taverna/TavernaPage";
@@ -57,6 +58,7 @@ const PAGES: Case[] = [
   { name: "ProfilePage", Component: ProfilePage, pattern: "/profile", route: "/profile" },
   { name: "ThemesAdminPage", Component: ThemesAdminPage, pattern: "/temas", route: "/temas" },
   { name: "TavernaPage", Component: TavernaPage, pattern: "/dados", route: "/dados" },
+  { name: "ResetPasswordPage", Component: ResetPasswordPage, pattern: "/redefinir-senha", route: "/redefinir-senha" },
   { name: "RachaContaPage", Component: RachaContaPage, pattern: "/racha-conta", route: "/racha-conta" },
   { name: "AniversariosPage", Component: AniversariosPage, pattern: "/aniversarios", route: "/aniversarios" },
   { name: "RpgHomePage", Component: RpgHomePage, pattern: "/rpg", route: "/rpg" },

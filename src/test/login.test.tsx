@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { LoginPage } from "@/pages/LoginPage";
 import { renderWithProviders } from "./helpers";
@@ -82,5 +82,55 @@ describe("LoginPage — interações", () => {
       }),
     );
     expect(screen.getByRole("button", { name: "Entrar" })).toBeInTheDocument();
+  });
+});
+
+describe("LoginPage — esqueci minha senha", () => {
+  beforeEach(() => {
+    supabaseMock.auth.signInWithPassword.mockClear();
+    supabaseMock.auth.resetPasswordForEmail.mockClear();
+  });
+
+  const openForgot = async () => {
+    renderWithProviders(<LoginPage />);
+    fireEvent.click(await screen.findByText("Esqueci minha senha"));
+  };
+
+  it("o link só aparece no modo login e troca o formulário (sem campo de senha)", async () => {
+    await openForgot();
+    expect(screen.getByRole("button", { name: "Enviar link" })).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Senha (mínimo 6 caracteres)")).not.toBeInTheDocument();
+    expect(screen.queryByText("Esqueci minha senha")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Voltar para o login"));
+    expect(screen.getByRole("button", { name: "Entrar" })).toBeInTheDocument();
+  });
+
+  it("exige o e-mail", async () => {
+    await openForgot();
+    submit("Enviar link");
+    expect(await screen.findByText("Informe seu email")).toBeInTheDocument();
+    expect(supabaseMock.auth.resetPasswordForEmail).not.toHaveBeenCalled();
+  });
+
+  it("envia o link com e-mail normalizado e redirectTo para este site, com aviso neutro", async () => {
+    await openForgot();
+    fireEvent.change(screen.getByPlaceholderText("Email"), { target: { value: "  Fulano@Test.com " } });
+    submit("Enviar link");
+    expect(await screen.findByText(/Se esse email tiver uma conta/)).toBeInTheDocument();
+    expect(supabaseMock.auth.resetPasswordForEmail).toHaveBeenCalledWith("fulano@test.com", {
+      redirectTo: window.location.origin,
+    });
+    expect(supabaseMock.auth.signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it("traduz o limite de envios", async () => {
+    supabaseMock.auth.resetPasswordForEmail.mockResolvedValueOnce({
+      data: null,
+      error: { message: "For security purposes, you can only request this after 60 seconds." },
+    } as never);
+    await openForgot();
+    fireEvent.change(screen.getByPlaceholderText("Email"), { target: { value: "a@b.com" } });
+    submit("Enviar link");
+    expect(await screen.findByText("Aguarde antes de tentar novamente")).toBeInTheDocument();
   });
 });
