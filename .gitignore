@@ -37,3 +37,6 @@ scripts/wrapped-pipeline/raw_photos/*
 !scripts/wrapped-pipeline/raw_photos/.gitkeep
 scripts/wrapped-pipeline/wrapped_config.json
 *.tsbuildinfo
+
+# Estado local do Supabase CLI (link, versões) — muda a cada comando
+supabase/.temp/
