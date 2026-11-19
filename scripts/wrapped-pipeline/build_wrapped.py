@@ -56,8 +56,11 @@ def cut(s: str, n: int) -> str:
     return s if len(s) <= n else s[: n - 1].rstrip() + "…"
 
 
+fmt_int, fmt_pct = stats_mod.fmt_int, stats_mod.fmt_pct
+
+
 def plural(n: int, one: str, many: str) -> str:
-    return f"{n} {one if n == 1 else many}"
+    return f"{fmt_int(n)} {one if n == 1 else many}"
 
 
 def ranking(title: str, rows: list[dict], sub, description: Optional[str] = None, n: int = 5,
@@ -104,26 +107,26 @@ def assemble_edition(*, slug: str, year: int, title: str, subtitle: str, st: dic
          "description": cut(f"{st['total_messages']:,} mensagens de {len(st['participants'])} pessoas em {st['active_days']} dias.".replace(",", "."), 400)},
         {"type": "highlight", "title": f"{st['total_messages']:,} mensagens".replace(",", "."),
          "description": cut(f"O grupo bateu papo em {st['active_days']} dias diferentes de {year}.", 400)},
-        ranking("Os Grupos Mais Agitados", st["groups"], lambda r: f"{r['value']} mensagens"),
-        ranking("As Palestrinhas", st["talkers"], lambda r: f"{r['value']} mensagens", image=img.get("talkers")),
+        ranking("Os Grupos Mais Agitados", st["groups"], lambda r: f"{fmt_int(r['value'])} mensagens"),
+        ranking("As Palestrinhas", st["talkers"], lambda r: f"{fmt_int(r['value'])} mensagens", image=img.get("talkers")),
         ranking("Os Reis do Textão", st["essayists"], lambda r: f"{r['value']:.0f} caracteres por mensagem", image=img.get("essayists")),
-        ranking("Os Fantasmas", st["ghosts"], lambda r: f"só {r['value']} mensagens", image=img.get("ghosts")),
-        ranking("As Corujas do Grupo", st["owls"], lambda r: f"{r['value']} mensagens de madrugada (1h–5h)",
+        ranking("Os Fantasmas", st["ghosts"], lambda r: f"só {fmt_int(r['value'])} mensagens", image=img.get("ghosts")),
+        ranking("As Corujas do Grupo", st["owls"], lambda r: f"{fmt_int(r['value'])} mensagens de madrugada (1h–5h)",
                 "Quem estava acordado quando todo mundo dormia.", image=img.get("owls")),
     ]
     if st["busiest_weekday"] and st["busiest_hour"]:
         slides.append({
             "type": "highlight", "title": f"{st['busiest_weekday']['name'].capitalize()}, {st['busiest_hour']['name']}h",
             "description": cut(f"{st['busiest_weekday']['name'].capitalize()} foi o dia mais movimentado "
-                               f"({st['busiest_weekday']['value']} mensagens) e {st['busiest_hour']['name']}h o horário de pico "
-                               f"({st['busiest_hour']['value']} mensagens).", 400)})
+                               f"({fmt_int(st['busiest_weekday']['value'])} mensagens) e {st['busiest_hour']['name']}h o horário de pico "
+                               f"({fmt_int(st['busiest_hour']['value'])} mensagens).", 400)})
     slides += [
         ranking("Os Sommeliers de Áudio", st["audio"], lambda r: plural(r["value"], "áudio", "áudios"), image=img.get("audio"), min_top=10),
         ranking("Os Reis da Figurinha", st["stickers"], lambda r: plural(r["value"], "figurinha", "figurinhas"), image=img.get("stickers"), min_top=10),
         ranking("Os Fotógrafos", st["photos"], lambda r: plural(r["value"], "foto", "fotos"), image=img.get("photos"), min_top=10),
         ranking("As Palavras do Ano", st["top_words"], lambda r: plural(r["value"], "vez", "vezes")),
-        ranking("O Emoji de Cada Um", st["signature_emoji"], lambda r: f"{r['emoji']} · {r['count']} vezes", image=img.get("signature_emoji")),
-        ranking("Quem Faz o Grupo Rir", st["funniest"], lambda r: f"{r['percent']}% das mensagens rendem risada",
+        ranking("O Emoji de Cada Um", st["signature_emoji"], lambda r: f"{r['emoji']} · {plural(r['count'], 'vez', 'vezes')}", image=img.get("signature_emoji")),
+        ranking("Quem Faz o Grupo Rir", st["funniest"], lambda r: f"{fmt_pct(r['percent'])} das mensagens rendem risada",
                 "Proporção de mensagens que geraram risada dos outros (quem tem poucas mensagens fica de fora).", image=img.get("funniest")),
     ]
     # estatísticas do app (a tela monta com os dados reais; títulos padrão em pt-BR)
@@ -136,7 +139,7 @@ def assemble_edition(*, slug: str, year: int, title: str, subtitle: str, st: dic
     for ev in events:
         for p in ev.get("pearls", []):
             key = " ".join(p["quote"].casefold().split())
-            if key not in seen:  # a mesma frase pode vir de dois picos
+            if key not in seen and len(key.split()) >= 3 and len(key) >= 15:  # frase curta demais não tem graça fora do contexto
                 seen.add(key)
                 pearls.append((p, ev["start"]))
     for p, when in pearls[: lim["pearls"]]:

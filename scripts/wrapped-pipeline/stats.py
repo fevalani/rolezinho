@@ -31,6 +31,16 @@ _NOISE_RE = re.compile(r"^(k+|(ha)+h?|(he)+|(rs)+|ah+a*h*)$")
 _GAME_SQUARES = set("🟥🟧🟨🟩🟦🟪🟫⬛⬜")
 
 
+def fmt_int(n: int) -> str:
+    """15218 → "15.218" (padrão brasileiro)."""
+    return f"{n:,}".replace(",", ".")
+
+
+def fmt_pct(p: float) -> str:
+    """12.4 → "12,4%"; inteiros sem casa decimal (100 → "100%")."""
+    return (f"{p:.1f}".rstrip("0").rstrip(".") if p != int(p) else str(int(p))).replace(".", ",") + "%"
+
+
 def _top(counter: Counter, n: int, **extra) -> list[dict[str, Any]]:
     # desempate alfabético = resultado determinístico
     items = sorted(counter.items(), key=lambda kv: (-kv[1], str(kv[0])))[:n]
@@ -127,7 +137,7 @@ def compute_stats(messages: list[Message], top_n: int = 10, min_for_avg: int = 2
             {"name": a, **v} for a, v in sorted(signature.items(), key=lambda kv: (-kv[1]["count"], kv[0]))[:top_n]
         ],
         "funniest": [
-            {"name": a, "value": triggered[a], "ratio": round(r, 3), "percent": round(r * 100)}
+            {"name": a, "value": triggered[a], "ratio": round(r, 3), "percent": round(r * 100, 1)}
             for a, r in sorted(funny.items(), key=lambda kv: (-kv[1], kv[0]))[:top_n]
         ],
     }
@@ -151,14 +161,14 @@ def member_archetypes(st: dict[str, Any], n: int = 6) -> list[dict[str, str]]:
         if top:
             wins.setdefault(top["name"], []).append((title, text(top)))
 
-    add("talkers", "O Dono do Grupo", lambda r: f"{r['value']} mensagens, {round(r['value'] / total * 100)}% de tudo que foi dito")
+    add("talkers", "O Dono do Grupo", lambda r: f"{fmt_int(r['value'])} mensagens, {round(r['value'] / total * 100)}% de tudo que foi dito")
     add("essayists", "O Escritor", lambda r: f"{r['value']:.0f} caracteres por mensagem, o maior textão")
-    add("owls", "O Corujão", lambda r: f"{r['value']} mensagens entre 1h e 5h da manhã")
-    add("stickers", "O Figurinheiro", lambda r: f"{r['value']} figurinhas enviadas")
-    add("photos", "O Fotógrafo", lambda r: f"{r['value']} fotos enviadas")
-    add("funniest", "O Humorista", lambda r: f"{r['percent']}% das mensagens renderam risada")
-    add("signature_emoji", "O Emoji Fixo", lambda r: f"{r['emoji']} usado {r['count']} vezes")
-    add("ghosts", "O Misterioso", lambda r: f"só {r['value']} mensagens no ano")
+    add("owls", "O Corujão", lambda r: f"{fmt_int(r['value'])} mensagens entre 1h e 5h da manhã")
+    add("stickers", "O Figurinheiro", lambda r: f"{fmt_int(r['value'])} figurinhas enviadas")
+    add("photos", "O Fotógrafo", lambda r: f"{fmt_int(r['value'])} fotos enviadas")
+    add("funniest", "O Humorista", lambda r: f"{fmt_pct(r['percent'])} das mensagens renderam risada")
+    add("signature_emoji", "O Emoji Fixo", lambda r: f"{r['emoji']} usado {fmt_int(r['count'])} vezes")
+    add("ghosts", "O Misterioso", lambda r: f"só {fmt_int(r['value'])} mensagens no ano")
     ranked = sorted(wins.items(), key=lambda kv: (-len(kv[1]), kv[0]))[:n]
     return [{"name": name, "title": ts[0][0], "reason": "; ".join(f"{t}: {x}" if i else x for i, (t, x) in enumerate(ts[:3])) + "."}
             for name, ts in ranked]

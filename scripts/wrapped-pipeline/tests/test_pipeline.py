@@ -654,3 +654,20 @@ class GuardrailTests(unittest.TestCase):
         got = build_wrapped.pick_peaks(ms, 60, 5, ["Machismo"])
         self.assertEqual(len(got), 1)
         self.assertTrue(all("futebol" in m.text for m in got[0]["messages"]))
+
+
+class FormattingTests(unittest.TestCase):
+    def test_brazilian_number_and_percent(self):
+        self.assertEqual(S.fmt_int(15218), "15.218")
+        self.assertEqual(S.fmt_int(753), "753")
+        self.assertEqual(S.fmt_pct(12.4), "12,4%")
+        self.assertEqual(S.fmt_pct(100), "100%")
+        self.assertEqual(S.fmt_pct(12.0), "12%")
+
+    def test_short_pearls_are_dropped_from_slides(self):
+        st = S.compute_stats([msg(datetime(2026, 1, 1, 10, 0), "Ana", "oi")])
+        ev = [{"start": datetime(2026, 1, 1), "title": "t", "summary": "s", "pearls": [
+            {"quote": "VENCEMOS", "author": "Ana"}, {"quote": "Essa tb", "author": "Ana"},
+            {"quote": "É a odisseia porra", "author": "Ana"}]}]
+        ed = build_wrapped.assemble_edition(slug="2026", year=2026, title="T", subtitle="s", st=st, events=ev, archetypes=[], photos=[])
+        self.assertEqual([x["title"] for x in ed["slides"] if x["type"] == "quote"], ["É a odisseia porra"])
