@@ -56,10 +56,15 @@ def cut(s: str, n: int) -> str:
     return s if len(s) <= n else s[: n - 1].rstrip() + "…"
 
 
+def plural(n: int, one: str, many: str) -> str:
+    return f"{n} {one if n == 1 else many}"
+
+
 def ranking(title: str, rows: list[dict], sub, description: Optional[str] = None, n: int = 5,
-            image: Optional[str] = None) -> Optional[dict]:
+            image: Optional[str] = None, min_top: int = 0) -> Optional[dict]:
+    """`min_top`: some o slide se nem o 1º colocado chega a esse valor (ranking de 1 ou 2 itens não tem graça)."""
     rows = rows[:n]
-    if not rows:
+    if not rows or rows[0].get("value", min_top) < min_top:
         return None
     slide = {
         "type": "custom_ranking", "title": cut(title, 100),
@@ -113,12 +118,13 @@ def assemble_edition(*, slug: str, year: int, title: str, subtitle: str, st: dic
                                f"({st['busiest_weekday']['value']} mensagens) e {st['busiest_hour']['name']}h o horário de pico "
                                f"({st['busiest_hour']['value']} mensagens).", 400)})
     slides += [
-        ranking("Os Sommeliers de Áudio", st["audio"], lambda r: f"{r['value']} áudios", image=img.get("audio")),
-        ranking("Os Reis da Figurinha", st["stickers"], lambda r: f"{r['value']} figurinhas", image=img.get("stickers")),
-        ranking("Os Fotógrafos", st["photos"], lambda r: f"{r['value']} fotos", image=img.get("photos")),
-        ranking("As Palavras do Ano", st["top_words"], lambda r: f"{r['value']} vezes"),
+        ranking("Os Sommeliers de Áudio", st["audio"], lambda r: plural(r["value"], "áudio", "áudios"), image=img.get("audio"), min_top=10),
+        ranking("Os Reis da Figurinha", st["stickers"], lambda r: plural(r["value"], "figurinha", "figurinhas"), image=img.get("stickers"), min_top=10),
+        ranking("Os Fotógrafos", st["photos"], lambda r: plural(r["value"], "foto", "fotos"), image=img.get("photos"), min_top=10),
+        ranking("As Palavras do Ano", st["top_words"], lambda r: plural(r["value"], "vez", "vezes")),
         ranking("O Emoji de Cada Um", st["signature_emoji"], lambda r: f"{r['emoji']} · {r['count']} vezes", image=img.get("signature_emoji")),
-        ranking("Quem Faz o Grupo Rir", st["funniest"], lambda r: f"{r['value']} mensagens que viraram risada", image=img.get("funniest")),
+        ranking("Quem Faz o Grupo Rir", st["funniest"], lambda r: f"{r['percent']}% das mensagens rendem risada",
+                "Proporção de mensagens que geraram risada dos outros (quem tem poucas mensagens fica de fora).", image=img.get("funniest")),
     ]
     # estatísticas do app (a tela monta com os dados reais; títulos padrão em pt-BR)
     slides += [{"type": "auto_user_stats", "metricKey": k} for k in app_slides or []]
@@ -309,6 +315,17 @@ def _speed(client: "ai_curator.OllamaClient") -> str:
     return out
 
 
+def pick_peaks(messages: list[Message], window: int, top_n: int, keywords: list[str]) -> list[dict]:
+    """Picos de conversa, sem os que citam algum assunto de `exclude_keywords` (config), em ordem cronológica."""
+    kws = [k.casefold() for k in keywords if k.strip()]
+    if not kws:
+        return highlights.find_peaks(messages, window, top_n)
+    cands = highlights.find_peaks(messages, window, top_n * 4)
+    ok = [p for p in cands if not any(k in " ".join(m.text for m in p["messages"]).casefold() for k in kws)]
+    ok.sort(key=lambda p: -p["count"])
+    return sorted(ok[:top_n], key=lambda p: p["start"])
+
+
 def member_facts(name: str, st: dict) -> str:
     def val(key: str) -> int:
         return next((r["value"] for r in st[key] if r["name"] == name), 0)
@@ -341,8 +358,8 @@ def run(args: argparse.Namespace, cfg: Optional[dict] = None) -> dict[str, Any]:
         log("! há contatos sem nome salvo (números de telefone): dê um nome a eles no aliases.json (a chave é o número)")
     log(f"✔ {len(messages)} mensagens de {year}; {len(media)} arquivos de mídia indexados")
 
-    st = stats_mod.compute_stats(messages)
-    peaks = highlights.find_peaks(messages, args.peak_window, args.top_peaks)
+    st = stats_mod.compute_stats(messages, extra_stopwords=cfg.get("stopwords") or [])
+    peaks = pick_peaks(messages, args.peak_window, args.top_peaks, cfg.get("exclude_keywords") or [])
     photos_sel = highlights.select_photos(messages, media, top_n=args.top_photos)
     log(f"✔ {len(peaks)} picos de conversa, {len(photos_sel)} fotos engajadas")
 
@@ -368,7 +385,7 @@ def run(args: argparse.Namespace, cfg: Optional[dict] = None) -> dict[str, Any]:
         by_author: dict[str, list[Message]] = {}
         for m in messages:
             by_author.setdefault(m.author, []).append(m)
-        for t in st["talkers"][: args.archetypes]:
+        for t in (st["talkers"][: args.archetypes] if args.ai_archetypes else []):
             log(f"  arquétipo de {t['name']}…")
             t0 = time.monotonic()
             a = ai_curator.curate_archetype(client, t["name"], member_facts(t["name"], st),
@@ -381,8 +398,11 @@ def run(args: argparse.Namespace, cfg: Optional[dict] = None) -> dict[str, Any]:
                 res = ai_curator.curate_photo(client, p["path"], p["message"].author)
                 if res:
                     caps[id(p)] = res
+        if not args.ai_archetypes:  # padrão: arquétipos montados só dos números (a IA inventava traços)
+            archetypes = stats_mod.member_archetypes(st, args.archetypes)
     else:
-        log("• dry-run: Ollama não foi chamado (sem eventos, pérolas, arquétipos e legendas da IA)")
+        log("• dry-run: Ollama não foi chamado (sem eventos, pérolas e legendas da IA)")
+        archetypes = stats_mod.member_archetypes(st, args.archetypes)
 
     slug = args.slug or str(year)
     dest = Path(args.media_dest) if args.media_dest else REPO_ROOT / "public" / "wrapped" / slug / "media"
@@ -437,6 +457,8 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument("--events", type=int, default=6, help="eventos nos slides")
     p.add_argument("--pearls", type=int, default=6)
     p.add_argument("--archetypes", type=int, default=6)
+    p.add_argument("--ai-archetypes", action="store_true",
+                   help="arquétipos escritos pela IA (padrão: montados só dos números, sem invenção)")
     p.add_argument("--photo-slides", type=int, default=12)
     p.add_argument("--quiet", action="store_true")
     return p

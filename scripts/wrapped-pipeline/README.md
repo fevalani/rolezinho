@@ -185,3 +185,10 @@ UPDATE_FIXTURE=1 python3 -m unittest discover -s tests -t .   # regera os JSONs 
 
 Os JSONs em `tests/fixtures/` (chat sintético) também são validados pelo frontend em
 `src/test/wrappedPipelineOutput.test.ts`.
+
+## Menos delírio, mais dados
+
+- **Arquétipos** saem só dos números (quem lidera cada ranking), sem IA. Para a IA escrevê-los: `--ai-archetypes`.
+- **Eventos**: temperatura baixa, resumo de uma frase e verificação — número citado que não está na conversa faz a IA repetir; se insistir, vira um título neutro.
+- Rankings com 1º lugar fraco (áudios, figurinhas e fotos abaixo de 10) são omitidos.
+- `wrapped_config.json`: `"stopwords"` tira apelidos/palavras de "As Palavras do Ano"; `"exclude_keywords"` descarta picos de conversa que citem esses assuntos.

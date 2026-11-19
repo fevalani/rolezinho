@@ -183,6 +183,38 @@ class StatsTests(unittest.TestCase):
         self.assertEqual([x["name"] for x in f], ["Ana"])
         self.assertEqual(f[0]["value"], 20)
 
+    def test_game_squares_are_not_signature_emoji(self):
+        ms = [msg(self.t0 + timedelta(minutes=i), "Ana", "🟩🟩🟨 🍺") for i in range(5)]
+        sig = {s["name"]: s["emoji"] for s in S.compute_stats(ms)["signature_emoji"]}
+        self.assertEqual(sig["Ana"], "🍺")
+
+    def test_extra_stopwords_remove_nicknames(self):
+        ms = [msg(self.t0, "Ana", "lemos churrasco lemos")]
+        words = {w["name"] for w in S.compute_stats(ms, extra_stopwords=["Lemos"])["top_words"]}
+        self.assertEqual(words, {"churrasco"})
+
+    def test_funniest_has_percent_and_orders_by_ratio(self):
+        ms, t = [], self.t0
+        for i in range(20):  # Ana: 20 msgs, todas rendem risada
+            ms.append(msg(t, "Ana", "piada")); ms.append(msg(t + timedelta(seconds=20), "Caio", "kkkkk")); t += timedelta(minutes=10)
+        for i in range(60):  # Beto: 60 msgs, só 30 rendem risada (mais risadas no total, proporção menor)
+            ms.append(msg(t, "Beto", "piada"))
+            if i % 2 == 0:
+                ms.append(msg(t + timedelta(seconds=20), "Caio", "kkkkk"))
+            t += timedelta(minutes=10)
+        ms.sort(key=lambda m: m.ts)
+        f = S.compute_stats(ms)["funniest"]
+        self.assertEqual([(x["name"], x["value"], x["percent"]) for x in f], [("Ana", 20, 100), ("Beto", 30, 50)])
+
+    def test_member_archetypes_use_only_real_numbers(self):
+        st = S.compute_stats([msg(self.t0 + timedelta(minutes=i), "Ana", "x" * 50) for i in range(30)]
+                             + [msg(self.t0 + timedelta(hours=1, minutes=i), "Beto", "oi") for i in range(25)])
+        arch = S.member_archetypes(st)
+        ana = next(a for a in arch if a["name"] == "Ana")
+        self.assertEqual(ana["title"], "O Dono do Grupo")
+        self.assertIn("30 mensagens", ana["reason"])
+        self.assertIn("55%", ana["reason"])  # 30 de 55
+
     def test_laugh_detection(self):
         for s in ("kkk", "kkkkkk", "hahaha", "rsrs", "😂", "ahahah"):
             self.assertTrue(S.has_laugh(s), s)
@@ -535,6 +567,8 @@ class BuildTests(unittest.TestCase):
             ed = run_build(["--dry-run"], d / "raw", d)
             write_or_compare("expected_dry_run.json", ed, self)
             self.assertFalse(ed["isActive"])
+            arch = [s for s in ed["slides"] if s["type"] == "highlight" and ": " in s["title"] and s["title"].split(": ")[1].startswith("O ")]
+            self.assertTrue(arch)  # arquétipos por regra (sem IA), com números reais
             self.assertEqual([s["position"] for s in ed["slides"]], list(range(1, len(ed["slides"]) + 1)))
             self.assertGreater(len([f for f in (d / "media").iterdir()]), 0)  # fotos copiadas, renomeadas
             self.assertTrue(all(s["imageUrl"].startswith("/wrapped/2026/media/foto-") for s in ed["slides"] if s["type"] == "media"))
@@ -545,7 +579,7 @@ class BuildTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as d:
                 d = Path(d)
                 synthetic.write_fixture(d / "raw")
-                ed = run_build(["--model", "stub", "--ollama-url", url, "--top-peaks", "3"], d / "raw", d)
+                ed = run_build(["--model", "stub", "--ollama-url", url, "--top-peaks", "3", "--ai-archetypes"], d / "raw", d)
             kinds = [s["type"] for s in ed["slides"]]
             self.assertIn("quote", kinds)       # pérola literal aceita
             self.assertIn("media", kinds)       # foto legendada
@@ -596,3 +630,27 @@ class BuildTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GuardrailTests(unittest.TestCase):
+    def test_plural_and_min_top(self):
+        self.assertEqual(build_wrapped.plural(1, "áudio", "áudios"), "1 áudio")
+        self.assertEqual(build_wrapped.plural(2, "áudio", "áudios"), "2 áudios")
+        rows = [{"name": "Ana", "value": 2}]
+        self.assertIsNone(build_wrapped.ranking("Áudios", rows, lambda r: "x", min_top=10))
+        self.assertIsNotNone(build_wrapped.ranking("Áudios", rows, lambda r: "x"))
+
+    def test_grounded_rejects_invented_numbers(self):
+        from ai_curator import grounded
+        src = "[10:00] Ana: foram 3 cervejas"
+        self.assertTrue(grounded({"title": "Cervejas", "summary": "Foram 3 cervejas."}, src))
+        self.assertFalse(grounded({"title": "Cervejas", "summary": "Foram 40 cervejas."}, src))
+        self.assertTrue(grounded({"title": "Dia 16", "summary": "oi"}, src, "16 10 2026"))
+
+    def test_pick_peaks_skips_excluded_keywords(self):
+        t0 = datetime(2026, 5, 1, 10, 0)
+        ms = [msg(t0 + timedelta(minutes=i), "Ana", "papo sobre machismo") for i in range(12)]
+        ms += [msg(t0 + timedelta(days=3, minutes=i), "Beto", "papo de futebol") for i in range(12)]
+        got = build_wrapped.pick_peaks(ms, 60, 5, ["Machismo"])
+        self.assertEqual(len(got), 1)
+        self.assertTrue(all("futebol" in m.text for m in got[0]["messages"]))

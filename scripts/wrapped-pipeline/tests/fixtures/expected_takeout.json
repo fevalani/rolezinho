@@ -126,52 +126,6 @@
     {
       "position": 8,
       "type": "custom_ranking",
-      "title": "Os Sommeliers de Áudio",
-      "items": [
-        {
-          "rank": 1,
-          "label": "Caio",
-          "sublabel": "1 áudios"
-        }
-      ]
-    },
-    {
-      "position": 9,
-      "type": "custom_ranking",
-      "title": "Os Reis da Figurinha",
-      "items": [
-        {
-          "rank": 1,
-          "label": "Dani",
-          "sublabel": "1 figurinhas"
-        }
-      ]
-    },
-    {
-      "position": 10,
-      "type": "custom_ranking",
-      "title": "Os Fotógrafos",
-      "items": [
-        {
-          "rank": 1,
-          "label": "Beto",
-          "sublabel": "3 fotos"
-        },
-        {
-          "rank": 2,
-          "label": "Caio",
-          "sublabel": "3 fotos"
-        },
-        {
-          "rank": 3,
-          "label": "Dani",
-          "sublabel": "3 fotos"
-        }
-      ]
-    },
-    {
-      "position": 11,
-      "type": "custom_ranking",
       "title": "As Palavras do Ano",
       "items": [
         {
@@ -202,7 +156,7 @@
       ]
     },
     {
-      "position": 12,
+      "position": 9,
       "type": "custom_ranking",
       "title": "O Emoji de Cada Um",
       "items": [
@@ -230,186 +184,187 @@
       ]
     },
     {
-      "position": 13,
+      "position": 10,
       "type": "custom_ranking",
       "title": "Quem Faz o Grupo Rir",
+      "description": "Proporção de mensagens que geraram risada dos outros (quem tem poucas mensagens fica de fora).",
       "items": [
         {
           "rank": 1,
           "label": "Dani",
-          "sublabel": "29 mensagens que viraram risada"
+          "sublabel": "78% das mensagens rendem risada"
         },
         {
           "rank": 2,
           "label": "Caio",
-          "sublabel": "31 mensagens que viraram risada"
+          "sublabel": "29% das mensagens rendem risada"
         },
         {
           "rank": 3,
           "label": "Beto",
-          "sublabel": "34 mensagens que viraram risada"
+          "sublabel": "20% das mensagens rendem risada"
         },
         {
           "rank": 4,
           "label": "Ana",
-          "sublabel": "32 mensagens que viraram risada"
+          "sublabel": "19% das mensagens rendem risada"
         }
       ]
     },
     {
-      "position": 14,
+      "position": 11,
       "type": "auto_user_stats",
       "metricKey": "summary"
     },
     {
-      "position": 15,
+      "position": 12,
       "type": "auto_user_stats",
       "metricKey": "top_members"
     },
     {
-      "position": 16,
+      "position": 13,
       "type": "auto_user_stats",
       "metricKey": "top_players"
     },
     {
-      "position": 17,
+      "position": 14,
       "type": "auto_user_stats",
       "metricKey": "games"
     },
     {
-      "position": 18,
+      "position": 15,
       "type": "auto_user_stats",
       "metricKey": "top_music"
     },
     {
-      "position": 19,
+      "position": 16,
       "type": "auto_user_stats",
       "metricKey": "top_music_members"
     },
     {
-      "position": 20,
+      "position": 17,
       "type": "auto_user_stats",
       "metricKey": "top_cultura_members"
     },
     {
-      "position": 21,
+      "position": 18,
       "type": "auto_user_stats",
       "metricKey": "top_dice_members"
     },
     {
-      "position": 22,
+      "position": 19,
       "type": "auto_user_stats",
       "metricKey": "top_bolao_members"
     },
     {
-      "position": 23,
+      "position": 20,
       "type": "highlight",
       "title": "A grande discussão",
       "description": "14/03/2026 — Todo mundo falou ao mesmo tempo.",
       "imageUrl": "/wrapped/2026/media/ilustra-01.jpg"
     },
     {
-      "position": 24,
+      "position": 21,
       "type": "highlight",
       "title": "A grande discussão",
       "description": "20/06/2026 — Todo mundo falou ao mesmo tempo.",
       "imageUrl": "/wrapped/2026/media/ilustra-02.jpg"
     },
     {
-      "position": 25,
+      "position": 22,
       "type": "quote",
       "title": "kkkkk morri kkkk 😂",
       "description": "— Ana, 14/03/2026"
     },
     {
+      "position": 23,
+      "type": "highlight",
+      "title": "Dani: O Escritor",
+      "description": "20 caracteres por mensagem, o maior textão; O Figurinheiro: 1 figurinhas enviadas; O Humorista: 78% das mensagens renderam risada."
+    },
+    {
+      "position": 24,
+      "type": "highlight",
+      "title": "Beto: O Dono do Grupo",
+      "description": "170 mensagens, 35% de tudo que foi dito; O Fotógrafo: 3 fotos enviadas."
+    },
+    {
+      "position": 25,
+      "type": "highlight",
+      "title": "Ana: O Emoji Fixo",
+      "description": "☕ usado 19 vezes."
+    },
+    {
       "position": 26,
       "type": "highlight",
-      "title": "Beto: O Mestre do Papo",
-      "description": "Fala mais que o rádio."
+      "title": "Caio: O Corujão",
+      "description": "2 mensagens entre 1h e 5h da manhã."
     },
     {
       "position": 27,
-      "type": "highlight",
-      "title": "Ana: O Mestre do Papo",
-      "description": "Fala mais que o rádio."
-    },
-    {
-      "position": 28,
-      "type": "highlight",
-      "title": "Caio: O Mestre do Papo",
-      "description": "Fala mais que o rádio."
-    },
-    {
-      "position": 29,
-      "type": "highlight",
-      "title": "Dani: O Mestre do Papo",
-      "description": "Fala mais que o rádio."
-    },
-    {
-      "position": 30,
       "type": "media",
       "title": "Legenda da foto do Takeout",
       "description": "O grupo · 01/04/2026",
       "imageUrl": "/wrapped/2026/media/piada-06.jpg"
     },
     {
-      "position": 31,
+      "position": 28,
       "type": "media",
       "title": "Foto de legenda curta",
       "imageUrl": "/wrapped/2026/media/foto-01.jpg",
       "description": "Rolê · Dani · 14/03/2026"
     },
     {
-      "position": 32,
+      "position": 29,
       "type": "media",
       "title": "Foto de legenda curta",
       "imageUrl": "/wrapped/2026/media/foto-02.jpg",
       "description": "Rolê · Caio · 14/03/2026"
     },
     {
-      "position": 33,
+      "position": 30,
       "type": "media",
       "title": "Foto de legenda curta",
       "imageUrl": "/wrapped/2026/media/foto-03.jpg",
       "description": "Rolê · Dani · 20/06/2026"
     },
     {
-      "position": 34,
+      "position": 31,
       "type": "media",
       "title": "Foto de legenda curta",
       "imageUrl": "/wrapped/2026/media/foto-04.jpg",
       "description": "Rolê · Caio · 20/06/2026"
     },
     {
-      "position": 35,
+      "position": 32,
       "type": "media",
       "title": "Foto de legenda curta",
       "imageUrl": "/wrapped/2026/media/foto-05.jpg",
       "description": "Rolê · Dani · 05/09/2026"
     },
     {
-      "position": 36,
+      "position": 33,
       "type": "media",
       "title": "Foto de legenda curta",
       "imageUrl": "/wrapped/2026/media/foto-06.jpg",
       "description": "Rolê · Caio · 05/09/2026"
     },
     {
-      "position": 37,
+      "position": 34,
       "type": "media",
       "title": "Foto de legenda curta",
       "imageUrl": "/wrapped/2026/media/foto-07.jpg",
       "description": "Rolê · Beto · 14/03/2026"
     },
     {
-      "position": 38,
+      "position": 35,
       "type": "media",
       "title": "Foto de legenda curta",
       "imageUrl": "/wrapped/2026/media/foto-08.jpg",
       "description": "Rolê · Beto · 20/06/2026"
     },
     {
-      "position": 39,
+      "position": 36,
       "type": "media",
       "title": "Foto de legenda curta",
       "imageUrl": "/wrapped/2026/media/foto-09.jpg",
