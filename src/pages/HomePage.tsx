@@ -12,11 +12,29 @@ import { formatMdLong, occasionMdFor } from "@/lib/seasonal/themes";
 import { JumbledText } from "@/components/JumbledText";
 import { fetchEdition } from "@/features/wrapped/wrappedService";
 import type { WrappedEdition } from "@/features/wrapped/wrappedTypes";
+import { useDevMode } from "@/lib/useDevMode";
 
 interface TodayBirthday {
   id: string;
   display_name: string;
   avatar_url: string | null;
+  birthday: string;
+}
+
+// Informações de próximo evento e/ou aniversário na home
+interface NextBirthday {
+  md: string; // "MM-DD"
+  daysUntil: number;
+  people: TodayBirthday[];
+}
+
+interface NextAgendaEvent {
+  id: string;
+  title: string;
+  event_date: string; // "YYYY-MM-DD"
+  event_time: string | null;
+  daysUntil: number;
+  confirmedCount: number;
 }
 
 /** Retorna "MM-DD" para comparar com o sufixo do birthday "YYYY-MM-DD" */
@@ -25,6 +43,65 @@ function getTodayMMDD(): string {
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   const dd = String(now.getDate()).padStart(2, "0");
   return `${mm}-${dd}`;
+}
+
+// Funções adicionais para cálculo de datas
+function getLocalToday(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function getTodayYMD(today = getLocalToday()): string {
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function daysUntilYmd(dateStr: string, today = getLocalToday()): number {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const target = new Date(y, m - 1, d);
+  return Math.round((target.getTime() - today.getTime()) / 86_400_000);
+}
+
+function formatCountdown(days: number): string {
+  if (days === 0) return "hoje";
+  if (days === 1) return "amanhã";
+  return `em ${days}d`;
+}
+
+function findNextBirthday(
+  profiles: TodayBirthday[],
+  today = getLocalToday(),
+): NextBirthday | null {
+  let minDays = Infinity;
+  let bestMd = "";
+  let bestPeople: TodayBirthday[] = [];
+
+  for (const p of profiles) {
+    if (!p.birthday || p.birthday.length < 10) continue;
+    const md = p.birthday.slice(5, 10);
+    const [, mm, dd] = p.birthday.split("-").map(Number);
+
+    let next = new Date(today.getFullYear(), mm - 1, dd);
+    if (next < today) {
+      next = new Date(today.getFullYear() + 1, mm - 1, dd);
+    }
+
+    const days = Math.round((next.getTime() - today.getTime()) / 86_400_000);
+    if (days <= 0) continue;
+
+    if (days < minDays) {
+      minDays = days;
+      bestMd = md;
+      bestPeople = [p];
+    } else if (days === minDays && md === bestMd) {
+      bestPeople.push(p);
+    }
+  }
+  return bestPeople.length > 0
+    ? { md: bestMd, daysUntil: minDays, people: bestPeople }
+    : null;
 }
 
 // Agrupamento dos cards por categoria na grade da Home.
@@ -55,6 +132,7 @@ function groupFeaturesByCategory<T extends Feature>(
 export function HomePage() {
   const { profile } = useAuth();
   const { active: seasonTheme } = useSeasonalTheme();
+  const [devMode] = useDevMode();
   const navigate = useNavigate();
   const firstName = profile?.display_name?.split(" ")[0] ?? "Aventureiro";
 
@@ -64,6 +142,8 @@ export function HomePage() {
   );
 
   const [todayBirthdays, setTodayBirthdays] = useState<TodayBirthday[]>([]);
+  const [nextBirthday, setNextBirthday] = useState<NextBirthday | null>(null);
+  const [nextEvent, setNextEvent] = useState<NextAgendaEvent | null>(null);
 
   const [wrapped, setWrapped] = useState<WrappedEdition | null>(null);
   useEffect(() => {
@@ -75,13 +155,62 @@ export function HomePage() {
   }, []);
 
   const loadBirthdays = useCallback(async () => {
-    const today = getTodayMMDD();
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, display_name, avatar_url, birthday")
-      .like("birthday", `%-${today}`);
-    setTodayBirthdays((data as TodayBirthday[]) ?? []);
-  }, []);
+    const todayMd = getTodayMMDD();
+
+    if (!devMode) {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url, birthday")
+        .like("birthday", `%-${todayMd}`);
+      setTodayBirthdays((data as TodayBirthday[]) ?? []);
+      setNextBirthday(null);
+      setNextEvent(null);
+      return;
+    }
+
+    const today = getLocalToday();
+    const todayYmd = getTodayYMD(today);
+
+    const [birthdayRes, eventRes] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url, birthday")
+        .not("birthday", "is", null),
+      supabase
+        .from("agenda_events")
+        .select("id, title, event_date, event_time")
+        .gte("event_date", todayYmd)
+        .order("event_date", { ascending: true })
+        .order("event_time", { ascending: true, nullsFirst: true })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    const profiles = ((birthdayRes.data ?? []) as TodayBirthday[]).filter(
+      (p) => Boolean(p.birthday),
+    );
+    const todayList = profiles.filter((p) => p.birthday.slice(5, 10) === todayMd);
+    setTodayBirthdays(todayList);
+
+    // No dia do aniversário de alguém, não será exibido o próximo.
+    setNextBirthday(todayList.length === 0 ? findNextBirthday(profiles, today) : null);
+
+    if (eventRes.data) {
+      const { count } = await supabase
+        .from("agenda_rsvps")
+        .select("id", { count: "exact", head: true })
+        .eq("event_id", eventRes.data.id)
+        .eq("status", "confirmed");
+
+      setNextEvent({
+        ...eventRes.data,
+        daysUntil: daysUntilYmd(eventRes.data.event_date, today),
+        confirmedCount: count ?? 0,
+      });
+    } else {
+      setNextEvent(null);
+    }
+  }, [devMode]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial: loadBirthdays() é assíncrono
@@ -166,26 +295,104 @@ export function HomePage() {
             </span>
           </div>
         )}
-        <div className="relative h-full flex flex-col justify-end px-5 pb-6 gap-1">
-          <h1
-            className="text-2xl text-white anim-fade"
-            style={{
-              fontFamily: "var(--font-display)",
-              animationDelay: "0.1s",
-              textShadow: "0 2px 12px rgba(0,0,0,0.55)",
-            }}
-          >
-            Olá, {firstName}
-          </h1>
-          <p
-            className="text-base text-white/85 anim-fade"
-            style={{
-              animationDelay: "0.15s",
-              textShadow: "0 1px 8px rgba(0,0,0,0.45)",
-            }}
-          >
-            O que vamos fazer hoje?
-          </p>
+        <div className="absolute inset-0 z-[3] flex flex-col justify-end px-4 pb-4 gap-3">
+          <div className="flex flex-col gap-1 px-1">
+            <h1
+              className="text-2xl text-white anim-fade"
+              style={{
+                fontFamily: "var(--font-display)",
+                animationDelay: "0.1s",
+                textShadow: "0 2px 12px rgba(0,0,0,0.55)",
+              }}
+            >
+              Olá, {firstName}
+            </h1>
+            <p
+              className="text-base text-white/85 anim-fade"
+              style={{
+                animationDelay: "0.15s",
+                textShadow: "0 1px 8px rgba(0,0,0,0.45)",
+              }}
+            >
+              O que vamos fazer hoje?
+            </p>
+          </div>
+
+          {/* Destaques próximos: agenda + próximo aniversário */}
+          {devMode && (() => {
+            const showNextBirthday =
+              todayBirthdays.length === 0 && nextBirthday !== null;
+            if (!nextEvent && !showNextBirthday) return null;
+
+            const bothVisible = Boolean(nextEvent && showNextBirthday);
+
+            return (
+              <div className="flex items-stretch gap-2.5">
+                {nextEvent && (
+                  <button
+                    onClick={() => {
+                      hapticTap();
+                      navigate(`/agenda?evento=${nextEvent.id}`);
+                    }}
+                    className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl text-left anim-fade transition-all cursor-pointer bg-[rgba(0,0,0,0.45)] border border-[rgba(255,255,255,0.18)] hover:bg-[rgba(0,0,0,0.6)] hover:border-[rgba(255,255,255,0.32)] active:scale-[0.98] min-w-0 ${
+                      bothVisible ? "flex-1" : "max-w-full"
+                    }`}
+                    style={{
+                      backdropFilter: "blur(8px)",
+                      WebkitBackdropFilter: "blur(8px)",
+                      animationDelay: "0.18s",
+                    }}
+                  >
+                    <span className="text-xl leading-none shrink-0">📅</span>
+                    <span className="flex flex-col gap-0.5 min-w-0 flex-1">
+                      <span className="text-[0.65rem] font-semibold tracking-wide text-white/70 truncate">
+                        {formatCountdown(nextEvent.daysUntil)}
+                      </span>
+                      <span className="text-xs font-semibold text-white leading-snug line-clamp-2">
+                        {nextEvent.title}
+                      </span>
+                      {nextEvent.confirmedCount > 0 && (
+                        <span className="text-[0.68rem] text-white/75 truncate">
+                          {nextEvent.confirmedCount === 1
+                            ? "1 confirmou"
+                            : `${nextEvent.confirmedCount} confirmaram`}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                )}
+
+                {showNextBirthday && nextBirthday && (
+                  <button
+                    onClick={() => {
+                      hapticTap();
+                      navigate("/aniversarios");
+                    }}
+                    className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl text-left anim-fade transition-all cursor-pointer bg-[rgba(0,0,0,0.45)] border border-[rgba(255,255,255,0.18)] hover:bg-[rgba(0,0,0,0.6)] hover:border-[rgba(255,255,255,0.32)] active:scale-[0.98] min-w-0 ${
+                      bothVisible ? "flex-1" : "max-w-full"
+                    }`}
+                    style={{
+                      backdropFilter: "blur(8px)",
+                      WebkitBackdropFilter: "blur(8px)",
+                      animationDelay: "0.22s",
+                    }}
+                  >
+                    <span className="text-xl leading-none shrink-0">🎂</span>
+                    <span className="flex flex-col gap-0.5 min-w-0 flex-1">
+                      <span className="text-[0.65rem] font-semibold tracking-wide text-white/70 truncate">
+                        {formatCountdown(nextBirthday.daysUntil)}
+                      </span>
+                      <span className="text-xs font-semibold text-white leading-snug line-clamp-2">
+                        {nextBirthday.people
+                          .map((p) => p.display_name.split(" ")[0])
+                          .join(", ")}
+                      </span>
+                    </span>
+                  </button>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -255,7 +462,9 @@ export function HomePage() {
           >
             <span className="text-2xl shrink-0">🎁</span>
             <span className="flex-1 min-w-0">
-              <span className="block text-sm font-bold leading-tight">{wrapped.pageTitle}</span>
+              <span className="block text-sm font-bold leading-tight">
+                {wrapped.pageTitle}
+              </span>
               <span className="block text-xs opacity-90 mt-0.5">
                 {wrapped.subtitle ?? "Veja a sua retrospectiva"}
               </span>
