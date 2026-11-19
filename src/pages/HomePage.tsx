@@ -5,7 +5,6 @@ import { usePullToRefresh } from "@/lib/usePullToRefresh";
 import { hapticTap } from "@/lib/haptics";
 import type { Feature } from "@/lib/types";
 import { useFeatures } from "@/lib/FeatureFlagsContext";
-import { supabase } from "@/lib/supabase";
 import { Avatar } from "@/components/Avatar";
 import { useSeasonalTheme } from "@/lib/seasonal/SeasonalThemeContext";
 import { formatMdLong, occasionMdFor } from "@/lib/seasonal/themes";
@@ -13,96 +12,9 @@ import { JumbledText } from "@/components/JumbledText";
 import { fetchEdition } from "@/features/wrapped/wrappedService";
 import type { WrappedEdition } from "@/features/wrapped/wrappedTypes";
 import { useDevMode } from "@/lib/useDevMode";
-
-interface TodayBirthday {
-  id: string;
-  display_name: string;
-  avatar_url: string | null;
-  birthday: string;
-}
-
-// Informações de próximo evento e/ou aniversário na home
-interface NextBirthday {
-  md: string; // "MM-DD"
-  daysUntil: number;
-  people: TodayBirthday[];
-}
-
-interface NextAgendaEvent {
-  id: string;
-  title: string;
-  event_date: string; // "YYYY-MM-DD"
-  event_time: string | null;
-  daysUntil: number;
-  confirmedCount: number;
-}
-
-/** Retorna "MM-DD" para comparar com o sufixo do birthday "YYYY-MM-DD" */
-function getTodayMMDD(): string {
-  const now = new Date();
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
-  return `${mm}-${dd}`;
-}
-
-// Funções adicionais para cálculo de datas
-function getLocalToday(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-}
-
-function getTodayYMD(today = getLocalToday()): string {
-  const yyyy = today.getFullYear();
-  const mm = String(today.getMonth() + 1).padStart(2, "0");
-  const dd = String(today.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function daysUntilYmd(dateStr: string, today = getLocalToday()): number {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const target = new Date(y, m - 1, d);
-  return Math.round((target.getTime() - today.getTime()) / 86_400_000);
-}
-
-function formatCountdown(days: number): string {
-  if (days === 0) return "hoje";
-  if (days === 1) return "amanhã";
-  return `em ${days}d`;
-}
-
-function findNextBirthday(
-  profiles: TodayBirthday[],
-  today = getLocalToday(),
-): NextBirthday | null {
-  let minDays = Infinity;
-  let bestMd = "";
-  let bestPeople: TodayBirthday[] = [];
-
-  for (const p of profiles) {
-    if (!p.birthday || p.birthday.length < 10) continue;
-    const md = p.birthday.slice(5, 10);
-    const [, mm, dd] = p.birthday.split("-").map(Number);
-
-    let next = new Date(today.getFullYear(), mm - 1, dd);
-    if (next < today) {
-      next = new Date(today.getFullYear() + 1, mm - 1, dd);
-    }
-
-    const days = Math.round((next.getTime() - today.getTime()) / 86_400_000);
-    if (days <= 0) continue;
-
-    if (days < minDays) {
-      minDays = days;
-      bestMd = md;
-      bestPeople = [p];
-    } else if (days === minDays && md === bestMd) {
-      bestPeople.push(p);
-    }
-  }
-  return bestPeople.length > 0
-    ? { md: bestMd, daysUntil: minDays, people: bestPeople }
-    : null;
-}
+import { fetchHomeHighlights } from "@/features/home/homeService";
+import { firstNames, formatConfirmed, formatCountdown } from "@/features/home/homeLogic";
+import type { BirthdayPerson, NextAgendaEvent, NextBirthday } from "@/features/home/homeTypes";
 
 // Agrupamento dos cards por categoria na grade da Home.
 const FEATURE_CATEGORIES: { label: string; ids: string[] }[] = [
@@ -141,7 +53,7 @@ export function HomePage() {
     (f) => !(profile?.hidden_features ?? []).includes(f.id),
   );
 
-  const [todayBirthdays, setTodayBirthdays] = useState<TodayBirthday[]>([]);
+  const [todayBirthdays, setTodayBirthdays] = useState<BirthdayPerson[]>([]);
   const [nextBirthday, setNextBirthday] = useState<NextBirthday | null>(null);
   const [nextEvent, setNextEvent] = useState<NextAgendaEvent | null>(null);
 
@@ -155,61 +67,10 @@ export function HomePage() {
   }, []);
 
   const loadBirthdays = useCallback(async () => {
-    const todayMd = getTodayMMDD();
-
-    if (!devMode) {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url, birthday")
-        .like("birthday", `%-${todayMd}`);
-      setTodayBirthdays((data as TodayBirthday[]) ?? []);
-      setNextBirthday(null);
-      setNextEvent(null);
-      return;
-    }
-
-    const today = getLocalToday();
-    const todayYmd = getTodayYMD(today);
-
-    const [birthdayRes, eventRes] = await Promise.all([
-      supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url, birthday")
-        .not("birthday", "is", null),
-      supabase
-        .from("agenda_events")
-        .select("id, title, event_date, event_time")
-        .gte("event_date", todayYmd)
-        .order("event_date", { ascending: true })
-        .order("event_time", { ascending: true, nullsFirst: true })
-        .limit(1)
-        .maybeSingle(),
-    ]);
-
-    const profiles = ((birthdayRes.data ?? []) as TodayBirthday[]).filter(
-      (p) => Boolean(p.birthday),
-    );
-    const todayList = profiles.filter((p) => p.birthday.slice(5, 10) === todayMd);
-    setTodayBirthdays(todayList);
-
-    // No dia do aniversário de alguém, não será exibido o próximo.
-    setNextBirthday(todayList.length === 0 ? findNextBirthday(profiles, today) : null);
-
-    if (eventRes.data) {
-      const { count } = await supabase
-        .from("agenda_rsvps")
-        .select("id", { count: "exact", head: true })
-        .eq("event_id", eventRes.data.id)
-        .eq("status", "confirmed");
-
-      setNextEvent({
-        ...eventRes.data,
-        daysUntil: daysUntilYmd(eventRes.data.event_date, today),
-        confirmedCount: count ?? 0,
-      });
-    } else {
-      setNextEvent(null);
-    }
+    const h = await fetchHomeHighlights(devMode);
+    setTodayBirthdays(h.todayBirthdays);
+    setNextBirthday(h.nextBirthday);
+    setNextEvent(h.nextEvent);
   }, [devMode]);
 
   useEffect(() => {
@@ -351,11 +212,9 @@ export function HomePage() {
                       <span className="text-xs font-semibold text-white leading-snug line-clamp-2">
                         {nextEvent.title}
                       </span>
-                      {nextEvent.confirmedCount > 0 && (
+                      {formatConfirmed(nextEvent.confirmedCount) && (
                         <span className="text-[0.68rem] text-white/75 truncate">
-                          {nextEvent.confirmedCount === 1
-                            ? "1 confirmou"
-                            : `${nextEvent.confirmedCount} confirmaram`}
+                          {formatConfirmed(nextEvent.confirmedCount)}
                         </span>
                       )}
                     </span>
@@ -383,9 +242,7 @@ export function HomePage() {
                         {formatCountdown(nextBirthday.daysUntil)}
                       </span>
                       <span className="text-xs font-semibold text-white leading-snug line-clamp-2">
-                        {nextBirthday.people
-                          .map((p) => p.display_name.split(" ")[0])
-                          .join(", ")}
+                        {firstNames(nextBirthday.people)}
                       </span>
                     </span>
                   </button>
