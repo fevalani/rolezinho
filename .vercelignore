@@ -1,0 +1,7 @@
+# Dados privados do Wrapped (conversas, fotos, config com nomes) e builds nativos: nunca vão para o deploy.
+scripts/wrapped-pipeline
+android/app/build
+android/build
+android/.gradle
+node_modules
+.git
