@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/lib/AuthContext";
+import { useSudokuTimer } from "./useSudokuTimer";
 import { Avatar } from "@/components/Avatar";
 import {
   getSudokuOfDay,
@@ -174,7 +175,6 @@ export function SudokuGame() {
   const [mistakes, setMistakes] = useState(0);
   const [status, setStatus] = useState<GameStatus>("playing");
   const [score, setScore] = useState(0);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<number | null>(null);
   const [flashIndex, setFlashIndex] = useState<number | null>(null);
@@ -192,11 +192,6 @@ export function SudokuGame() {
   // puzzle diferente do ranqueado do dia dentro do mesmo pool da dificuldade
   // já escolhida — Sudoku não tem outro pool de puzzles no projeto).
   const [ranked, setRanked] = useState(true);
-  const [manualPaused, setManualPaused] = useState(false);
-  const [isHidden, setIsHidden] = useState(() =>
-    typeof document !== "undefined" ? document.hidden : false,
-  );
-  const isPaused = manualPaused || isHidden;
   const rankedSnapshot = useRef<{
     puzzle: string;
     solution: string;
@@ -204,34 +199,76 @@ export function SudokuGame() {
     mistakes: number;
     status: GameStatus;
     score: number;
-    elapsedSeconds: number;
     accumulatedMs: number;
     notes: Record<number, number[]>;
     startedAtIso: string;
   } | null>(null);
 
   const startedAtIso = useRef<string>("");
-  const accumulatedMs = useRef<number>(0);
-  const activeSinceMs = useRef<number | null>(null);
-
-  //Espelho para os escutadores de visibilitychange/pagehide obterem o valor mais recente
+  //Espelho para o callback de pausa automática obter o valor mais recente
   const boardRef = useRef(board);
   const mistakesRef = useRef(mistakes);
-  const manualPausedRef = useRef(manualPaused);
   useEffect(() => {
     boardRef.current = board;
   }, [board]);
   useEffect(() => {
     mistakesRef.current = mistakes;
   }, [mistakes]);
-  useEffect(() => {
-    manualPausedRef.current = manualPaused;
-  }, [manualPaused]);
 
   const elapsedStorageKey = useMemo(
     () => (user ? `sudoku-elapsed:${user.id}:${gameDate}` : null),
     [user, gameDate],
   );
+
+  const persist = useCallback(
+    async (
+      nextBoard: string,
+      nextMistakes: number,
+      nextStatus: GameStatus,
+      nextScore: number,
+      nextElapsedSeconds: number,
+    ) => {
+      // Modo treino não persiste nem conta pro ranking — só o ranqueado grava.
+      if (!user || !difficulty || !ranked) return;
+      await saveSudokuGame(user.id, gameDate, {
+        difficulty,
+        board: nextBoard,
+        mistakes: nextMistakes,
+        elapsed_seconds: nextElapsedSeconds,
+        status: nextStatus,
+        score: nextScore,
+        started_at: startedAtIso.current,
+      });
+    },
+    [user, gameDate, difficulty, ranked],
+  );
+
+  const {
+    elapsedSeconds,
+    isPaused,
+    manualPaused,
+    setManualPaused,
+    togglePause,
+    getElapsedSeconds: getCurrentElapsedSeconds,
+    getAccumulatedMs,
+    pause: pauseTimer,
+    restore: restoreTimer,
+    reset: resetTimer,
+  } = useSudokuTimer({
+    active: !loading && status === "playing" && !!difficulty,
+    // Aba oculta / pagehide: guarda o tempo (backup local + banco) no ranqueado
+    onAutoPause: (secs) => {
+      if (!ranked) return;
+      if (elapsedStorageKey) {
+        try {
+          localStorage.setItem(elapsedStorageKey, String(secs));
+        } catch {
+          /* localStorage indisponível — rascunho fica só na sessão atual */
+        }
+      }
+      persist(boardRef.current, mistakesRef.current, "playing", 0, secs);
+    },
+  });
 
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conflictTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -248,28 +285,6 @@ export function SudokuGame() {
     const lb = await getSudokuDailyLeaderboard(gameDate);
     setLeaderboard(lb);
   }, [gameDate]);
-
-  const getCurrentElapsedSeconds = useCallback(() => {
-    const extra =
-      activeSinceMs.current !== null ? Date.now() - activeSinceMs.current : 0;
-    return Math.floor((accumulatedMs.current + Math.max(0, extra)) / 1000);
-  }, []);
-
-  const pauseTimer = useCallback(() => {
-    if (activeSinceMs.current != null) {
-      accumulatedMs.current += Math.max(0, Date.now() - activeSinceMs.current);
-      activeSinceMs.current = null;
-    }
-    const secs = Math.floor(accumulatedMs.current / 1000);
-    setElapsedSeconds(secs);
-    return secs;
-  }, []);
-
-  const resumeTimer = useCallback(() => {
-    if (activeSinceMs.current == null) {
-      activeSinceMs.current = Date.now();
-    }
-  }, []);
 
   // Chave de armazenamento local do rascunho — sobrevive a reload, outra aba ou trocar de app
   const notesStorageKey = useMemo(
@@ -313,10 +328,7 @@ export function SudokuGame() {
           }
         }
 
-        accumulatedMs.current = restoredSeconds * 1000;
-        activeSinceMs.current =
-          game.status === "playing" && !document.hidden ? Date.now() : null;
-        setElapsedSeconds(restoredSeconds);
+        restoreTimer(restoredSeconds * 1000, game.status === "playing");
 
         try {
           const raw = localStorage.getItem(
@@ -332,7 +344,7 @@ export function SudokuGame() {
     return () => {
       active = false;
     };
-  }, [user, gameDate]);
+  }, [user, gameDate, restoreTimer]);
 
   // Salva o rascunho a cada alteração, para não perder ao trocar de aba/app.
   // Só sincroniza no ranqueado — anotações do treino são efêmeras e não
@@ -353,8 +365,7 @@ export function SudokuGame() {
       const { puzzle: p, solution: s } = getSudokuOfDay(diff);
       const iso = new Date().toISOString();
       startedAtIso.current = iso;
-      accumulatedMs.current = 0;
-      activeSinceMs.current = document.hidden ? null : Date.now();
+      resetTimer();
 
       setDifficulty(diff);
       setPuzzle(p);
@@ -363,7 +374,6 @@ export function SudokuGame() {
       setMistakes(0);
       setStatus("playing");
       setScore(0);
-      setElapsedSeconds(0);
       setNotes({});
       setSelected(null);
 
@@ -379,124 +389,28 @@ export function SudokuGame() {
         });
       }
     },
-    [user, gameDate],
+    [user, gameDate, resetTimer],
   );
-
-  const persist = useCallback(
-    async (
-      nextBoard: string,
-      nextMistakes: number,
-      nextStatus: GameStatus,
-      nextScore: number,
-      nextElapsedSeconds: number,
-    ) => {
-      // Modo treino não persiste nem conta pro ranking — só o ranqueado grava.
-      if (!user || !difficulty || !ranked) return;
-      await saveSudokuGame(user.id, gameDate, {
-        difficulty,
-        board: nextBoard,
-        mistakes: nextMistakes,
-        elapsed_seconds: nextElapsedSeconds,
-        status: nextStatus,
-        score: nextScore,
-        started_at: startedAtIso.current,
-      });
-    },
-    [user, gameDate, difficulty, ranked],
-  );
-
-  //Pausa automática ao sair da página
-  useEffect(() => {
-    if (loading || status !== "playing" || !difficulty) return;
-
-    if (document.hidden) {
-      pauseTimer();
-    }
-    const saveElapsedBackup = (secs: number) => {
-      if (!ranked || !elapsedStorageKey) return;
-      try {
-        localStorage.setItem(elapsedStorageKey, String(secs));
-      } catch {
-        /* localStorage indisponível — rascunho fica só na sessão atual */
-      }
-    };
-
-    const handlePauseAndPersist = () => {
-      const secs = pauseTimer();
-      if (ranked) {
-        saveElapsedBackup(secs);
-        persist(boardRef.current, mistakesRef.current, "playing", 0, secs);
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        setIsHidden(true);
-        handlePauseAndPersist();
-      } else {
-        setIsHidden(false);
-        if (!manualPausedRef.current) {
-          resumeTimer();
-        }
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("pagehide", handlePauseAndPersist);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("pagehide", handlePauseAndPersist);
-    };
-  }, [
-    loading,
-    status,
-    difficulty,
-    ranked,
-    elapsedStorageKey,
-    pauseTimer,
-    resumeTimer,
-    persist,
-  ]);
-
-  //Cronometro enquanto estiver ativo
-  useEffect(() => {
-    if (loading || status !== "playing" || !difficulty || isPaused || document.hidden) return;
-    resumeTimer();
-    const id = setInterval(() => {
-      setElapsedSeconds(getCurrentElapsedSeconds());
-    }, 1000);
-    return () => clearInterval(id);
-  }, [
-    loading,
-    status,
-    difficulty,
-    isPaused,
-    resumeTimer,
-    getCurrentElapsedSeconds,
-  ]);
 
   const startPracticeRound = useCallback(() => {
     if (!difficulty) return;
     const { puzzle: p, solution: s } = getSudokuPracticePuzzle(difficulty);
     startedAtIso.current = new Date().toISOString();
-    accumulatedMs.current = 0;
-    activeSinceMs.current = document.hidden ? null : Date.now();
-    setManualPaused(false);
+    resetTimer();
     setPuzzle(p);
     setSolution(s);
     setBoard(p);
     setMistakes(0);
     setStatus("playing");
     setScore(0);
-    setElapsedSeconds(0);
     setNotes({});
     setSelected(null);
     setShowResult(false);
-  }, [difficulty]);
+  }, [difficulty, resetTimer]);
 
   const toggleRanked = useCallback(() => {
     if (ranked) {
-      const rankedSecs = pauseTimer();
+      pauseTimer();
       rankedSnapshot.current = {
         puzzle,
         solution,
@@ -504,8 +418,7 @@ export function SudokuGame() {
         mistakes,
         status,
         score,
-        elapsedSeconds: rankedSecs,
-        accumulatedMs: accumulatedMs.current,
+        accumulatedMs: getAccumulatedMs(),
         notes,
         startedAtIso: startedAtIso.current,
       };
@@ -520,12 +433,9 @@ export function SudokuGame() {
         setMistakes(snap.mistakes);
         setStatus(snap.status);
         setScore(snap.score);
-        setElapsedSeconds(snap.elapsedSeconds);
         setNotes(snap.notes);
         startedAtIso.current = snap.startedAtIso;
-        accumulatedMs.current = snap.accumulatedMs;
-        activeSinceMs.current =
-          snap.status === "playing" && !document.hidden ? Date.now() : null;
+        restoreTimer(snap.accumulatedMs, snap.status === "playing");
       }
       setManualPaused(false);
       setSelected(null);
@@ -542,19 +452,17 @@ export function SudokuGame() {
     score,
     notes,
     pauseTimer,
+    getAccumulatedMs,
+    restoreTimer,
+    setManualPaused,
     startPracticeRound,
   ]);
 
   // Lógica para funcionamento do botão de pause manual
   const handleTogglePause = useCallback(() => {
     if (status !== "playing") return;
-    if (manualPaused) {
-      setManualPaused(false);
-    } else {
-      pauseTimer();
-      setManualPaused(true);
-    }
-  }, [status, manualPaused, pauseTimer]);
+    togglePause();
+  }, [status, togglePause]);
 
   const toggleNote = useCallback((cell: number, digit: number) => {
     setNotes((prev) => {
@@ -645,7 +553,6 @@ export function SudokuGame() {
       if (isBoardComplete(nextBoard)) {
         const finalElapsed = pauseTimer();
         const finalScore = sudokuPointsFor(finalElapsed, mistakes, difficulty);
-        setElapsedSeconds(finalElapsed);
         setScore(finalScore);
         setStatus("won");
         persist(nextBoard, mistakes, "won", finalScore, finalElapsed);
