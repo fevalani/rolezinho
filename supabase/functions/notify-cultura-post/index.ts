@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { chunk, isAuthorized, isDeadToken } from "./logic.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -76,8 +77,9 @@ async function sendFcmNotification(
   token: string,
   title: string,
   body: string,
-): Promise<void> {
-  await fetch(
+): Promise<boolean> {
+  // devolve true quando o token está morto e deve ser removido
+  const res = await fetch(
     `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
     {
       method: "POST",
@@ -94,6 +96,10 @@ async function sendFcmNotification(
       }),
     },
   );
+  if (res.ok) return false;
+  const text = await res.text().catch(() => "");
+  console.error(`FCM ${res.status}: ${text.slice(0, 200)}`);
+  return isDeadToken(res.status, text);
 }
 
 Deno.serve(async (req) => {
@@ -101,8 +107,23 @@ Deno.serve(async (req) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  const payload = await req.json();
-  const record = payload.record as Record<string, unknown>;
+  // Só o webhook do banco (que conhece o segredo) pode disparar push para todos.
+  // Configure o header `Authorization: Bearer <WEBHOOK_SECRET>` no webhook e
+  // `supabase secrets set WEBHOOK_SECRET=...`. Publique com `--no-verify-jwt`: o segredo não é um JWT, a checagem é esta aqui.
+  if (!isAuthorized(req.headers.get("Authorization"), Deno.env.get("WEBHOOK_SECRET"))) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  let payload: { record?: Record<string, unknown> };
+  try {
+    payload = await req.json();
+  } catch {
+    return new Response("Bad request", { status: 400 });
+  }
+  const record = payload.record;
+  if (!record?.user_id || !record?.item_id) {
+    return new Response("Bad request", { status: 400 });
+  }
 
   const authorId = record.user_id as string;
   const itemId = record.item_id as string;
@@ -111,8 +132,8 @@ Deno.serve(async (req) => {
   const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   const [profileRes, itemRes, tokensRes] = await Promise.all([
-    db.from("profiles").select("display_name").eq("id", authorId).single(),
-    db.from("cultura_items").select("title, type").eq("id", itemId).single(),
+    db.from("profiles").select("display_name").eq("id", authorId).maybeSingle(),
+    db.from("cultura_items").select("title, type").eq("id", itemId).maybeSingle(),
     db.from("push_tokens").select("token").neq("user_id", authorId),
   ]);
 
@@ -138,11 +159,24 @@ Deno.serve(async (req) => {
   const sa = JSON.parse(saRaw) as ServiceAccount;
   const accessToken = await getAccessToken(sa);
 
-  await Promise.all(
-    tokensRes.data.map(({ token }) =>
-      sendFcmNotification(accessToken, sa.project_id, token, title, body),
-    ),
-  );
+  // Em lotes de 20, e apagando tokens que o FCM recusou de vez.
+  const dead: string[] = [];
+  for (const batch of chunk(tokensRes.data as { token: string }[], 20)) {
+    const results = await Promise.all(
+      batch.map(async ({ token }) => {
+        try {
+          return (await sendFcmNotification(accessToken, sa.project_id, token, title, body))
+            ? token
+            : null;
+        } catch (e) {
+          console.error("FCM falhou", e);
+          return null;
+        }
+      }),
+    );
+    for (const t of results) if (t) dead.push(t);
+  }
+  if (dead.length) await db.from("push_tokens").delete().in("token", dead);
 
   return new Response("ok", { status: 200 });
 });

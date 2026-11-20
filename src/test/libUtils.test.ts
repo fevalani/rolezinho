@@ -17,7 +17,8 @@ vi.mock("@capacitor/haptics", () => ({
   NotificationType: { Success: "SUCCESS" },
 }));
 
-import { readCache, writeCache, clearCache } from "@/lib/localCache";
+import { readCache, writeCache, clearCache, clearAllCache } from "@/lib/localCache";
+import { safeUrl } from "@/lib/utils";
 import { track, trackPageView } from "@/lib/analytics";
 import { hapticTap, hapticSuccess } from "@/lib/haptics";
 
@@ -43,6 +44,15 @@ describe("localCache", () => {
   it("JSON corrompido = null (não quebra)", () => {
     localStorage.setItem("rolezinho:cache:k", "{oops");
     expect(readCache("k")).toBeNull();
+  });
+  it("clearAllCache apaga todos os snapshots e preserva o resto do localStorage", () => {
+    writeCache("bolao:1", { a: 1 });
+    writeCache("bolao:2", { a: 2 });
+    localStorage.setItem("rolezinho:dev-mode", "1");
+    clearAllCache();
+    expect(readCache("bolao:1")).toBeNull();
+    expect(readCache("bolao:2")).toBeNull();
+    expect(localStorage.getItem("rolezinho:dev-mode")).toBe("1");
   });
   it("clearCache remove", () => {
     writeCache("k", 1);
@@ -102,5 +112,22 @@ describe("haptics", () => {
     native.value = true;
     vibrate.mockRejectedValue(new Error("unsupported"));
     await expect(hapticTap()).resolves.toBeUndefined();
+  });
+});
+
+describe("safeUrl", () => {
+  it("aceita http, https e mailto", () => {
+    expect(safeUrl("https://notion.so/x")).toBe("https://notion.so/x");
+    expect(safeUrl("http://a.com")).toBe("http://a.com/");
+    expect(safeUrl("mailto:oi@a.com")).toBe("mailto:oi@a.com");
+  });
+  it("bloqueia javascript:, data:, vbscript:, texto solto e não-string", () => {
+    expect(safeUrl("javascript:alert(1)")).toBeNull();
+    expect(safeUrl("  JaVaScRiPt:alert(1)")).toBeNull();
+    expect(safeUrl("data:text/html,<script>1</script>")).toBeNull();
+    expect(safeUrl("vbscript:x")).toBeNull();
+    expect(safeUrl("/relativo")).toBeNull();
+    expect(safeUrl(undefined)).toBeNull();
+    expect(safeUrl(42)).toBeNull();
   });
 });

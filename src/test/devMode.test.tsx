@@ -89,15 +89,18 @@ describe("LetrecoPage — jogos em teste", () => {
     await screen.findByText("🎯 Word500");
   };
 
-  it("sem o modo desenvolvedor, o Fronteiras não aparece", async () => {
+  it("o Fronteiras aparece para todos, sem o modo desenvolvedor", async () => {
     await open();
-    expect(screen.queryByText(/Fronteiras/)).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByText(/Fronteiras/));
+    fireEvent.click(await screen.findByRole("button", { name: /Fácil/ }));
+    expect(await screen.findByLabelText("Palpite de país")).toBeInTheDocument();
   });
 
-  it("com o modo ligado, a aba aparece e abre o jogo", async () => {
+  it("com o modo ligado, a aba continua abrindo o jogo", async () => {
     setDevMode(true);
     await open();
-    fireEvent.click(await screen.findByText(/Fronteiras · beta/));
+    fireEvent.click(await screen.findByText(/Fronteiras/));
+    fireEvent.click(await screen.findByRole("button", { name: /Fácil/ }));
     expect(await screen.findByLabelText("Palpite de país")).toBeInTheDocument();
   });
 
@@ -107,7 +110,7 @@ describe("LetrecoPage — jogos em teste", () => {
       { user_id: "u9", status: "won", score: 100, profiles: { display_name: "Beto Silva", avatar_url: null } },
     ];
     await open();
-    fireEvent.click(await screen.findByText(/Fronteiras · beta/));
+    fireEvent.click(await screen.findByText(/Fronteiras/));
     fireEvent.click(screen.getByText("🏆 Ranking"));
     expect(await screen.findByText("Ranking Fronteiras 🗺️")).toBeInTheDocument();
     expect(await screen.findByText("Beto")).toBeInTheDocument();

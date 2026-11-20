@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { safeUrl } from "@/lib/utils";
 import { useState, useEffect, useMemo } from "react";
 import {
   fetchNotionConnection,
@@ -385,10 +386,10 @@ function Rich({ text }: { text?: any[] }) {
         if (t.i) el = <em>{el}</em>;
         if (t.s) el = <s>{el}</s>;
         if (t.u) el = <u>{el}</u>;
-        if (t.href)
+        if (safeUrl(t.href))
           el = (
             <a
-              href={t.href}
+              href={safeUrl(t.href)!}
               target="_blank"
               rel="noreferrer"
               className="text-(--blue) underline"
@@ -542,7 +543,7 @@ function Block({
     case "image":
       return (
         <figure>
-          <img src={b.url} alt="" loading="lazy" className="rounded-lg max-w-full" />
+          <img src={safeUrl(b.url) ?? undefined} alt="" loading="lazy" className="rounded-lg max-w-full" />
           {b.caption?.length > 0 && (
             <figcaption className="text-xs text-(--text-muted) mt-1">
               <Rich text={b.caption} />
@@ -551,9 +552,10 @@ function Block({
         </figure>
       );
     case "bookmark":
+      if (!safeUrl(b.url)) return <span className="break-all">{String(b.url ?? "")}</span>;
       return (
         <a
-          href={b.url}
+          href={safeUrl(b.url)!}
           target="_blank"
           rel="noreferrer"
           className="text-(--blue) underline break-all"

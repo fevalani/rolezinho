@@ -11,6 +11,20 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // vendors estáveis em chunks próprios: cache do navegador sobrevive a deploys do app
+        manualChunks(id: string) {
+          if (!id.includes("node_modules")) return undefined;
+          if (/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(id)) return "react";
+          if (id.includes("@supabase")) return "supabase";
+          if (/node_modules\/(recharts|d3-|victory-vendor|decimal\.js-light)/.test(id)) return "charts";
+          return undefined;
+        },
+      },
+    },
+  },
   server: {
     port: 3000,
     host: true,

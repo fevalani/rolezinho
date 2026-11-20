@@ -1,5 +1,8 @@
 export type GameStatus = "playing" | "won" | "lost";
 
+/** fácil: mapa com todos os contornos · difícil: só aparecem os países já chutados. */
+export type FronteirasDifficulty = "easy" | "hard";
+
 /** País do mapa: path SVG já projetado (viewBox do `world.json`) + vizinhos por código ISO. */
 export interface FronteirasCountry {
   iso: string;
@@ -22,6 +25,7 @@ export interface FronteirasGame {
   user_id: string;
   game_date: string;
   guesses: string[];
+  difficulty: FronteirasDifficulty;
   status: GameStatus;
   attempts: number;
   score: number;
@@ -33,6 +37,7 @@ export interface FronteirasLeaderboardEntry {
   user_id: string;
   display_name: string;
   avatar_url: string | null;
+  difficulty: FronteirasDifficulty;
   status: GameStatus;
   attempts: number;
   score: number;

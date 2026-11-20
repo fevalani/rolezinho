@@ -3,6 +3,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import { CapacitorHttp, Capacitor } from "@capacitor/core";
+import { supabase } from "@/lib/supabase";
 
 export type ChampionshipCode = "BSA" | "WC";
 
@@ -121,6 +122,19 @@ async function nativeFetch(
   };
 }
 
+/** Token do usuário logado: os proxies de /api exigem JWT do Supabase. */
+async function authHeader(): Promise<Record<string, string>> {
+  // Em dev a chamada passa pelo proxy do Vite direto para a API externa: o JWT não deve ir junto.
+  if (import.meta.env.DEV) return {};
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
 async function fdFetch(path: string): Promise<SimpleResponse> {
   const now = Date.now();
   const wait = FD_MIN_INTERVAL - (now - lastFDCall);
@@ -135,7 +149,10 @@ async function fdFetch(path: string): Promise<SimpleResponse> {
   const url = import.meta.env.DEV
     ? `${FD_BASE_WEB}${path}`
     : `${FD_BASE_WEB}?path=${encodeURIComponent(path)}`;
-  return nativeFetch(url, FD_KEY ? { "X-Auth-Token": FD_KEY } : {});
+  return nativeFetch(url, {
+    ...(import.meta.env.DEV && FD_KEY ? { "X-Auth-Token": FD_KEY } : {}),
+    ...(await authHeader()),
+  });
 }
 
 async function sofaFetch(path: string): Promise<SimpleResponse> {
@@ -389,7 +406,7 @@ async function fetchMatchResultSportsDB(
       const url = import.meta.env.DEV
         ? `${SPORTSDB_BASE_WEB}${path}`
         : `${SPORTSDB_BASE_WEB}?path=${encodeURIComponent(path)}`;
-      res = await nativeFetch(url, {});
+      res = await nativeFetch(url, await authHeader());
     }
     if (!res.ok) return null;
 

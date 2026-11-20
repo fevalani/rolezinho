@@ -6,7 +6,7 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect, type ComponentType } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
@@ -15,31 +15,125 @@ import { registerPushToken } from "@/lib/pushTokenService";
 import { trackPageView } from "@/lib/analytics";
 import { FeatureFlagsProvider } from "@/lib/FeatureFlagsContext";
 import { SeasonalThemeProvider } from "@/lib/seasonal/SeasonalThemeContext";
-import { AdminPage, AdminRoute, AdminSectionPage } from "@/features/admin/AdminPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { HomePage } from "@/pages/HomePage";
-import { ProfilePage } from "@/pages/ProfilePage";
 import { AppShell } from "@/components/AppShell";
-import { TavernaPage } from "@/features/taverna/TavernaPage";
-import { AniversariosPage } from "@/features/aniversarios/AniversariosPage";
-import { RachaContaPage } from "./features/racha-conta/RachaContaPage";
-import { RpgHomePage } from "@/features/rpg/RpgHomePage";
-import { RpgTablePage } from "@/features/rpg/RpgTablePage";
-import { RpgSheetPage } from "@/features/rpg/RpgSheetView";
-import { MusicasPage } from "./features/musicas/MusciasPage";
-import { AgendaPage } from "./features/agenda/AgendaPage";
-import { CulturaPage } from "./features/cultura/CulturaPage";
-import { BolaoPage } from "./features/bolao/BolaoPage";
-import { BolaoDetailPage } from "./features/bolao/BolaoDetailPage";
-import { ArenaPage } from "./features/arena/ArenaPage";
-import { ArenaDetailPage } from "./features/arena/ArenaDetailPage";
-import { LetrecoPage } from "./features/letreco/LetrecoPage";
-import { RankingPage } from "./features/ranking/RankingPage";
-import { RankingDetailPage } from "./features/ranking/RankingDetailPage";
-import { DuelosPage } from "./features/duelos/DuelosPage";
-import { DuelosPlayPage } from "./features/duelos/DuelosPlayPage";
-import { WrappedPage } from "./features/wrapped/WrappedPage";
+
+// Code-splitting (auditoria P-01): cada tela vira um chunk baixado só quando a rota abre.
+// Home, shell, login e rota protegida ficam no bundle inicial.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function lazyNamed<M extends Record<string, any>, K extends keyof M>(
+  load: () => Promise<M>,
+  name: K,
+) {
+  return lazy(async () => ({ default: (await load())[name] as ComponentType }));
+}
+
+const AdminPage = lazyNamed(
+  () => import("@/features/admin/AdminPage"),
+  "AdminPage",
+);
+const AdminRoute = lazyNamed(
+  () => import("@/features/admin/AdminPage"),
+  "AdminRoute",
+);
+const AdminSectionPage = lazyNamed(
+  () => import("@/features/admin/AdminPage"),
+  "AdminSectionPage",
+);
+const ProfilePage = lazyNamed(
+  () => import("@/pages/ProfilePage"),
+  "ProfilePage",
+);
+const TavernaPage = lazyNamed(
+  () => import("@/features/taverna/TavernaPage"),
+  "TavernaPage",
+);
+const AniversariosPage = lazyNamed(
+  () => import("@/features/aniversarios/AniversariosPage"),
+  "AniversariosPage",
+);
+const RachaContaPage = lazyNamed(
+  () => import("./features/racha-conta/RachaContaPage"),
+  "RachaContaPage",
+);
+const RpgHomePage = lazyNamed(
+  () => import("@/features/rpg/RpgHomePage"),
+  "RpgHomePage",
+);
+const RpgTablePage = lazyNamed(
+  () => import("@/features/rpg/RpgTablePage"),
+  "RpgTablePage",
+);
+const RpgSheetPage = lazyNamed(
+  () => import("@/features/rpg/RpgSheetView"),
+  "RpgSheetPage",
+);
+const MusicasPage = lazyNamed(
+  () => import("./features/musicas/MusciasPage"),
+  "MusicasPage",
+);
+const AgendaPage = lazyNamed(
+  () => import("./features/agenda/AgendaPage"),
+  "AgendaPage",
+);
+const CulturaPage = lazyNamed(
+  () => import("./features/cultura/CulturaPage"),
+  "CulturaPage",
+);
+const BolaoPage = lazyNamed(
+  () => import("./features/bolao/BolaoPage"),
+  "BolaoPage",
+);
+const BolaoDetailPage = lazyNamed(
+  () => import("./features/bolao/BolaoDetailPage"),
+  "BolaoDetailPage",
+);
+const ArenaPage = lazyNamed(
+  () => import("./features/arena/ArenaPage"),
+  "ArenaPage",
+);
+const ArenaDetailPage = lazyNamed(
+  () => import("./features/arena/ArenaDetailPage"),
+  "ArenaDetailPage",
+);
+const LetrecoPage = lazyNamed(
+  () => import("./features/letreco/LetrecoPage"),
+  "LetrecoPage",
+);
+const RankingPage = lazyNamed(
+  () => import("./features/ranking/RankingPage"),
+  "RankingPage",
+);
+const RankingDetailPage = lazyNamed(
+  () => import("./features/ranking/RankingDetailPage"),
+  "RankingDetailPage",
+);
+const DuelosPage = lazyNamed(
+  () => import("./features/duelos/DuelosPage"),
+  "DuelosPage",
+);
+const DuelosPlayPage = lazyNamed(
+  () => import("./features/duelos/DuelosPlayPage"),
+  "DuelosPlayPage",
+);
+const WrappedPage = lazyNamed(
+  () => import("./features/wrapped/WrappedPage"),
+  "WrappedPage",
+);
+
+function RouteFallback() {
+  return (
+    <div
+      className="flex justify-center py-12"
+      role="status"
+      aria-label="Carregando"
+    >
+      <div className="spinner" />
+    </div>
+  );
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, recovering } = useAuth();
@@ -105,47 +199,55 @@ function AppRoutes() {
   }, [user]);
 
   return (
-    <Routes>
-      <Route
-        element={
-          <ProtectedRoute>
-            <AppShell />
-          </ProtectedRoute>
-        }
-      >
-        <Route path="/" element={<HomePage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/admin" element={<AdminRoute />}>
-          <Route index element={<AdminPage />} />
-          <Route path=":section" element={<AdminSectionPage />} />
+    <Suspense fallback={<RouteFallback />}>
+      <Routes>
+        <Route
+          element={
+            <ProtectedRoute>
+              <AppShell />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="/" element={<HomePage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/admin" element={<AdminRoute />}>
+            <Route index element={<AdminPage />} />
+            <Route path=":section" element={<AdminSectionPage />} />
+          </Route>
+          {/* endereços antigos (continuam funcionando) */}
+          <Route
+            path="/temas"
+            element={<Navigate to="/admin/temas" replace />}
+          />
+          <Route
+            path="/wrapped-admin"
+            element={<Navigate to="/admin/wrapped" replace />}
+          />
+          <Route path="/dados" element={<TavernaPage />} />
+          <Route path="/racha-conta" element={<RachaContaPage />} />
+          <Route path="/aniversarios" element={<AniversariosPage />} />
+          <Route path="/rpg" element={<RpgHomePage />} />
+          <Route path="/rpg/mesa/:tableId" element={<RpgTablePage />} />
+          <Route path="/rpg/ficha/:sheetId" element={<RpgSheetPage />} />
+          <Route path="/musicas" element={<MusicasPage />} />
+          <Route path="/agenda" element={<AgendaPage />} />
+          <Route path="/cultura" element={<CulturaPage />} />
+          <Route path="/bolao" element={<BolaoPage />} />
+          <Route path="/bolao/:poolId" element={<BolaoDetailPage />} />
+          <Route path="/arena" element={<ArenaPage />} />
+          <Route path="/arena/:duelId" element={<ArenaDetailPage />} />
+          <Route path="/letreco" element={<LetrecoPage />} />
+          <Route path="/ranking" element={<RankingPage />} />
+          <Route path="/ranking/:tableId" element={<RankingDetailPage />} />
+          <Route path="/duelos" element={<DuelosPage />} />
+          <Route path="/duelos/:id" element={<DuelosPlayPage />} />
+          <Route path="/wrapped" element={<WrappedPage />} />
+          <Route path="/wrapped/:slug" element={<WrappedPage />} />
         </Route>
-        {/* endereços antigos (continuam funcionando) */}
-        <Route path="/temas" element={<Navigate to="/admin/temas" replace />} />
-        <Route path="/wrapped-admin" element={<Navigate to="/admin/wrapped" replace />} />
-        <Route path="/dados" element={<TavernaPage />} />
-        <Route path="/racha-conta" element={<RachaContaPage />} />
-        <Route path="/aniversarios" element={<AniversariosPage />} />
-        <Route path="/rpg" element={<RpgHomePage />} />
-        <Route path="/rpg/mesa/:tableId" element={<RpgTablePage />} />
-        <Route path="/rpg/ficha/:sheetId" element={<RpgSheetPage />} />
-        <Route path="/musicas" element={<MusicasPage />} />
-        <Route path="/agenda" element={<AgendaPage />} />
-        <Route path="/cultura" element={<CulturaPage />} />
-        <Route path="/bolao" element={<BolaoPage />} />
-        <Route path="/bolao/:poolId" element={<BolaoDetailPage />} />
-        <Route path="/arena" element={<ArenaPage />} />
-        <Route path="/arena/:duelId" element={<ArenaDetailPage />} />
-        <Route path="/letreco" element={<LetrecoPage />} />
-        <Route path="/ranking" element={<RankingPage />} />
-        <Route path="/ranking/:tableId" element={<RankingDetailPage />} />
-        <Route path="/duelos" element={<DuelosPage />} />
-        <Route path="/duelos/:id" element={<DuelosPlayPage />} />
-        <Route path="/wrapped" element={<WrappedPage />} />
-        <Route path="/wrapped/:slug" element={<WrappedPage />} />
-      </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }
 

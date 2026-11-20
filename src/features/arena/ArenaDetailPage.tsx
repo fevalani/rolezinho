@@ -241,7 +241,7 @@ export function ArenaDetailPage() {
     if (!user || !duel || !selectedSide || !canBet) return;
     setPlacingBet(true);
     setBetError(null);
-    const { error } = await placeBet(user.id, duel.id, selectedSide, amount, potentialPayout);
+    const { error } = await placeBet(duel.id, selectedSide, amount);
     setPlacingBet(false);
     if (error) { setBetError(error); return; }
     const [d, b, w] = await Promise.all([
@@ -258,7 +258,7 @@ export function ArenaDetailPage() {
     if (!user || !myBet) return;
     setDeletingBet(true);
     setDeleteError(null);
-    const { error } = await deleteBet(user.id, myBet.id, myBet.amount);
+    const { error } = await deleteBet(myBet.id);
     setDeletingBet(false);
     if (error) { setDeleteError(error); return; }
     const [d, b, w] = await Promise.all([
@@ -285,7 +285,7 @@ export function ArenaDetailPage() {
     if (!duel || !verdictResult || !canSubmitVerdict) return;
     setSubmittingVerdict(true);
     setActionError(null);
-    const { error } = await resolveDuel(duel.id, verdictResult, verdictText.trim(), duel);
+    const { error } = await resolveDuel(duel.id, verdictResult, verdictText.trim());
     if (error) {
       setActionError(error);
       setSubmittingVerdict(false);
@@ -298,8 +298,7 @@ export function ArenaDetailPage() {
   const handleClaim = async () => {
     if (!user || !claimableBet) return;
     setClaiming(true);
-    const payout = claimableBet.actual_payout!;
-    const { error } = await claimPayout(user.id, claimableBet.id, payout);
+    const { error } = await claimPayout(claimableBet.id);
     setClaiming(false);
     if (!error) {
       setClaimed(true);

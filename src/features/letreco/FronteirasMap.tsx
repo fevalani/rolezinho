@@ -27,6 +27,7 @@ export const FronteirasMap = memo(function FronteirasMap({
   to,
   colors,
   revealed,
+  hard = false,
 }: {
   world: FronteirasWorld;
   from: string;
@@ -35,6 +36,8 @@ export const FronteirasMap = memo(function FronteirasMap({
   colors: Record<string, GuessColor>;
   /** países de um caminho mais curto, mostrados ao fim da partida (contorno dourado) */
   revealed?: Set<string>;
+  /** nível difícil: países ainda não chutados ficam sem contorno nem preenchimento */
+  hard?: boolean;
 }) {
   const full = fullViewBox(world.width, world.height);
   const [vb, setVb] = useState<ViewBox>(full);
@@ -137,6 +140,12 @@ export const FronteirasMap = memo(function FronteirasMap({
           const isRevealed = !!revealed?.has(c.iso);
           if (isRevealed && !colors[c.iso] && c.iso !== from && c.iso !== to) {
             fill = "rgba(201,165,90,0.4)";
+          }
+          const hidden =
+            hard && c.iso !== from && c.iso !== to && !colors[c.iso] && !isRevealed;
+          if (hidden) {
+            // sem <title>: o nome não pode vazar pelo hover
+            return <path key={c.iso} data-iso={c.iso} data-hidden="true" d={c.d} fill="transparent" stroke="none" />;
           }
           return (
             <path

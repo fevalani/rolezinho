@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type {
+  FronteirasDifficulty,
   FronteirasGame,
   FronteirasLeaderboardEntry,
   FronteirasOverallEntry,
@@ -8,6 +9,7 @@ import type {
 
 // Tabela: fronteiras_games
 // Migration: supabase/fronteiras_migration.sql (já rodada)
+// + supabase/fronteiras_difficulty_migration.sql (coluna difficulty)
 
 function mapRow(d: Record<string, unknown>): FronteirasGame {
   return {
@@ -15,6 +17,7 @@ function mapRow(d: Record<string, unknown>): FronteirasGame {
     user_id: d.user_id as string,
     game_date: d.game_date as string,
     guesses: (d.guesses as string[]) ?? [],
+    difficulty: d.difficulty === "hard" ? "hard" : "easy",
     status: d.status as GameStatus,
     attempts: Number(d.attempts ?? 0),
     score: Number(d.score ?? 0),
@@ -44,7 +47,12 @@ export async function getFronteirasTodayGame(
 export async function saveFronteirasGame(
   userId: string,
   gameDate: string,
-  fields: { guesses: string[]; status: GameStatus; attempts: number; score: number },
+  fields: {
+    difficulty: FronteirasDifficulty;
+    guesses: string[];
+    status: GameStatus; attempts: number;
+    score: number;
+  },
 ): Promise<{ error: string | null }> {
   try {
     const finished_at = fields.status === "playing" ? null : new Date().toISOString();
@@ -52,6 +60,7 @@ export async function saveFronteirasGame(
       {
         user_id: userId,
         game_date: gameDate,
+        difficulty: fields.difficulty,
         guesses: fields.guesses,
         status: fields.status,
         attempts: fields.attempts,
@@ -74,7 +83,7 @@ export async function getFronteirasDailyLeaderboard(
   try {
     const { data } = await supabase
       .from("fronteiras_games")
-      .select("user_id, status, attempts, score, finished_at, profiles(display_name, avatar_url)")
+      .select("user_id, status, difficulty, attempts, score, finished_at, profiles(display_name, avatar_url)")
       .eq("game_date", gameDate)
       .neq("status", "playing");
 
@@ -85,6 +94,7 @@ export async function getFronteirasDailyLeaderboard(
           user_id: r.user_id as string,
           display_name: profile?.display_name ?? "Jogador",
           avatar_url: profile?.avatar_url ?? null,
+          difficulty: (r.difficulty === "hard" ? "hard" : "easy") as FronteirasDifficulty,
           status: r.status as GameStatus,
           attempts: Number(r.attempts ?? 0),
           score: Number(r.score ?? 0),

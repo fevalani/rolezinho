@@ -1,12 +1,43 @@
 {
   "installCommand": "npm install",
-"buildCommand": "npm run build",
+  "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
     "api/og-agenda-image.ts": {
       "includeFiles": "node_modules/harfbuzzjs/hb.wasm"
     }
   },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        },
+        {
+          "key": "Content-Security-Policy-Report-Only",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://api.football-data.org https://www.thesportsdb.com https://sportapi7.p.rapidapi.com https://api.themoviedb.org https://www.googleapis.com https://generativelanguage.googleapis.com; frame-src https://www.youtube.com https://open.spotify.com https://www.googletagmanager.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -14,11 +45,16 @@
     },
     {
       "source": "/agenda",
-      "has": [{ "type": "query", "key": "evento" }],
+      "has": [
+        {
+          "type": "query",
+          "key": "evento"
+        }
+      ],
       "destination": "/api/og-agenda"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]

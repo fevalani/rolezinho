@@ -185,7 +185,7 @@ describe("bolões no banco", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     const spies = (["log", "warn", "error"] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
     mockDb.tables.bolao_championships = [{ id: "c1", code: "BSA" }];
-    const r = await createPool("u1", "Meu bolão", "BSA");
+    const r = await createPool("Meu bolão", "BSA");
     expect(r.data).toBeNull();
     expect(r.error).toMatch(/Nenhuma partida/);
     expect(supabaseMock.rpc).not.toHaveBeenCalledWith("create_bolao_pool", expect.anything());
@@ -197,8 +197,10 @@ describe("bolões no banco", () => {
     mockDb.tables.bolao_championships = [{ id: "c1", code: "BSA" }];
     mockDb.tables.bolao_matches = [{ id: "m1" }];
     mockDb.rpcResults.create_bolao_pool = "novo-pool";
-    expect(await createPool("u1", "Meu bolão", "BSA", "custom", { ...DEFAULT_CUSTOM_CONFIG, exact: 20 })).toEqual({ data: "novo-pool", error: null });
-    expect(supabaseMock.rpc).toHaveBeenCalledWith("create_bolao_pool", expect.objectContaining({ p_name: "Meu bolão", p_user_id: "u1", p_scoring_model: "custom" }));
+    expect(await createPool("Meu bolão", "BSA", "custom", { ...DEFAULT_CUSTOM_CONFIG, exact: 20 })).toEqual({ data: "novo-pool", error: null });
+    expect(supabaseMock.rpc).toHaveBeenCalledWith("create_bolao_pool", expect.objectContaining({ p_name: "Meu bolão", p_scoring_model: "custom" }));
+    // quem cria é sempre auth.uid() no banco: o cliente não manda user_id
+    expect(supabaseMock.rpc.mock.calls.find((c) => c[0] === "create_bolao_pool")![1]).not.toHaveProperty("p_user_id");
     spies.forEach((s) => s.mockRestore());
   });
   it("createPool só envia a config quando o modelo é custom", async () => {
@@ -207,7 +209,7 @@ describe("bolões no banco", () => {
     mockDb.tables.bolao_championships = [{ id: "c1" }];
     mockDb.tables.bolao_matches = [{ id: "m1" }];
     supabaseMock.rpc.mockClear();
-    await createPool("u1", "X", "BSA", "classic", DEFAULT_CUSTOM_CONFIG);
+    await createPool("X", "BSA", "classic", DEFAULT_CUSTOM_CONFIG);
     expect(supabaseMock.rpc).toHaveBeenCalledWith("create_bolao_pool", expect.objectContaining({ p_scoring_config: null }));
     spies.forEach((s) => s.mockRestore());
   });

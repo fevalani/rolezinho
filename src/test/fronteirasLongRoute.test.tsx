@@ -64,6 +64,7 @@ describe("Fronteiras — rota mais longa que o mínimo", () => {
   it("fechar o percurso por outra rota vence, com menos pontos", async () => {
     loginAs();
     renderWithProviders(<FronteirasGame />);
+    fireEvent.click(await screen.findByRole("button", { name: /Fácil/ }));
     const input = await screen.findByLabelText("Palpite de país");
     for (const iso of day.alt) {
       fireEvent.change(input, { target: { value: nameOf(iso) } });

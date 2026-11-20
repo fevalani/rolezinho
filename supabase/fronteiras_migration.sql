@@ -2,7 +2,7 @@
 -- Jogo diário "Fronteiras" (estilo Travle). Mesmo esquema de word500_games.
 -- guesses guarda os códigos ISO dos países chutados, em ordem; as cores e a
 -- vitória são recalculadas no cliente a partir do par do dia, não persistem.
--- Disponível só no modo desenvolvedor (a regra é de visibilidade, não de permissão).
+-- Disponível para todos os jogadores.
 
 create table if not exists public.fronteiras_games (
   id           uuid primary key default gen_random_uuid(),

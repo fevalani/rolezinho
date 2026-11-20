@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
 import { ArenaDetailPage } from "@/features/arena/ArenaDetailPage";
 import { loginAs } from "./helpers";
-import { mockDb } from "./supabaseMock";
+import { mockDb, supabaseMock } from "./supabaseMock";
 
 function Ready({ children }: { children: ReactNode }) {
   const { loading, user, profile } = useAuth();
@@ -46,8 +46,12 @@ const duel = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-// ensureWallet insere a carteira ao abrir a tela; o que interessa é o UPDATE do saldo
-const walletUpdate = () => mockDb.writes.filter((w) => w.table === "arena_wallets" && w.op === "update").pop()!.args[0];
+// Dinheiro só se move por RPC no banco (auditoria S-01): a tela chama a função certa.
+const rpcCalls = (name: string) => supabaseMock.rpc.mock.calls.filter((c) => c[0] === name).map((c) => c[1]);
+const calledRpc = (name: string) => rpcCalls(name).length > 0;
+// nada de escrita direta em carteira/aposta pelo cliente
+const noDirectMoneyWrites = () =>
+  expect(mockDb.writes.some((w) => w.table === "arena_wallets" || w.table === "arena_bets")).toBe(false);
 
 const seed = (over: Record<string, unknown> = {}, balance = 1000) => {
   mockDb.tables.arena_duels = [duel(over)];
@@ -82,16 +86,10 @@ describe("ArenaDetailPage — apostar", () => {
     fireEvent.click(await screen.findByText("Filme A"));
     fireEvent.click(screen.getByText("100", { selector: "button" }));
     fireEvent.click(await screen.findByRole("button", { name: "Apostar 100 pts" }));
-    await waitFor(() => expect(mockDb.writes.some((w) => w.table === "arena_bets" && w.op === "insert")).toBe(true));
-    expect(mockDb.writes.find((w) => w.table === "arena_bets")!.args[0]).toEqual({
-      duel_id: "d1",
-      user_id: "user-1",
-      side: "A",
-      amount: 100,
-      potential_payout: 200,
-    });
-    await waitFor(() => expect(mockDb.writes.some((w) => w.table === "arena_wallets" && w.op === "update")).toBe(true));
-    expect((walletUpdate() as { balance: number }).balance).toBe(900);
+    await waitFor(() => expect(calledRpc("arena_place_bet")).toBe(true));
+    // o cliente só manda caso, lado e valor: usuário, odd e saldo são do banco
+    expect(rpcCalls("arena_place_bet")[0]).toEqual({ p_duel_id: "d1", p_side: "A", p_amount: 100 });
+    noDirectMoneyWrites();
   });
 
   it("saldo insuficiente bloqueia a aposta", async () => {
@@ -118,7 +116,7 @@ describe("ArenaDetailPage — apostar", () => {
   it("erro do banco ao apostar é mostrado", async () => {
     loginAs();
     seed();
-    mockDb.errors.arena_bets = { message: "dup", code: "23505" };
+    mockDb.errors["rpc:arena_place_bet"] = { message: "dup", code: "23505" };
     mount();
     fireEvent.click(await screen.findByText("Filme A"));
     fireEvent.click(screen.getByText("10", { selector: "button" }));
@@ -141,8 +139,9 @@ describe("ArenaDetailPage — criador e prêmios", () => {
     seed({ created_by: "user-1" });
     mount();
     fireEvent.click(await screen.findByText(/Fechar Apostas/));
-    await waitFor(() => expect(mockDb.writes.some((w) => w.table === "arena_duels" && w.op === "update")).toBe(true));
-    expect(mockDb.writes.find((w) => w.table === "arena_duels")!.args[0]).toMatchObject({ status: "closed" });
+    await waitFor(() => expect(calledRpc("arena_close_duel")).toBe(true));
+    expect(rpcCalls("arena_close_duel")[0]).toEqual({ p_duel_id: "d1" });
+    expect(mockDb.writes.some((w) => w.table === "arena_duels")).toBe(false);
   });
   it("quem não criou não vê 'Fechar Apostas'", async () => {
     loginAs();
@@ -174,8 +173,9 @@ describe("ArenaDetailPage — criador e prêmios", () => {
     fireEvent.click(optB[optB.length - 1]);
     fireEvent.change(screen.getByPlaceholderText(/Explique o que aconteceu/), { target: { value: "Filme B levou o prêmio" } });
     fireEvent.click(screen.getByRole("button", { name: /Publicar Veredito/ }));
-    await waitFor(() => expect(mockDb.writes.some((w) => w.table === "arena_duels" && (w.args[0] as { status?: string }).status === "resolved")).toBe(true));
-    expect(mockDb.writes.find((w) => w.table === "arena_duels")!.args[0]).toMatchObject({ status: "resolved", result: "B", verdict: "Filme B levou o prêmio" });
+    await waitFor(() => expect(calledRpc("arena_resolve_duel")).toBe(true));
+    expect(rpcCalls("arena_resolve_duel")[0]).toEqual({ p_duel_id: "d1", p_result: "B", p_verdict: "Filme B levou o prêmio" });
+    noDirectMoneyWrites();
   });
 
   it("vencedor resgata o prêmio e o saldo é creditado", async () => {
@@ -184,9 +184,10 @@ describe("ArenaDetailPage — criador e prêmios", () => {
     mockDb.tables.arena_bets = [{ id: "b1", duel_id: "d1", user_id: "user-1", side: "A", amount: 100, potential_payout: 200, actual_payout: 200, payout_claimed: false, created_at: "" }];
     mount();
     fireEvent.click(await screen.findByRole("button", { name: /Resgatar 200 pts/ }));
-    await waitFor(() => expect(mockDb.writes.some((w) => w.table === "arena_wallets" && w.op === "update")).toBe(true));
-    expect((walletUpdate() as { balance: number }).balance).toBe(700);
-    expect(mockDb.writes.find((w) => w.table === "arena_bets")!.args[0]).toEqual({ payout_claimed: true });
+    await waitFor(() => expect(calledRpc("arena_claim_payout")).toBe(true));
+    // o valor do prêmio não viaja do cliente: o banco usa o actual_payout gravado
+    expect(rpcCalls("arena_claim_payout")[0]).toEqual({ p_bet_id: "b1" });
+    noDirectMoneyWrites();
   });
 
   it("prêmio já resgatado não mostra o botão", async () => {
@@ -213,7 +214,8 @@ describe("ArenaDetailPage — criador e prêmios", () => {
     mockDb.tables.arena_bets = [{ id: "b1", duel_id: "d1", user_id: "user-1", side: "A", amount: 100, potential_payout: 200, actual_payout: null, payout_claimed: false, created_at: "" }];
     mount();
     fireEvent.click(await screen.findByRole("button", { name: /Cancelar aposta · \+100 pts de volta/ }));
-    await waitFor(() => expect(mockDb.writes.some((w) => w.table === "arena_wallets" && w.op === "update")).toBe(true));
-    expect((walletUpdate() as { balance: number }).balance).toBe(500);
+    await waitFor(() => expect(calledRpc("arena_delete_bet")).toBe(true));
+    expect(rpcCalls("arena_delete_bet")[0]).toEqual({ p_bet_id: "b1" });
+    noDirectMoneyWrites();
   });
 });

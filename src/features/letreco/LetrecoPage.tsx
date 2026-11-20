@@ -9,7 +9,6 @@ import { Word500Game } from "./Word500Game";
 import { getWord500OverallEntries } from "./word500Service";
 import { getFronteirasOverallEntries } from "./fronteirasService";
 import { OverallRankingModal, type GameMode } from "./LetrecoOverallModal";
-import { useDevMode } from "@/lib/useDevMode";
 import {
   WORD_LENGTH,
   MAX_ATTEMPTS,
@@ -328,7 +327,7 @@ function Leaderboard({
 // ─── Página ───────────────────────────────────────────────────
 
 type Tab = "ranking" | "stats";
-// Fronteiras (jogo em teste) só carrega — e só aparece — no modo desenvolvedor.
+// Fronteiras carrega sob demanda (mapa + dados pesados).
 const FronteirasGame = lazy(() =>
   import("./FronteirasGame").then((m) => ({ default: m.FronteirasGame })),
 );
@@ -375,7 +374,6 @@ export function LetrecoPage() {
   const [tab, setTab] = useState<Tab>("ranking");
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [overall, setOverall] = useState<OverallEntry[] | null>(null);
-  const [devMode] = useDevMode();
   const [gameMode, setGameMode] = useState<GameMode>("letreco");
   const [stats, setStats] = useState<LetrecoStats | null>(null);
   const [shareLabel, setShareLabel] = useState("Compartilhar resultado");
@@ -746,9 +744,7 @@ export function LetrecoPage() {
             ["letroso", "🔠 Letroso", "6–10 letras"],
             ["sudoku", "🧩 Sudoku", "tempo + erros"],
             ["word500", "🎯 Word500", "8 tentativas"],
-            ...(devMode
-              ? ([["fronteiras", "🗺️ Fronteiras · beta", "conecte países"]] as const)
-              : []),
+            ["fronteiras", "🗺️ Fronteiras", "conecte países"],
           ] as const
         ).map(([mode, label, sub]) => (
           <button
@@ -858,8 +854,8 @@ export function LetrecoPage() {
       {/* Modo Word500 */}
       {gameMode === "word500" && <Word500Game />}
 
-      {/* Modo Fronteiras (só no modo desenvolvedor) */}
-      {devMode && gameMode === "fronteiras" && (
+      {/* Modo Fronteiras */}
+      {gameMode === "fronteiras" && (
         <Suspense
           fallback={
             <div className="flex justify-center py-12">

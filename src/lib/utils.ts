@@ -43,3 +43,17 @@ export function getInitials(name: string): string {
     .join('')
     .toUpperCase();
 }
+
+/**
+ * Só deixa passar links http(s) e mailto. Qualquer outra coisa (`javascript:`,
+ * `data:`, texto solto) vira null — usado em conteúdo que vem de terceiros (Notion).
+ */
+export function safeUrl(u: unknown): string | null {
+  if (typeof u !== 'string') return null;
+  try {
+    const url = new URL(u.trim());
+    return ['http:', 'https:', 'mailto:'].includes(url.protocol) ? url.href : null;
+  } catch {
+    return null;
+  }
+}

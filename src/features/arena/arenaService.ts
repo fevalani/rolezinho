@@ -143,19 +143,18 @@ Responda APENAS com JSON válido:
 // ══════════════════════════════════════════════════════════════
 
 export async function ensureWallet(userId: string): Promise<ArenaWallet> {
-  await supabase
-    .from("arena_wallets")
-    .insert({ user_id: userId, balance: 1000 })
-    .select()
-    .maybeSingle();
+  // RPC cria a carteira (1000 pts) se não existir; o saldo nunca vem do cliente.
+  const { data } = await supabase.rpc("arena_ensure_wallet");
+  const wallet = (Array.isArray(data) ? data[0] : data) as ArenaWallet | null;
+  if (wallet?.user_id) return wallet;
 
-  const { data } = await supabase
+  const { data: row } = await supabase
     .from("arena_wallets")
     .select()
     .eq("user_id", userId)
-    .single();
+    .maybeSingle();
 
-  return (data as ArenaWallet) ?? {
+  return (row as ArenaWallet) ?? {
     user_id: userId,
     balance: 1000,
     updated_at: new Date().toISOString(),
@@ -277,51 +276,25 @@ export async function createDuel(
 }
 
 export async function closeDuel(duelId: string): Promise<{ error: string | null }> {
-  const { error } = await supabase
-    .from("arena_duels")
-    .update({ status: "closed", updated_at: new Date().toISOString() })
-    .eq("id", duelId);
+  const { error } = await supabase.rpc("arena_close_duel", { p_duel_id: duelId });
   return { error: error?.message ?? null };
 }
 
+/**
+ * Resolve o caso. Os prêmios (aposta × odd do caso, arredondado para baixo) são
+ * calculados no banco pela RPC — o cliente só informa o resultado e o veredito.
+ */
 export async function resolveDuel(
   duelId: string,
   result: BetSide,
   verdict: string,
-  odds: Pick<ArenaDuel, "odds_a" | "odds_b" | "odds_c">,
 ): Promise<{ error: string | null }> {
-  const { error: duelError } = await supabase
-    .from("arena_duels")
-    .update({ status: "resolved", result, verdict, updated_at: new Date().toISOString() })
-    .eq("id", duelId);
-
-  if (duelError) return { error: duelError.message };
-
-  const { data: bets } = await supabase
-    .from("arena_bets")
-    .select("id, side, amount")
-    .eq("duel_id", duelId);
-
-  if (!bets?.length) return { error: null };
-
-  const sideOdds: Record<BetSide, number> = {
-    A: odds.odds_a,
-    B: odds.odds_b,
-    C: odds.odds_c,
-  };
-
-  for (const bet of bets as { id: string; side: string; amount: number }[]) {
-    const isWinner = bet.side === result;
-    const actualPayout = isWinner
-      ? Math.floor(bet.amount * sideOdds[bet.side as BetSide])
-      : 0;
-    await supabase
-      .from("arena_bets")
-      .update({ actual_payout: actualPayout })
-      .eq("id", bet.id);
-  }
-
-  return { error: null };
+  const { error } = await supabase.rpc("arena_resolve_duel", {
+    p_duel_id: duelId,
+    p_result: result,
+    p_verdict: verdict,
+  });
+  return { error: error?.message ?? null };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -350,105 +323,32 @@ export async function fetchBetsForDuel(duelId: string): Promise<ArenaBet[]> {
 }
 
 export async function placeBet(
-  userId: string,
   duelId: string,
   side: BetSide,
   amount: number,
-  potentialPayout: number,
 ): Promise<{ error: string | null }> {
-  const { error: betError } = await supabase.from("arena_bets").insert({
-    duel_id: duelId,
-    user_id: userId,
-    side,
-    amount,
-    potential_payout: potentialPayout,
+  // A RPC valida caso aberto, valor e saldo, e debita na mesma transação.
+  const { error } = await supabase.rpc("arena_place_bet", {
+    p_duel_id: duelId,
+    p_side: side,
+    p_amount: amount,
   });
-
-  if (betError) {
-    if (betError.code === "23505") return { error: "Você já apostou neste caso" };
-    return { error: betError.message };
+  if (error) {
+    if (error.code === "23505") return { error: "Você já apostou neste caso" };
+    return { error: error.message };
   }
-
-  const { data: wallet } = await supabase
-    .from("arena_wallets")
-    .select("balance")
-    .eq("user_id", userId)
-    .single();
-
-  const { error: walletError } = await supabase
-    .from("arena_wallets")
-    .update({
-      balance: ((wallet as { balance: number } | null)?.balance ?? 0) - amount,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("user_id", userId);
-
-  return { error: walletError?.message ?? null };
+  return { error: null };
 }
 
-export async function deleteBet(
-  userId: string,
-  betId: string,
-  amount: number,
-): Promise<{ error: string | null }> {
-  const { error: deleteError } = await supabase
-    .from("arena_bets")
-    .delete()
-    .eq("id", betId)
-    .eq("user_id", userId);
-
-  if (deleteError) return { error: deleteError.message };
-
-  const { data: wallet } = await supabase
-    .from("arena_wallets")
-    .select("balance")
-    .eq("user_id", userId)
-    .single();
-
-  const { error: walletError } = await supabase
-    .from("arena_wallets")
-    .update({
-      balance: ((wallet as { balance: number } | null)?.balance ?? 0) + amount,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("user_id", userId);
-
-  return { error: walletError?.message ?? null };
+export async function deleteBet(betId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.rpc("arena_delete_bet", { p_bet_id: betId });
+  return { error: error?.message ?? null };
 }
 
-export async function claimPayout(
-  userId: string,
-  betId: string,
-  payout: number,
-): Promise<{ error: string | null }> {
-  // `.select()` devolve só as linhas realmente atualizadas: se a aposta já
-  // estava resgatada (ou não é do usuário), nada é creditado de novo.
-  const { data: claimed, error: claimError } = await supabase
-    .from("arena_bets")
-    .update({ payout_claimed: true })
-    .eq("id", betId)
-    .eq("user_id", userId)
-    .eq("payout_claimed", false)
-    .select("id");
-
-  if (claimError) return { error: claimError.message };
-  if (!claimed?.length) return { error: "Prêmio já resgatado" };
-
-  const { data: wallet } = await supabase
-    .from("arena_wallets")
-    .select("balance")
-    .eq("user_id", userId)
-    .single();
-
-  const { error: walletError } = await supabase
-    .from("arena_wallets")
-    .update({
-      balance: ((wallet as { balance: number } | null)?.balance ?? 0) + payout,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("user_id", userId);
-
-  return { error: walletError?.message ?? null };
+export async function claimPayout(betId: string): Promise<{ error: string | null }> {
+  // Idempotente no banco: aposta já resgatada devolve erro e não credita de novo.
+  const { error } = await supabase.rpc("arena_claim_payout", { p_bet_id: betId });
+  return { error: error?.message ?? null };
 }
 
 // ══════════════════════════════════════════════════════════════

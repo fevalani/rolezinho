@@ -49,3 +49,20 @@ export function clearCache(key: string): void {
     /* noop */
   }
 }
+
+/**
+ * Apaga TODOS os snapshots (`rolezinho:cache:*`). Chamado no logout para que, em
+ * aparelho compartilhado, o próximo usuário não veja dados do anterior.
+ */
+export function clearAllCache(): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(PREFIX)) keys.push(k);
+    }
+    keys.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    /* noop */
+  }
+}

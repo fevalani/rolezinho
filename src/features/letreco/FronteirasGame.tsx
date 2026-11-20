@@ -6,6 +6,7 @@ import { WORLD, PAIRS, GRAPH } from "./fronteirasData";
 import {
   COLOR_FILL,
   FRONTEIRAS_BASE_SCORE,
+  FRONTEIRAS_DIFFICULTIES,
   FRONTEIRAS_EXTRA_GUESSES,
   FRONTEIRAS_MIN_WIN_SCORE,
   FRONTEIRAS_PENALTY_PER_EXTRA,
@@ -30,7 +31,9 @@ import {
   getFronteirasTodayGame,
   saveFronteirasGame,
 } from "./fronteirasService";
+import { FronteirasDifficultyPicker } from "./fronteiras/FronteirasDifficultyPicker";
 import type {
+  FronteirasDifficulty,
   FronteirasLeaderboardEntry,
   GameStatus,
   GuessColor,
@@ -91,6 +94,7 @@ function Leaderboard({
             </p>
             <p className="text-[0.65rem] text-[var(--text-muted)]">
               {e.status === "won" ? `Fechou em ${e.attempts} palpites` : "Não fechou"}
+              {e.difficulty === "hard" && " · Difícil"}
             </p>
           </div>
           <span className="text-sm font-bold text-[var(--gold)] shrink-0">{e.score} pts</span>
@@ -113,6 +117,8 @@ export function FronteirasGame() {
   const maxGuesses = maxGuessesFor(optimal);
   const distances = useMemo(() => distanceToPath(GRAPH, onPath), [onPath]);
 
+  // null = ainda não escolheu hoje (mostra só o seletor, sem mapa)
+  const [difficulty, setDifficulty] = useState<FronteirasDifficulty | null>(null);
   const [guesses, setGuesses] = useState<string[]>([]);
   const [status, setStatus] = useState<GameStatus>("playing");
   const [score, setScore] = useState(0);
@@ -157,6 +163,7 @@ export function FronteirasGame() {
       const game = await getFronteirasTodayGame(user.id, gameDate);
       if (!active) return;
       if (game) {
+        setDifficulty(game.difficulty);
         setGuesses(game.guesses);
         setStatus(game.status);
         setScore(game.score);
@@ -169,11 +176,12 @@ export function FronteirasGame() {
   }, [user, gameDate]);
 
   const finished = status !== "playing";
-  // Exemplo do caminho mais curto: só na derrota ou quando venceu por uma rota mais longa.
+  // Ao terminar, o caminho mais curto sempre ganha contorno dourado no mapa. O texto com a
+  // sequência de países só aparece na derrota ou quando venceu por uma rota mais longa.
   const showExample = finished && (status === "lost" || guesses.length > optimal);
   const revealed = useMemo(
-    () => (showExample ? new Set(example) : undefined),
-    [showExample, example],
+    () => (finished ? new Set(example) : undefined),
+    [finished, example],
   );
 
   useEffect(() => {
@@ -195,7 +203,7 @@ export function FronteirasGame() {
 
   const submit = useCallback(
     async (iso: string) => {
-      if (!user || finished) return;
+      if (!user || finished || !difficulty) return;
       const v = validateGuess(iso, guesses, from, to, VALID_ISOS);
       if (v !== "ok") {
         flash(VALIDATION_MSG[v]);
@@ -205,12 +213,13 @@ export function FronteirasGame() {
       const won = isSolved(GRAPH, from, to, next);
       const lost = !won && next.length >= maxGuesses;
       const newStatus: GameStatus = won ? "won" : lost ? "lost" : "playing";
-      const newScore = fronteirasScore(next.length, optimal, won);
+      const newScore = fronteirasScore(next.length, optimal, won, difficulty);
       setGuesses(next);
       setStatus(newStatus);
       setScore(newScore);
       setQuery("");
       const { error } = await saveFronteirasGame(user.id, gameDate, {
+        difficulty,
         guesses: next,
         status: newStatus,
         attempts: next.length,
@@ -218,7 +227,23 @@ export function FronteirasGame() {
       });
       if (error) flash("Não foi possível salvar o palpite");
     },
-    [user, finished, guesses, from, to, maxGuesses, optimal, gameDate, flash],
+    [user, finished, difficulty, guesses, from, to, maxGuesses, optimal, gameDate, flash],
+  );
+
+  const startGame = useCallback(
+    (diff: FronteirasDifficulty) => {
+      setDifficulty(diff);
+      if (user) {
+        void saveFronteirasGame(user.id, gameDate, {
+          difficulty: diff,
+          guesses: [],
+          status: "playing",
+          attempts: 0,
+          score: 0,
+        });
+      }
+    },
+    [user, gameDate],
   );
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -256,6 +281,10 @@ export function FronteirasGame() {
         <div className="spinner" />
       </div>
     );
+  }
+
+  if (!difficulty) {
+    return <FronteirasDifficultyPicker gameDate={gameDate} onPick={startGame} />;
   }
 
   return (
@@ -305,7 +334,14 @@ export function FronteirasGame() {
         </details>
       </div>
 
+      <p className="text-center text-[0.65rem] text-[var(--text-muted)]">
+        Nível de hoje: <b>{FRONTEIRAS_DIFFICULTIES[difficulty].label}</b> · ×
+        {FRONTEIRAS_DIFFICULTIES[difficulty].scoreMultiplier} nos pontos
+        {difficulty === "hard" && !finished && " · só aparecem os países que você já chutou"}
+      </p>
+
       <FronteirasMap
+        hard={difficulty === "hard" && !finished}
         world={WORLD}
         from={from}
         to={to}

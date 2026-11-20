@@ -5,6 +5,8 @@ import App from "@/App";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { loginAs, renderWithProviders } from "./helpers";
 import { supabaseMock, emitAuthEvent } from "./supabaseMock";
+import { readCache, writeCache } from "@/lib/localCache";
+import { useAuth } from "@/lib/AuthContext";
 
 beforeEach(() => {
   supabaseMock.auth.updateUser.mockClear();
@@ -103,3 +105,18 @@ describe("App — link de recuperação de senha", () => {
 });
 
 vi.mock("@capacitor/app", () => ({ App: { getInfo: vi.fn(async () => ({ version: "0", build: "0" })), addListener: vi.fn(async () => ({ remove: vi.fn() })) } }));
+
+describe("logout", () => {
+  it("apaga o cache local de snapshots (aparelho compartilhado)", async () => {
+    writeCache("bolao:p1", { a: 1 });
+    loginAs();
+    const Btn = () => {
+      const { signOut } = useAuth();
+      return <button onClick={() => void signOut()}>sair-teste</button>;
+    };
+    renderWithProviders(<Btn />);
+    fireEvent.click(await screen.findByText("sair-teste"));
+    await waitFor(() => expect(supabaseMock.auth.signOut).toHaveBeenCalled());
+    await waitFor(() => expect(readCache("bolao:p1")).toBeNull());
+  });
+});

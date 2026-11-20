@@ -8,7 +8,7 @@
 // parâmetro para poderem ser testadas com grafos pequenos.
 // ═══════════════════════════════════════════
 
-import type { FronteirasCountry, GuessColor } from "./fronteirasTypes";
+import type { FronteirasCountry, FronteirasDifficulty, GuessColor } from "./fronteirasTypes";
 
 export type Graph = Map<string, string[]>;
 
@@ -171,16 +171,32 @@ export function isSolved(
 /**
  * Pontos: 100 se fechou com o mínimo de palpites (= nº de países intermediários do caminho
  * mais curto), −15 por palpite a mais — seja chute errado ou rota mais longa —, piso de 10.
- * Derrota = 0.
+ * Derrota = 0. O nível difícil multiplica o resultado (ver `FRONTEIRAS_DIFFICULTIES`).
  */
-export function fronteirasScore(attempts: number, optimal: number, won: boolean): number {
+export function fronteirasScore(
+  attempts: number,
+  optimal: number,
+  won: boolean,
+  difficulty: FronteirasDifficulty = "easy",
+): number {
   if (!won) return 0;
   const wasted = Math.max(0, attempts - optimal);
-  return Math.max(
+  const raw = Math.max(
     FRONTEIRAS_MIN_WIN_SCORE,
     FRONTEIRAS_BASE_SCORE - wasted * FRONTEIRAS_PENALTY_PER_EXTRA,
   );
+  return Math.round(raw * FRONTEIRAS_DIFFICULTIES[difficulty].scoreMultiplier);
 }
+
+// ─── Nível de dificuldade (escolhido uma vez por dia, como no Sudoku) ──
+export const FRONTEIRAS_DIFFICULTIES: Record<
+  FronteirasDifficulty,
+  { label: string; description: string; scoreMultiplier: number }
+> = {
+  easy: { label: "Fácil", description: "Mapa completo, com o contorno de todos os países", scoreMultiplier: 1 },
+  hard: { label: "Difícil", description: "Só aparecem no mapa os países que você já chutou", scoreMultiplier: 1.5 },
+};
+export const FRONTEIRAS_DIFFICULTY_ORDER: FronteirasDifficulty[] = ["easy", "hard"];
 
 // ─── Par do dia ───────────────────────────────────────────────
 

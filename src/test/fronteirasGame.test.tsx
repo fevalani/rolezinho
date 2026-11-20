@@ -35,12 +35,20 @@ function onePath(): string[] {
 /** Países fora do caminho mínimo e que não são origem/destino. */
 const WRONG = WORLD.countries.map((c) => c.iso).filter((i) => !ON_PATH.has(i));
 
-const savedRows = () =>
+const allSavedRows = () =>
   mockDb.writes.filter((w) => w.table === "fronteiras_games").map((w) => w.args[0] as Record<string, unknown>);
+const lastSaved = () => savedRows()[savedRows().length - 1];
+/** Só as gravações de palpite (a do início, ao escolher o nível, tem 0 palpites). */
+const savedRows = () => allSavedRows().filter((r) => (r.guesses as string[]).length > 0);
 
-const ready = async () => {
+/** Abre o jogo; sem partida salva hoje, escolhe o nível no seletor (padrão: fácil). */
+const ready = async (difficulty: "Fácil" | "Difícil" = "Fácil") => {
   loginAs();
   renderWithProviders(<FronteirasGame />);
+  const first = await screen.findByText(/Escolha a dificuldade|Palpites:/);
+  if (/Escolha/.test(first.textContent ?? "")) {
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(difficulty) }));
+  }
   await screen.findByLabelText("Palpite de país");
 };
 const guessByClick = async (iso: string) => {
@@ -52,6 +60,73 @@ const guessBySubmit = (text: string) => {
   fireEvent.change(input, { target: { value: text } });
   fireEvent.submit(input.closest("form")!);
 };
+
+describe("FronteirasGame — nível de dificuldade", () => {
+  const map = () => screen.getByRole("img", { name: "Mapa-múndi" });
+  const hiddenCount = () => map().querySelectorAll("path[data-hidden]").length;
+
+  it("antes de escolher o nível não aparece mapa nem o par do dia", async () => {
+    loginAs();
+    renderWithProviders(<FronteirasGame />);
+    expect(await screen.findByText("Escolha a dificuldade")).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Mapa-múndi" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Palpite de país")).not.toBeInTheDocument();
+    expect(screen.queryByText(nameOf(FROM), { selector: "span" })).not.toBeInTheDocument();
+    expect(screen.getByText("×1")).toBeInTheDocument();
+    expect(screen.getByText("×1.5")).toBeInTheDocument();
+  });
+
+  it("escolher o nível grava a partida do dia com ele", async () => {
+    await ready("Difícil");
+    expect(allSavedRows()).toHaveLength(1);
+    expect(allSavedRows()[0]).toMatchObject({ difficulty: "hard", guesses: [], status: "playing" });
+  });
+
+  it("fácil: todos os países têm contorno", async () => {
+    await ready("Fácil");
+    expect(hiddenCount()).toBe(0);
+  });
+
+  it("difícil esconde os países não chutados, menos origem e destino", async () => {
+    await ready("Difícil");
+    expect(hiddenCount()).toBe(WORLD.countries.length - 2);
+    expect(map().querySelector(`path[data-iso="${FROM}"]`)).not.toHaveAttribute("data-hidden");
+    expect(map().querySelector(`path[data-iso="${TO}"]`)).not.toHaveAttribute("data-hidden");
+  });
+
+  it("no difícil, o país chutado passa a aparecer e o palpite grava o nível", async () => {
+    await ready("Difícil");
+    await guessByClick(WRONG[0]);
+    expect(map().querySelector(`path[data-iso="${WRONG[0]}"]`)).not.toHaveAttribute("data-hidden");
+    expect(hiddenCount()).toBe(WORLD.countries.length - 3);
+    expect(lastSaved()).toMatchObject({ difficulty: "hard" });
+  });
+
+  it("retoma a partida no nível já escolhido, sem mostrar o seletor", async () => {
+    mockDb.tables.fronteiras_games = [
+      { id: "g1", user_id: "user-1", game_date: getFronteirasGameDate(), difficulty: "hard", guesses: [WRONG[0]], status: "playing", attempts: 1, score: 0, finished_at: null, created_at: "t" },
+    ];
+    await ready();
+    expect(screen.queryByText("Escolha a dificuldade")).not.toBeInTheDocument();
+    expect(hiddenCount()).toBe(WORLD.countries.length - 3);
+  });
+
+  it("vencer no difícil rende 1,5× os pontos", async () => {
+    await ready("Difícil");
+    for (const iso of onePath()) await guessByClick(iso);
+    await waitFor(() => expect(lastSaved()).toMatchObject({ status: "won", score: 150 }));
+  });
+
+  it("depois de terminar, o mapa volta completo", async () => {
+    mockDb.tables.fronteiras_games = [
+      { id: "g1", user_id: "user-1", game_date: getFronteirasGameDate(), difficulty: "hard", guesses: onePath(), status: "won", attempts: OPTIMAL, score: 150, finished_at: "t", created_at: "t" },
+    ];
+    loginAs();
+    renderWithProviders(<FronteirasGame />);
+    await screen.findByText(/Conectou!/);
+    expect(hiddenCount()).toBe(0);
+  });
+});
 
 describe("FronteirasGame", () => {
   it("mostra o par do dia e o contador de palpites", async () => {
@@ -128,8 +203,8 @@ describe("FronteirasGame", () => {
     await ready();
     for (const iso of onePath()) await guessByClick(iso);
     expect(await screen.findByText(/Conectou! \+100 pts/)).toBeInTheDocument();
-    // venceu pelo mínimo: nada de mapa "revelado" (não confunde com palpites)
-    expect(document.querySelector("path[data-revealed]")).toBeNull();
+    // venceu pelo mínimo: o caminho mais curto ainda ganha o contorno dourado, sem o texto
+    expect(document.querySelectorAll("path[stroke='#c9a55a']")).toHaveLength(OPTIMAL);
     expect(screen.queryByText(/Exemplo de caminho mais curto/)).not.toBeInTheDocument();
     expect(screen.getByText("Placar de hoje")).toBeInTheDocument();
     expect(screen.queryByLabelText("Palpite de país")).not.toBeInTheDocument();
@@ -201,6 +276,16 @@ describe("FronteirasGame", () => {
     renderWithProviders(<FronteirasGame />);
     expect(await screen.findByText("Beto")).toBeInTheDocument();
     expect(screen.getByText("85 pts")).toBeInTheDocument();
+  });
+
+  it("o placar marca quem jogou no difícil", async () => {
+    mockDb.tables.fronteiras_games = [
+      { user_id: "outro", game_date: getFronteirasGameDate(), difficulty: "hard", status: "won", attempts: 5, score: 128, finished_at: "t", guesses: [], profiles: { display_name: "Beto Silva", avatar_url: null } },
+      { id: "g1", user_id: "user-1", game_date: getFronteirasGameDate(), guesses: onePath(), status: "won", attempts: OPTIMAL, score: 100, finished_at: "t", created_at: "t" },
+    ];
+    loginAs();
+    renderWithProviders(<FronteirasGame />);
+    expect(await screen.findByText(/Fechou em 5 palpites · Difícil/)).toBeInTheDocument();
   });
 
   it("falha ao salvar avisa o jogador", async () => {

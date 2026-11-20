@@ -233,4 +233,31 @@ describe("Notion — telas", () => {
     fireEvent.click(screen.getByText("📚 Notion"));
     await waitFor(() => expect(screen.queryByText("Capítulo 1")).not.toBeInTheDocument());
   });
+
+  it("links perigosos do Notion (javascript:) não viram <a>; https continua clicável", async () => {
+    loginAs();
+    mockDb.tables.rpg_notion_pages = [
+      {
+        notion_id: "n1",
+        parent_notion_id: null,
+        type: "page",
+        title: "Links",
+        icon: "🔗",
+        sort_order: 0,
+        blocks: [
+          { id: "b1", type: "paragraph", text: [{ t: "ruim", href: "javascript:alert(1)" }, { t: "bom", href: "https://exemplo.com/x" }] },
+          { id: "b2", type: "bookmark", url: "javascript:alert(2)" },
+          { id: "b3", type: "bookmark", url: "https://exemplo.com/y" },
+        ],
+      },
+    ];
+    mountAt("/n", "/n", <NotionLibrary tableId="t1" />);
+    fireEvent.click(await screen.findByText(/Links/));
+    await screen.findByText("bom");
+    const hrefs = [...document.querySelectorAll("a")].map((a) => a.getAttribute("href"));
+    expect(hrefs.some((h) => h?.startsWith("javascript:"))).toBe(false);
+    expect(hrefs).toContain("https://exemplo.com/x");
+    expect(hrefs).toContain("https://exemplo.com/y");
+    expect(screen.getByText("ruim").closest("a")).toBeNull();
+  });
 });

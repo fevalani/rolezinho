@@ -155,7 +155,7 @@ Integração em `LetrecoPage.tsx`: `"travle"` no `GameMode`, no seletor, no rank
 
 ## 11. Decisões tomadas na implementação
 
-- **Nome:** "Fronteiras" (aba "🗺️ Fronteiras · beta" em Jogos Diários).
+- **Nome:** "Fronteiras" (aba "🗺️ Fronteiras" em Jogos Diários, liberada para todos desde nov/2026).
 - **Acesso:** só com o **modo desenvolvedor** ligado (`src/lib/useDevMode.ts`, localStorage por aparelho, switch no Perfil via `DevModeCard`). É só visibilidade, não permissão: a tabela `fronteiras_games` aceita qualquer usuário autenticado.
 - **Escopo:** mapa-múndi inteiro; zoom (botões, roda do mouse, pinça e arrastar) na v1; sem dica.
 - **Limite:** intermediários + 5 palpites. **Pontos:** 100 no mínimo, −15 por palpite a mais (piso 10), derrota 0.

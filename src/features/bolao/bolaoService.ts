@@ -620,7 +620,6 @@ export async function fetchPoolMembers(
 }
 
 export async function createPool(
-  userId: string,
   name: string,
   code: ChampionshipCode,
   scoringModel: ScoringModel = "classic",
@@ -654,7 +653,6 @@ export async function createPool(
   const { data, error } = await supabase.rpc("create_bolao_pool", {
     p_name: name,
     p_championship_id: championship.id,
-    p_user_id: userId,
     p_scoring_model: scoringModel,
     p_scoring_config: scoringModel === "custom" ? scoringConfig : null,
   });

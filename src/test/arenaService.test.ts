@@ -13,7 +13,7 @@ import {
   claimPayout,
   fetchBetsForDuel,
 } from "@/features/arena/arenaService";
-import { mockDb } from "./supabaseMock";
+import { mockDb, supabaseMock } from "./supabaseMock";
 
 const fetchMock = vi.fn();
 beforeEach(() => {
@@ -89,13 +89,25 @@ describe("generateOdds (Gemini)", () => {
   });
 });
 
+const rpcArgs = (name: string) => supabaseMock.rpc.mock.calls.find((c) => c[0] === name)?.[1];
+const noMoneyWrites = () =>
+  expect(mockDb.writes.some((w) => w.table === "arena_wallets" || w.table === "arena_bets")).toBe(false);
+
 describe("carteira", () => {
-  it("ensureWallet devolve a carteira do banco", async () => {
-    mockDb.tables.arena_wallets = [{ user_id: "u1", balance: 750, updated_at: "x" }];
+  it("ensureWallet usa a RPC (o cliente nunca grava o saldo) e devolve a carteira", async () => {
+    mockDb.rpcResults.arena_ensure_wallet = { user_id: "u1", balance: 750, updated_at: "x" };
     expect((await ensureWallet("u1")).balance).toBe(750);
-    expect(mockDb.writes[0].args[0]).toEqual({ user_id: "u1", balance: 1000 });
+    expect(mockDb.writes).toHaveLength(0);
   });
-  it("ensureWallet cai em 1000 pts se o banco não devolver nada", async () => {
+  it("ensureWallet aceita a RPC devolvendo lista", async () => {
+    mockDb.rpcResults.arena_ensure_wallet = [{ user_id: "u1", balance: 640, updated_at: "x" }];
+    expect((await ensureWallet("u1")).balance).toBe(640);
+  });
+  it("ensureWallet lê a carteira se a RPC não devolver nada", async () => {
+    mockDb.tables.arena_wallets = [{ user_id: "u1", balance: 500, updated_at: "x" }];
+    expect((await ensureWallet("u1")).balance).toBe(500);
+  });
+  it("ensureWallet cai em 1000 pts se nada vier do banco", async () => {
     expect(await ensureWallet("u1")).toMatchObject({ user_id: "u1", balance: 1000 });
   });
   it("fetchWallet sem carteira = null", async () => {
@@ -173,79 +185,62 @@ describe("casos (duelos)", () => {
       error: "rls",
     });
   });
-  it("closeDuel marca como fechado", async () => {
+  it("closeDuel chama a RPC (só o criador consegue, no banco)", async () => {
     expect(await closeDuel("d1")).toEqual({ error: null });
-    expect(mockDb.writes[0].args[0]).toMatchObject({ status: "closed" });
+    expect(rpcArgs("arena_close_duel")).toEqual({ p_duel_id: "d1" });
+    expect(mockDb.writes).toHaveLength(0);
+  });
+  it("closeDuel devolve o erro do banco", async () => {
+    mockDb.errors["rpc:arena_close_duel"] = { message: "Não foi possível fechar o caso" };
+    expect(await closeDuel("d1")).toEqual({ error: "Não foi possível fechar o caso" });
   });
 });
 
 describe("resolveDuel — prêmios", () => {
-  const odds = { odds_a: 1.8, odds_b: 3.5, odds_c: 2.1 };
-  it("sem apostas só resolve o caso", async () => {
-    expect(await resolveDuel("d1", "A", "veredito", odds)).toEqual({ error: null });
-    expect(mockDb.writes).toHaveLength(1);
-    expect(mockDb.writes[0].args[0]).toMatchObject({ status: "resolved", result: "A", verdict: "veredito" });
+  it("manda só resultado e veredito; os prêmios são calculados no banco", async () => {
+    expect(await resolveDuel("d1", "A", "veredito")).toEqual({ error: null });
+    expect(rpcArgs("arena_resolve_duel")).toEqual({ p_duel_id: "d1", p_result: "A", p_verdict: "veredito" });
+    noMoneyWrites();
   });
-  it("quem acertou recebe aposta × odd (arredondado para baixo); quem errou 0", async () => {
-    mockDb.tables.arena_bets = [
-      { id: "b1", side: "A", amount: 155 }, // 155 × 1.8 = 279
-      { id: "b2", side: "B", amount: 100 },
-    ];
-    await resolveDuel("d1", "A", "v", odds);
-    const payouts = mockDb.writes
-      .filter((w) => w.table === "arena_bets")
-      .map((w) => (w.args[0] as { actual_payout: number }).actual_payout);
-    // as duas apostas recebem update (o mock devolve as mesmas linhas)
-    expect(payouts).toEqual([279, 0]);
-  });
-  it("erro ao fechar o caso não paga ninguém", async () => {
-    mockDb.errors.arena_duels = { message: "rls" };
-    expect(await resolveDuel("d1", "A", "v", odds)).toEqual({ error: "rls" });
-    expect(mockDb.writes.filter((w) => w.table === "arena_bets")).toHaveLength(0);
+  it("devolve o erro (ex.: quem não é o criador)", async () => {
+    mockDb.errors["rpc:arena_resolve_duel"] = { message: "Só o criador resolve o caso" };
+    expect(await resolveDuel("d1", "A", "v")).toEqual({ error: "Só o criador resolve o caso" });
   });
 });
 
-describe("apostas e saldo", () => {
-  it("placeBet grava a aposta e desconta do saldo", async () => {
-    mockDb.tables.arena_wallets = [{ balance: 500 }];
-    expect(await placeBet("u1", "d1", "B", 120, 420)).toEqual({ error: null });
-    const bet = mockDb.writes.find((w) => w.table === "arena_bets")!;
-    expect(bet.args[0]).toEqual({ duel_id: "d1", user_id: "u1", side: "B", amount: 120, potential_payout: 420 });
-    const wallet = mockDb.writes.find((w) => w.table === "arena_wallets")!;
-    expect((wallet.args[0] as { balance: number }).balance).toBe(380);
+describe("apostas e saldo (tudo por RPC)", () => {
+  it("placeBet manda caso, lado e valor — nunca usuário, odd ou saldo", async () => {
+    expect(await placeBet("d1", "B", 120)).toEqual({ error: null });
+    expect(rpcArgs("arena_place_bet")).toEqual({ p_duel_id: "d1", p_side: "B", p_amount: 120 });
+    noMoneyWrites();
   });
-  it("aposta repetida (23505) não mexe no saldo", async () => {
-    mockDb.errors.arena_bets = { message: "dup", code: "23505" };
-    expect(await placeBet("u1", "d1", "B", 100, 200)).toEqual({ error: "Você já apostou neste caso" });
-    expect(mockDb.writes.some((w) => w.table === "arena_wallets")).toBe(false);
+  it("aposta repetida (23505) vira mensagem amigável", async () => {
+    mockDb.errors["rpc:arena_place_bet"] = { message: "dup", code: "23505" };
+    expect(await placeBet("d1", "B", 100)).toEqual({ error: "Você já apostou neste caso" });
   });
-  it("deleteBet devolve o valor ao saldo", async () => {
-    mockDb.tables.arena_wallets = [{ balance: 400 }];
-    expect(await deleteBet("u1", "b1", 100)).toEqual({ error: null });
-    expect((mockDb.writes.find((w) => w.table === "arena_wallets")!.args[0] as { balance: number }).balance).toBe(500);
+  it("saldo insuficiente e caso fechado voltam como erro do banco", async () => {
+    mockDb.errors["rpc:arena_place_bet"] = { message: "Saldo insuficiente" };
+    expect(await placeBet("d1", "B", 9999)).toEqual({ error: "Saldo insuficiente" });
+    mockDb.errors["rpc:arena_place_bet"] = { message: "Este caso não aceita mais apostas" };
+    expect(await placeBet("d1", "B", 10)).toEqual({ error: "Este caso não aceita mais apostas" });
   });
-  it("deleteBet com erro não mexe no saldo", async () => {
-    mockDb.errors.arena_bets = { message: "rls" };
-    expect(await deleteBet("u1", "b1", 100)).toEqual({ error: "rls" });
-    expect(mockDb.writes.some((w) => w.table === "arena_wallets")).toBe(false);
+  it("deleteBet chama a RPC só com o id da aposta", async () => {
+    expect(await deleteBet("b1")).toEqual({ error: null });
+    expect(rpcArgs("arena_delete_bet")).toEqual({ p_bet_id: "b1" });
+    noMoneyWrites();
   });
-  it("claimPayout marca como resgatado e credita o prêmio", async () => {
-    mockDb.tables.arena_wallets = [{ balance: 100 }];
-    mockDb.tables.arena_bets = [{ id: "b1" }]; // a linha foi de fato atualizada
-    expect(await claimPayout("u1", "b1", 279)).toEqual({ error: null });
-    expect(mockDb.writes.find((w) => w.table === "arena_bets")!.args[0]).toEqual({ payout_claimed: true });
-    expect((mockDb.writes.find((w) => w.table === "arena_wallets")!.args[0] as { balance: number }).balance).toBe(379);
+  it("deleteBet devolve o erro do banco", async () => {
+    mockDb.errors["rpc:arena_delete_bet"] = { message: "O caso já foi resolvido" };
+    expect(await deleteBet("b1")).toEqual({ error: "O caso já foi resolvido" });
   });
-  it("claimPayout de aposta já resgatada NÃO credita de novo", async () => {
-    mockDb.tables.arena_wallets = [{ balance: 100 }];
-    mockDb.tables.arena_bets = []; // nenhuma linha com payout_claimed=false
-    expect(await claimPayout("u1", "b1", 279)).toEqual({ error: "Prêmio já resgatado" });
-    expect(mockDb.writes.some((w) => w.table === "arena_wallets")).toBe(false);
+  it("claimPayout manda só o id: o valor do prêmio vem do banco", async () => {
+    expect(await claimPayout("b1")).toEqual({ error: null });
+    expect(rpcArgs("arena_claim_payout")).toEqual({ p_bet_id: "b1" });
+    noMoneyWrites();
   });
-  it("claimPayout com erro do banco não credita", async () => {
-    mockDb.errors.arena_bets = { message: "rls" };
-    expect(await claimPayout("u1", "b1", 279)).toEqual({ error: "rls" });
-    expect(mockDb.writes.some((w) => w.table === "arena_wallets")).toBe(false);
+  it("claimPayout de aposta já resgatada devolve o erro e não credita", async () => {
+    mockDb.errors["rpc:arena_claim_payout"] = { message: "Prêmio já resgatado" };
+    expect(await claimPayout("b1")).toEqual({ error: "Prêmio já resgatado" });
   });
   it("fetchBetsForDuel mapeia as linhas", async () => {
     mockDb.tables.arena_bets = [

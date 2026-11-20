@@ -112,7 +112,6 @@ function CreatePoolModal({
     setLoading(true);
     setError(null);
     const { data, error: err } = await createPool(
-      user.id,
       name.trim(),
       selectedCode,
       selectedModel,

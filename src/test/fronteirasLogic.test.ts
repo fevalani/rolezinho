@@ -9,6 +9,7 @@ import {
   displayName,
   fold,
   fronteirasScore,
+  FRONTEIRAS_DIFFICULTIES,
   getFronteirasGameDate,
   intermediatesCount,
   MAX_MAP_ZOOM,
@@ -163,6 +164,13 @@ describe("pontuação", () => {
     expect(fronteirasScore(3, 3, true)).toBe(100);
     expect(fronteirasScore(4, 3, true)).toBe(85);
     expect(fronteirasScore(8, 3, true)).toBe(25);
+    // difícil: ×1,5 sobre a mesma regra; derrota continua 0
+    expect(fronteirasScore(3, 3, true, "hard")).toBe(150);
+    expect(fronteirasScore(4, 3, true, "hard")).toBe(128);
+    expect(fronteirasScore(3, 3, false, "hard")).toBe(0);
+    expect(FRONTEIRAS_DIFFICULTIES.hard.scoreMultiplier).toBeGreaterThan(
+      FRONTEIRAS_DIFFICULTIES.easy.scoreMultiplier,
+    );
     expect(fronteirasScore(40, 3, true)).toBe(10);
   });
   it("derrota não pontua", () => {

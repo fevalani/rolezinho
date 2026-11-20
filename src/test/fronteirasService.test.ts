@@ -29,18 +29,19 @@ describe("Fronteiras — serviço", () => {
   });
 
   it("saveFronteirasGame faz upsert por user_id+game_date; finished_at só ao terminar", async () => {
-    await saveFronteirasGame("u1", "d", { guesses: ["AR"], status: "playing", attempts: 1, score: 0 });
-    await saveFronteirasGame("u1", "d", { guesses: ["AR", "BO"], status: "won", attempts: 2, score: 100 });
+    await saveFronteirasGame("u1", "d", { difficulty: "easy", guesses: ["AR"], status: "playing", attempts: 1, score: 0 });
+    await saveFronteirasGame("u1", "d", { difficulty: "hard", guesses: ["AR", "BO"], status: "won", attempts: 2, score: 150 });
     const [a, b] = mockDb.writes.filter((w) => w.table === "fronteiras_games");
     expect(a).toMatchObject({ op: "upsert" });
     expect(a.args[0]).toMatchObject({ user_id: "u1", game_date: "d", status: "playing", finished_at: null });
-    expect(b.args[0]).toMatchObject({ status: "won", score: 100 });
+    expect(b.args[0]).toMatchObject({ difficulty: "hard", status: "won", score: 150 });
+    expect(a.args[0]).toMatchObject({ difficulty: "easy" });
     expect((b.args[0] as { finished_at: string }).finished_at).toMatch(/^\d{4}-/);
   });
 
   it("saveFronteirasGame devolve a mensagem de erro do banco", async () => {
     mockDb.errors.fronteiras_games = { message: "sem permissão" };
-    const r = await saveFronteirasGame("u1", "d", { guesses: [], status: "playing", attempts: 0, score: 0 });
+    const r = await saveFronteirasGame("u1", "d", { difficulty: "easy", guesses: [], status: "playing", attempts: 0, score: 0 });
     expect(r.error).toBe("sem permissão");
   });
 

@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import { clearAllCache } from "@/lib/localCache";
 import {
   createContext,
   useContext,
@@ -229,6 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     setRecovering(false);
     await supabase.auth.signOut();
+    clearAllCache();
     setUser(null);
     setProfile(null);
     setSession(null);

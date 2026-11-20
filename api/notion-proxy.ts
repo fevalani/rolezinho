@@ -46,7 +46,7 @@ function rich(rt: any[] | undefined) {
     if (a.strikethrough) o.s = 1;
     if (a.underline) o.u = 1;
     if (a.code) o.code = 1;
-    if (t.href) o.href = t.href;
+    if (t.href && /^(https?:|mailto:)/i.test(t.href)) o.href = t.href;
     return o;
   });
 }
@@ -141,7 +141,7 @@ async function simplifyBlock(ctx: Ctx, b: any, depth: number): Promise<any | nul
     case "bookmark":
     case "embed":
     case "link_preview":
-      return v.url ? { type: "bookmark", url: v.url } : null;
+      return v.url && /^https?:/i.test(v.url) ? { type: "bookmark", url: v.url } : null;
     case "table":
       return {
         type,

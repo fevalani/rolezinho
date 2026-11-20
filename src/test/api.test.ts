@@ -63,36 +63,108 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
+const authed = (query: Record<string, unknown>) =>
+  ({ query, headers: { authorization: "Bearer jwt-ok" } }) as any;
+
 describe("api/fd-proxy", () => {
-  it("repassa o path ao football-data com a chave do servidor", async () => {
+  it("sem token responde 401 e não chama a API externa", async () => {
+    const res = mockRes();
+    await fdProxy({ query: { path: "/matches/1" }, headers: {} } as any, res);
+    expect(res.statusCode).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("token inválido responde 401", async () => {
+    sb.user = null;
+    const res = mockRes();
+    await fdProxy(authed({ path: "/matches/1" }), res);
+    expect(res.statusCode).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("repassa o path permitido com a chave do servidor", async () => {
     process.env.VITE_FOOTBALL_DATA_KEY = "KEY123";
     fetchMock.mockResolvedValue({ status: 200, json: async () => ({ matches: [] }) });
     const res = mockRes();
-    await fdProxy({ query: { path: "/competitions/WC/matches" } } as any, res);
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.football-data.org/v4/competitions/WC/matches",
-      { headers: { "X-Auth-Token": "KEY123" } },
+    await fdProxy(authed({ path: "/competitions/WC/matches?season=2026" }), res);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://api.football-data.org/v4/competitions/WC/matches?season=2026",
     );
+    expect(fetchMock.mock.calls[0][1].headers).toEqual({ "X-Auth-Token": "KEY123" });
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ matches: [] });
+    expect(res.headers["Cache-Control"]).toContain("max-age=60");
   });
-  it("devolve o status do upstream (ex.: 429)", async () => {
+  it("prefere FOOTBALL_DATA_KEY (sem prefixo VITE_) quando existe", async () => {
+    process.env.FOOTBALL_DATA_KEY = "SERVER";
+    fetchMock.mockResolvedValue({ status: 200, json: async () => ({}) });
+    await fdProxy(authed({ path: "/matches/42" }), mockRes());
+    expect(fetchMock.mock.calls[0][1].headers).toEqual({ "X-Auth-Token": "SERVER" });
+    delete process.env.FOOTBALL_DATA_KEY;
+  });
+  it.each([
+    "/competitions",
+    "/teams/1",
+    "/competitions/WC/matches/../../areas",
+    "//evil.com/x",
+    "/matches/1?x=<script>",
+    "",
+  ])("path fora da whitelist (%s) responde 400", async (path) => {
+    const res = mockRes();
+    await fdProxy(authed({ path }), res);
+    expect(res.statusCode).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("path em array (?path=a&path=b) é rejeitado", async () => {
+    const res = mockRes();
+    await fdProxy(authed({ path: ["/matches/1", "/matches/2"] }), res);
+    expect(res.statusCode).toBe(400);
+  });
+  it("devolve o status do upstream (ex.: 429), sem cache", async () => {
     fetchMock.mockResolvedValue({ status: 429, json: async () => ({ message: "rate" }) });
     const res = mockRes();
-    await fdProxy({ query: { path: "/x" } } as any, res);
+    await fdProxy(authed({ path: "/matches/1" }), res);
     expect(res.statusCode).toBe(429);
+    expect(res.headers["Cache-Control"]).toBeUndefined();
+  });
+  it("API externa fora do ar vira 502 curto", async () => {
+    fetchMock.mockRejectedValue(new Error("timeout"));
+    const res = mockRes();
+    await fdProxy(authed({ path: "/matches/1" }), res);
+    expect(res.statusCode).toBe(502);
+    expect(res.body).toEqual({ error: "Serviço externo indisponível" });
   });
 });
 
 describe("api/sportsdb-proxy", () => {
+  it("sem token responde 401", async () => {
+    const res = mockRes();
+    await sportsdb({ query: { path: "/eventsday.php?d=2026-06-11&s=Soccer" }, headers: {} } as any, res);
+    expect(res.statusCode).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
   it("repassa para o TheSportsDB", async () => {
     fetchMock.mockResolvedValue({ status: 200, json: async () => ({ ok: 1 }) });
     const res = mockRes();
-    await sportsdb({ query: { path: "/eventsnextleague.php?id=1" } } as any, res);
+    await sportsdb(authed({ path: "/eventsday.php?d=2026-06-11&s=Soccer" }), res);
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://www.thesportsdb.com/api/v1/json/3/eventsnextleague.php?id=1",
+      "https://www.thesportsdb.com/api/v1/json/3/eventsday.php?d=2026-06-11&s=Soccer",
     );
     expect(res.body).toEqual({ ok: 1 });
+    expect(res.headers["Cache-Control"]).toContain("max-age=60");
+  });
+  it.each(["/../admin", "/eventsday", "https://evil.com", "/x.php?a=<b>"])(
+    "path inválido (%s) responde 400",
+    async (path) => {
+      const res = mockRes();
+      await sportsdb(authed({ path }), res);
+      expect(res.statusCode).toBe(400);
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+  it("upstream fora do ar vira 502", async () => {
+    fetchMock.mockRejectedValue(new Error("down"));
+    const res = mockRes();
+    await sportsdb(authed({ path: "/eventsday.php?d=2026-06-11&s=Soccer" }), res);
+    expect(res.statusCode).toBe(502);
   });
 });
 
