@@ -12,6 +12,7 @@ import { JumbledText } from "@/components/JumbledText";
 import { fetchEdition } from "@/features/wrapped/wrappedService";
 import type { WrappedEdition } from "@/features/wrapped/wrappedTypes";
 import { useDevMode } from "@/lib/useDevMode";
+import { RolezinhoOrbit } from "@/features/home/RolezinhoOrbit";
 import { fetchHomeHighlights } from "@/features/home/homeService";
 import { firstNames, formatConfirmed, formatCountdown } from "@/features/home/homeLogic";
 import type { BirthdayPerson, NextAgendaEvent, NextBirthday } from "@/features/home/homeTypes";
@@ -117,17 +118,15 @@ export function HomePage() {
             a faixa toda — dá a sensação de continuidade em vez de barras
             pretas nas laterais da foto quadrada. */}
         <img
-          src="/images/rolezinho-roots.jpeg"
+          src="/images/roots/bg.jpg"
           alt=""
           aria-hidden="true"
           className="sticky top-0 inset-0 w-full h-full object-cover blur-md opacity-80"
         />
-        {/* Camada nítida: a foto completa, sem cortar */}
-        <img
-          src="/images/rolezinho-roots.jpeg"
-          alt=""
-          className="absolute inset-0 w-full h-full object-contain anim-fade"
-        />
+        {/* Camada nítida: foto completa, com os rostos girando em volta da caneca */}
+        <div className="absolute inset-0">
+          <RolezinhoOrbit />
+        </div>
         <div className="absolute inset-0 bg-gradient-to-t from-(--bg-abyss) via-black/30 to-black/10" />
         {seasonTheme && (
           <div

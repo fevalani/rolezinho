@@ -671,3 +671,13 @@ body::before {
     background-position: -200% 0;
   }
 }
+
+/* Hero da home: os rostos giram em volta da caneca (anel) e cada um gira ao
+   contrário na mesma velocidade, então ficam sempre de pé. */
+@keyframes roots-orbit { to { transform: rotate(360deg); } }
+@keyframes roots-upright { to { transform: rotate(-360deg); } }
+.roots-ring { animation: roots-orbit var(--roots-orbit-duration, 90s) linear infinite; }
+.roots-face { animation: roots-upright var(--roots-orbit-duration, 90s) linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .roots-ring, .roots-face { animation: none; }
+}
