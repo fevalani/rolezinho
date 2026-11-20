@@ -6,6 +6,7 @@ import {
   getSudokuOfDay,
   getSudokuGameDate,
   isGivenCell,
+  shouldApplyLockedDigit,
   isBoardComplete,
   applyGuess,
   sudokuPointsFor,
@@ -159,5 +160,24 @@ describe("buildSudokuShareText", () => {
     expect(text).toContain("Difícil");
     expect(text).toContain("2:05");
     expect(text).toContain("700 pts");
+  });
+});
+
+describe("shouldApplyLockedDigit", () => {
+  const puzzle = "5" + "0".repeat(80);
+  const board = puzzle;
+  it("só vale no rascunho, com número travado", () => {
+    expect(shouldApplyLockedDigit(3, true, puzzle, board, 10)).toBe(true);
+    expect(shouldApplyLockedDigit(3, false, puzzle, board, 10)).toBe(false);
+    expect(shouldApplyLockedDigit(null, true, puzzle, board, 10)).toBe(false);
+  });
+  it("não vale em pista nem em célula já preenchida", () => {
+    expect(shouldApplyLockedDigit(3, true, puzzle, board, 0)).toBe(false);
+    const filled = board.slice(0, 10) + "7" + board.slice(11);
+    expect(shouldApplyLockedDigit(3, true, puzzle, filled, 10)).toBe(false);
+  });
+  it("não vale quando o dígito já está completo no tabuleiro", () => {
+    const nine = Array.from({ length: 81 }, (_, i) => (i % 9 === 0 ? "3" : "0")).join("");
+    expect(shouldApplyLockedDigit(3, true, "0".repeat(81), nine, 1)).toBe(false);
   });
 });

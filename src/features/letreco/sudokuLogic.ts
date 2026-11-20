@@ -308,3 +308,19 @@ export function buildSudokuShareText(
     `⏱️ ${formatElapsed(elapsedSeconds)} · ❌ ${mistakes} erro${mistakes === 1 ? "" : "s"} · ${score} pts`,
   ].join("\n");
 }
+
+/**
+ * Toque numa célula com um número "travado" (toque longo no teclado): só vale
+ * no rascunho, com o dígito ainda incompleto, e em célula vazia que não seja pista.
+ */
+export function shouldApplyLockedDigit(
+  lockedDigit: number | null,
+  pencilMode: boolean,
+  puzzle: string,
+  board: string,
+  cell: number,
+): boolean {
+  if (lockedDigit === null || !pencilMode) return false;
+  if (isGivenCell(puzzle, cell) || board[cell] !== "0") return false;
+  return !isDigitComplete(board, lockedDigit);
+}

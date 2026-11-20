@@ -20,6 +20,7 @@ import {
   getPeers,
   findConflictingPeers,
   isDigitComplete,
+  shouldApplyLockedDigit,
 } from "./sudokuLogic";
 import {
   getSudokuTodayGame,
@@ -53,6 +54,8 @@ export function SudokuGame() {
   const [showRules, setShowRules] = useState(false);
   const [pencilMode, setPencilMode] = useState(false);
   const [notesBlockMode, setNotesBlockMode] = useState(false);
+  // número "travado" no rascunho (toque longo no teclado): tocar numa célula já anota ele
+  const [lockedDigit, setLockedDigit] = useState<number | null>(null);
   const [notes, setNotes] = useState<Record<number, number[]>>({});
   const [leaderboard, setLeaderboard] = useState<SudokuLeaderboardEntry[]>([]);
   const [shareLabel, setShareLabel] = useState("Compartilhar resultado");
@@ -245,6 +248,7 @@ export function SudokuGame() {
       setScore(0);
       setNotes({});
       setSelected(null);
+      setLockedDigit(null);
 
       if (user) {
         saveSudokuGame(user.id, gameDate, {
@@ -373,17 +377,17 @@ export function SudokuGame() {
     });
   }, []);
 
-  const handleNumber = useCallback(
-    (digit: number) => {
-      if (status !== "playing" || selected === null || !user || !difficulty || isPaused)
+  const applyDigit = useCallback(
+    (cell: number, digit: number) => {
+      if (status !== "playing" || !user || !difficulty || isPaused)
         return;
-      if (isGivenCell(puzzle, selected) || board[selected] !== "0") return;
+      if (isGivenCell(puzzle, cell) || board[cell] !== "0") return;
       if (isDigitComplete(board, digit)) return;
 
       if (pencilMode) {
-        const alreadyNoted = (notes[selected] ?? []).includes(digit);
+        const alreadyNoted = (notes[cell] ?? []).includes(digit);
         if (!alreadyNoted) {
-          const conflicts = findConflictingPeers(board, selected, digit);
+          const conflicts = findConflictingPeers(board, cell, digit);
           if (conflicts.length > 0) {
             setFlashConflicts(conflicts);
             if (conflictTimer.current) clearTimeout(conflictTimer.current);
@@ -394,19 +398,19 @@ export function SudokuGame() {
             return;
           }
         }
-        toggleNote(selected, digit);
+        toggleNote(cell, digit);
         return;
       }
 
       const { board: nextBoard, correct } = applyGuess(
         board,
         solution,
-        selected,
+        cell,
         digit,
       );
 
       if (!correct) {
-        setFlashIndex(selected);
+        setFlashIndex(cell);
         if (flashTimer.current) clearTimeout(flashTimer.current);
         flashTimer.current = setTimeout(() => setFlashIndex(null), 450);
         const nextMistakes = mistakes + 1;
@@ -416,8 +420,8 @@ export function SudokuGame() {
       }
 
       setBoard(nextBoard);
-      clearNotes(selected);
-      clearDigitFromPeerNotes(selected, digit);
+      clearNotes(cell);
+      clearDigitFromPeerNotes(cell, digit);
 
       if (isBoardComplete(nextBoard)) {
         const finalElapsed = pauseTimer();
@@ -450,7 +454,6 @@ export function SudokuGame() {
     [
       status,
       isPaused,
-      selected,
       user,
       difficulty,
       puzzle,
@@ -469,6 +472,26 @@ export function SudokuGame() {
       pauseTimer,
       elapsedStorageKey,
     ],
+  );
+
+  const handleNumber = useCallback(
+    (digit: number) => {
+      if (selected !== null) applyDigit(selected, digit);
+    },
+    [selected, applyDigit],
+  );
+
+  // Toque numa célula: com um número travado no rascunho, já anota nela;
+  // senão, só seleciona (comportamento de sempre).
+  const handleSelectCell = useCallback(
+    (cell: number) => {
+      if (shouldApplyLockedDigit(lockedDigit, pencilMode, puzzle, board, cell)) {
+        applyDigit(cell, lockedDigit!);
+        return;
+      }
+      setSelected(cell);
+    },
+    [lockedDigit, pencilMode, puzzle, board, applyDigit],
   );
 
   const handleShare = async () => {
@@ -543,7 +566,7 @@ export function SudokuGame() {
           notesBlockMode={notesBlockMode}
           status={status}
           isPaused={isPaused}
-          onSelect={setSelected}
+          onSelect={handleSelectCell}
           onResume={() => setManualPaused(false)}
           onToggleNotesBlockMode={() => setNotesBlockMode((v) => !v)}
         />
@@ -553,7 +576,12 @@ export function SudokuGame() {
             selected={selected}
             pencilMode={pencilMode}
             isPaused={isPaused}
-            onTogglePencil={() => setPencilMode((v) => !v)}
+            lockedDigit={pencilMode ? lockedDigit : null}
+            onLockDigit={setLockedDigit}
+            onTogglePencil={() => {
+              setPencilMode((v) => !v);
+              setLockedDigit(null);
+            }}
             onDigit={handleNumber}
           />
         ) : (

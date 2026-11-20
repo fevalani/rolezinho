@@ -201,3 +201,48 @@ describe("SudokuGame", () => {
     });
   });
 });
+
+describe("SudokuGame — número travado no rascunho", () => {
+  const emptyCells = (puzzle: string) => cells().filter((_, i) => puzzle[i] === "0");
+  const lock = (d: number) => {
+    vi.useFakeTimers();
+    const btn = digitBtn(d);
+    fireEvent.pointerDown(btn);
+    act(() => void vi.advanceTimersByTime(500));
+    fireEvent.pointerUp(btn);
+    fireEvent.click(btn);
+    vi.useRealTimers();
+  };
+
+  it("com o número travado, tocar em várias células já anota nele, sem selecionar de novo", async () => {
+    const { puzzle, solution } = await start("facil");
+    fireEvent.click(screen.getByText(/Rascunho desligado/));
+    // células vazias cuja solução é o dígito escolhido: nunca conflitam com as pistas
+    const digit = Number(solution[cells().indexOf(emptyCells(puzzle)[0])]);
+    const targets = emptyCells(puzzle)
+      .filter((c) => solution[cells().indexOf(c)] === String(digit))
+      .slice(0, 2);
+    expect(targets).toHaveLength(2);
+    lock(digit);
+    expect(digitBtn(digit)).toHaveAttribute("aria-pressed", "true");
+    for (const c of targets) fireEvent.click(c);
+    // anotado nas duas, sem ter selecionado nenhuma antes; o número segue travado
+    for (const c of targets) expect(c.textContent?.trim()).toBe(String(digit));
+    expect(digitBtn(digit)).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("ao desligar o rascunho o número é destravado", async () => {
+    const { puzzle, solution } = await start("facil");
+    fireEvent.click(screen.getByText(/Rascunho desligado/));
+    const first = emptyCells(puzzle)[0];
+    const digit = Number(solution[cells().indexOf(first)]);
+    lock(digit);
+    expect(digitBtn(digit)).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByText(/Rascunho ativo/)); // volta ao modo normal
+    fireEvent.click(screen.getByText(/Rascunho desligado/)); // e entra de novo
+    expect(digitBtn(digit)).toHaveAttribute("aria-pressed", "false");
+    // tocar na célula agora só seleciona: nada é anotado
+    fireEvent.click(first);
+    expect(first.textContent?.trim()).toBe("");
+  });
+});

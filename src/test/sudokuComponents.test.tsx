@@ -1,10 +1,10 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { SudokuBoard } from "@/features/letreco/sudoku/SudokuBoard";
 import { SudokuDifficultyPicker } from "@/features/letreco/sudoku/SudokuDifficultyPicker";
 import { SudokuHeader } from "@/features/letreco/sudoku/SudokuHeader";
 import { SudokuLeaderboard } from "@/features/letreco/sudoku/SudokuLeaderboard";
-import { SudokuNumberPad } from "@/features/letreco/sudoku/SudokuNumberPad";
+import { SudokuNumberPad, LOCK_PRESS_MS } from "@/features/letreco/sudoku/SudokuNumberPad";
 import { SudokuResultSheet } from "@/features/letreco/sudoku/SudokuResultSheet";
 import { SudokuRules } from "@/features/letreco/sudoku/SudokuRules";
 import { SudokuSolvedPanel } from "@/features/letreco/sudoku/SudokuSolvedPanel";
@@ -282,5 +282,74 @@ describe("SudokuResultSheet", () => {
     const p = setup();
     fireEvent.click(document.querySelector(".fixed.inset-0")!);
     expect(p.onClose).toHaveBeenCalled();
+  });
+});
+
+describe("SudokuNumberPad — travar número com toque longo", () => {
+  afterEach(() => vi.useRealTimers());
+  const board = "0".repeat(81);
+  const pad = (over: Record<string, unknown> = {}) => {
+    const props = { onLockDigit: vi.fn(), onDigit: vi.fn(), ...over };
+    render(
+      <SudokuNumberPad board={board} selected={null} pencilMode isPaused={false} lockedDigit={null} onTogglePencil={vi.fn()} {...props} />,
+    );
+    return props as { onLockDigit: ReturnType<typeof vi.fn>; onDigit: ReturnType<typeof vi.fn> };
+  };
+  const hold = (name: string, ms: number) => {
+    const btn = screen.getByRole("button", { name });
+    fireEvent.pointerDown(btn);
+    act(() => void vi.advanceTimersByTime(ms));
+    fireEvent.pointerUp(btn);
+    fireEvent.click(btn); // o navegador ainda dispara o click depois do pointerup
+  };
+
+  it("segurar trava o número e não conta como toque curto", () => {
+    vi.useFakeTimers();
+    const { onLockDigit, onDigit } = pad();
+    hold("5", LOCK_PRESS_MS + 10);
+    expect(onLockDigit).toHaveBeenCalledWith(5);
+    expect(onDigit).not.toHaveBeenCalled();
+  });
+
+  it("toque curto continua só enviando o dígito", () => {
+    vi.useFakeTimers();
+    const { onLockDigit, onDigit } = pad({ selected: 4 });
+    hold("5", 100);
+    expect(onLockDigit).not.toHaveBeenCalled();
+    expect(onDigit).toHaveBeenCalledWith(5);
+  });
+
+  it("soltar antes do tempo cancela o travamento", () => {
+    vi.useFakeTimers();
+    const { onLockDigit } = pad();
+    const btn = screen.getByRole("button", { name: "5" });
+    fireEvent.pointerDown(btn);
+    act(() => void vi.advanceTimersByTime(LOCK_PRESS_MS - 100));
+    fireEvent.pointerLeave(btn);
+    act(() => void vi.advanceTimersByTime(500));
+    expect(onLockDigit).not.toHaveBeenCalled();
+  });
+
+  it("segurar o número já travado destrava", () => {
+    vi.useFakeTimers();
+    const { onLockDigit } = pad({ lockedDigit: 5 });
+    hold("5", LOCK_PRESS_MS + 10);
+    expect(onLockDigit).toHaveBeenCalledWith(null);
+  });
+
+  it("o número travado fica marcado; os outros não", () => {
+    pad({ lockedDigit: 5 });
+    expect(screen.getByRole("button", { name: "5" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "6" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("fora do rascunho, segurar não trava nada", () => {
+    vi.useFakeTimers();
+    const onLockDigit = vi.fn();
+    render(
+      <SudokuNumberPad board={board} selected={4} pencilMode={false} isPaused={false} onLockDigit={onLockDigit} onTogglePencil={vi.fn()} onDigit={vi.fn()} />,
+    );
+    hold("5", LOCK_PRESS_MS + 10);
+    expect(onLockDigit).not.toHaveBeenCalled();
   });
 });
