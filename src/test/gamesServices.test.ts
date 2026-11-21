@@ -101,6 +101,13 @@ describe("Letroso — serviço", () => {
     mockDb.rpcResults.validate_letroso_word = "true"; // valor estranho
     expect(await validateLetrosoWord("xxxx")).toBe(false);
   });
+  it("validateLetrosoWord aceita palavras da lista de respostas mesmo fora do dicionário do banco", async () => {
+    mockDb.rpcResults.validate_letroso_word = false;
+    expect(await validateLetrosoWord("universais")).toBe(true);
+    expect(await validateLetrosoWord("UNIVERSAIS")).toBe(true);
+    mockDb.errors["rpc:validate_letroso_word"] = { message: "x" };
+    expect(await validateLetrosoWord("universais")).toBe(true);
+  });
   it("validateLetrosoWord com erro do banco = inválida", async () => {
     mockDb.rpcResults.validate_letroso_word = true;
     mockDb.errors["rpc:validate_letroso_word"] = { message: "x" };

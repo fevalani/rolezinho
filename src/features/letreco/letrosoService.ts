@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { normalize } from "./letrosoLogic";
+import { LETROSO_WORDS, normalize } from "./letrosoLogic";
 import type {
   GameStatus,
   LetrosoGame,
@@ -10,8 +10,13 @@ import type { OverallEntry } from "./letrecoTypes";
 
 // ─── Validação server-side ───────────────────────────────────────────
 
+// As respostas do dia saem de words_letroso.txt, mas o dicionário do banco é outro:
+// uma resposta ausente dele seria recusada como "palavra não encontrada".
+const ANSWER_POOL = new Set(LETROSO_WORDS);
+
 export async function validateLetrosoWord(word: string): Promise<boolean> {
   const w = normalize(word);
+  if (ANSWER_POOL.has(w)) return true;
   try {
     const { data, error } = await supabase.rpc("validate_letroso_word", { p_word: w });
     if (error) return false;
