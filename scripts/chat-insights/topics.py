@@ -73,11 +73,17 @@ def analyze_topics(client: "ai_curator.OllamaClient", convs: list[list[Message]]
     """Rotula as `max_blocks` conversas mais longas (com ≥ 8 mensagens). Uma falha isolada não derruba o resto."""
     big = sorted((c for c in convs if len(c) >= MIN_BLOCK_MESSAGES), key=lambda c: -len(c))[:max_blocks]
     labeled = []
+    streak = 0
     for i, conv in enumerate(sorted(big, key=lambda c: c[0].ts), 1):
         try:
             labeled.append((conv, label_conversation(client, conv)))
+            streak = 0
         except ai_curator.OllamaError as e:
+            streak += 1
             log(f"  conversa {i}/{len(big)} pulada: {e}")
+            if streak >= 3:
+                log("  interrompido: 3 falhas seguidas (a IA parou de responder).")
+                break
         else:
             if i % 10 == 0:
                 log(f"  {i}/{len(big)} conversas rotuladas")

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { render } from "@testing-library/react";
 import { AuthProvider } from "@/lib/AuthContext";
@@ -7,10 +7,9 @@ import { SeasonalThemeProvider } from "@/lib/seasonal/SeasonalThemeContext";
 import { ChatStatsPage } from "@/features/chatstats/ChatStatsPage";
 import { ChatStatsAdminPage } from "@/features/chatstats/ChatStatsAdminPage";
 import { HomePage } from "@/pages/HomePage";
-import { setDevMode } from "@/lib/useDevMode";
-import { ADMIN_USER, TEST_USER, flush, loginAs, renderWithProviders } from "./helpers";
+import { ADMIN_USER, TEST_USER, loginAs, renderWithProviders } from "./helpers";
 import { mockDb } from "./supabaseMock";
-import { RAW } from "./chatStatsFixtures";
+import { MENTIRAS, RAW } from "./chatStatsFixtures";
 
 const { slug, ...config } = RAW;
 const snapshot = {
@@ -48,21 +47,12 @@ const mount = (route = "/estatisticas") =>
 describe("ChatStatsPage", () => {
   beforeEach(() => loginAs(TEST_USER));
 
-  it("fora do modo dev só avisa e não consulta o banco", async () => {
-    mockDb.tables.chat_stats_snapshots = [snapshot];
-    mount();
-    expect(await screen.findByText(/modo desenvolvedor/i)).toBeInTheDocument();
-    expect(mockDb.queries.some((q) => q.table === "chat_stats_snapshots")).toBe(false);
-  });
-
-  it("modo dev sem acesso (RLS devolve nada) mostra estado vazio", async () => {
-    setDevMode(true);
+  it("sem acesso (RLS devolve nada) mostra estado vazio", async () => {
     mount();
     expect(await screen.findByText(/Nada para mostrar/)).toBeInTheDocument();
   });
 
   it("renderiza totais, rankings, bordões e assuntos", async () => {
-    setDevMode(true);
     mockDb.tables.chat_stats_snapshots = [snapshot];
     mount();
     expect(await screen.findByText("100")).toBeInTheDocument();
@@ -81,8 +71,27 @@ describe("ChatStatsPage", () => {
     expect(screen.getByRole("img", { name: "Mensagens por mês" })).toBeInTheDocument();
   });
 
+  it("mentiras confirmadas: ranking, as 3 frases literais e o aviso de revisão", async () => {
+    mockDb.tables.chat_stats_snapshots = [{ slug, is_active: true, config: { ...config, mentiras: MENTIRAS } }];
+    mount();
+    const sec = (await screen.findByText(/Mentiras confirmadas/)).closest("section")!;
+    expect(within(sec).getByText(/revisado pelo administrador/)).toBeInTheDocument();
+    expect(within(sec).getByText("2 casos")).toBeInTheDocument();
+    expect(within(sec).getByText("“eu corri 10km ontem”", { exact: false })).toBeInTheDocument();
+    expect(within(sec).getByText("“mentira, você nem saiu de casa”", { exact: false })).toBeInTheDocument();
+    expect(within(sec).getByText("↳ “tá bom, menti, fiquei deitada”")).toBeInTheDocument();
+    expect(within(sec).getByText(/o chat provou que era falso/)).toBeInTheDocument();
+    expect(within(sec).getByText(/01\/03\/2026 · admitiu/)).toBeInTheDocument();
+  });
+
+  it("sem casos aprovados a seção não aparece", async () => {
+    mockDb.tables.chat_stats_snapshots = [snapshot];
+    mount();
+    await screen.findByText("Quem mais fala");
+    expect(screen.queryByText(/Mentiras confirmadas/)).not.toBeInTheDocument();
+  });
+
   it("sem assuntos nem meses, essas seções não aparecem", async () => {
-    setDevMode(true);
     mockDb.tables.chat_stats_snapshots = [{ slug, is_active: true, config }];
     mount();
     await screen.findByText("Quem mais fala");
@@ -91,7 +100,6 @@ describe("ChatStatsPage", () => {
   });
 
   it("a rota com slug abre o snapshot pedido e o botão voltar vai para a Home", async () => {
-    setDevMode(true);
     mockDb.tables.chat_stats_snapshots = [snapshot];
     mount("/estatisticas/2026");
     await screen.findByText("Quem mais fala");
@@ -101,41 +109,28 @@ describe("ChatStatsPage", () => {
   });
 });
 
-describe("card na Home", () => {
-  const home = () =>
+describe("na Home (feature como as outras)", () => {
+  it("é uma feature registrada, na categoria Outros, apontando para /estatisticas", async () => {
+    const { APP_FEATURES } = await import("@/lib/types");
+    expect(APP_FEATURES.find((f) => f.id === "estatisticas")).toMatchObject({ path: "/estatisticas", enabled: true, name: "Estatísticas do chat" });
+    loginAs(TEST_USER);
     render(
       <MemoryRouter>
         <AuthProvider>
           <SeasonalThemeProvider>
             <Routes>
               <Route path="/" element={<HomePage />} />
-              <Route path="/estatisticas/:slug" element={<p>stats</p>} />
+              <Route path="/estatisticas" element={<p>stats</p>} />
             </Routes>
           </SeasonalThemeProvider>
         </AuthProvider>
       </MemoryRouter>,
     );
-
-  it("aparece só em modo dev e com snapshot liberado", async () => {
-    loginAs(TEST_USER);
-    mockDb.tables.chat_stats_snapshots = [{ ...snapshot, config: { ...config, title: "Estatísticas 2026" } }];
-    const { unmount } = home();
-    await act(async () => { await flush(); });
-    expect(screen.queryByText("Estatísticas 2026")).not.toBeInTheDocument(); // modo dev desligado
-    unmount();
-
-    setDevMode(true);
-    home();
-    fireEvent.click(await screen.findByText("Estatísticas 2026"));
+    const card = (await screen.findByText("Estatísticas do chat")).closest("button")!;
+    const group = card.parentElement!.parentElement!;
+    expect(within(group).getByText("✨ Outros")).toBeInTheDocument();
+    fireEvent.click(card);
     expect(await screen.findByText("stats")).toBeInTheDocument();
-  });
-
-  it("modo dev sem acesso: nenhum card", async () => {
-    loginAs(TEST_USER);
-    setDevMode(true);
-    home();
-    await act(async () => { await flush(); });
-    expect(screen.queryByText("Análise do chat do grupo")).not.toBeInTheDocument();
   });
 });
 

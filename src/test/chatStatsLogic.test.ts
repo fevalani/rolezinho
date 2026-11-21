@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  buildMentiras,
   buildRankings,
   fmtDate,
   fmtDuration,
@@ -9,7 +10,7 @@ import {
   peakSummary,
   topPairs,
 } from "@/features/chatstats/chatStatsLogic";
-import { RAW } from "./chatStatsFixtures";
+import { MENTIRAS, RAW } from "./chatStatsFixtures";
 import type { ChatStats, ChatStatsPerson } from "@/features/chatstats/chatStatsTypes";
 
 const person = (name: string, over: Partial<ChatStatsPerson> = {}): ChatStatsPerson => ({
@@ -113,5 +114,38 @@ describe("pico e duplas", () => {
       { a: "Ana", b: "Caio", count: 5 },
     ]);
     expect(topPairs(stats(), 1)).toHaveLength(1);
+  });
+});
+
+describe("mentiras confirmadas", () => {
+  const withM = (m: unknown) => parseChatStats({ ...RAW, mentiras: m }).stats as ChatStats;
+
+  it("parse: lê os casos e normaliza o desfecho desconhecido para admitted", () => {
+    const s = withM({ episodes: [...MENTIRAS.episodes, { ...MENTIRAS.episodes[0], outcome: "xx" }] });
+    expect(s.mentiras!.episodes).toHaveLength(4);
+    expect(s.mentiras!.episodes[1].outcome).toBe("proven_false");
+    expect(s.mentiras!.episodes[3].outcome).toBe("admitted");
+  });
+  it("parse: descarta caso incompleto, sem nomes ou com a mesma pessoa nos dois papéis", () => {
+    const base = MENTIRAS.episodes[0];
+    const s = withM({ episodes: [base, { ...base, claim: "" }, { ...base, resolution: "" }, { ...base, claimant: " " }, { ...base, contester: "Ana" }] });
+    expect(s.mentiras!.episodes).toHaveLength(1);
+  });
+  it("parse: sem casos ou formato errado vira null", () => {
+    expect(withM({ episodes: [] }).mentiras).toBeNull();
+    expect(withM("x").mentiras).toBeNull();
+    expect(stats().mentiras).toBeNull();
+  });
+  it("ranking conta casos por quem afirmou, desempata por nome e usa singular/plural", () => {
+    const v = buildMentiras(withM(MENTIRAS))!;
+    expect(v.ranking).toEqual([{ name: "Ana", count: 2, label: "2 casos" }, { name: "Beto", count: 1, label: "1 caso" }]);
+  });
+  it("casos vêm do mais recente ao mais antigo", () => {
+    expect(buildMentiras(withM(MENTIRAS))!.episodes.map((e) => e.date)).toEqual(["2026-05-10", "2026-04-02", "2026-03-01"]);
+  });
+  it("sem nada aprovado devolve null e o limite n vale", () => {
+    expect(buildMentiras(stats())).toBeNull();
+    const eps = ["a", "b", "c", "d"].map((n) => ({ ...MENTIRAS.episodes[0], claimant: n, contester: "z" }));
+    expect(buildMentiras(withM({ episodes: eps }), 2)!.ranking).toHaveLength(2);
   });
 });

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useDevMode } from "@/lib/useDevMode";
 import { fetchChatStats } from "./chatStatsService";
 import {
   WEEKDAY_NAMES,
+  MENTIRA_OUTCOME,
+  buildMentiras,
   buildRankings,
   fmtDate,
   fmtInt,
@@ -56,6 +57,7 @@ function Stat({ value, label }: { value: string; label: string }) {
 function Content({ stats }: { stats: ChatStats }) {
   const rankings = useMemo(() => buildRankings(stats), [stats]);
   const pairs = useMemo(() => topPairs(stats), [stats]);
+  const mentiras = useMemo(() => buildMentiras(stats), [stats]);
   const peak = peakSummary(stats);
   const monthValues = stats.byMonth.map((m) => m.messages);
 
@@ -139,6 +141,34 @@ function Content({ stats }: { stats: ChatStats }) {
         </Section>
       )}
 
+      {mentiras && (
+        <Section
+          title="Mentiras confirmadas 🤥"
+          note="Só entram casos em que alguém contestou e o próprio chat confirmou (admitiu ou foi provado). Cada um foi revisado pelo administrador."
+        >
+          <ol className="flex flex-col gap-1 text-sm text-(--text-primary)">
+            {mentiras.ranking.map((r, i) => (
+              <li key={r.name} className="flex items-baseline gap-2">
+                <span className="w-5 text-(--text-muted)">{i + 1}</span>
+                <span className="flex-1 truncate">{r.name}</span>
+                <span className="text-(--text-secondary)">{r.label}</span>
+              </li>
+            ))}
+          </ol>
+          <h3 className="text-sm text-(--text-primary) mt-2">Os casos</h3>
+          <ul className="flex flex-col gap-3 text-sm">
+            {mentiras.episodes.slice(0, 10).map((e, i) => (
+              <li key={i} className="flex flex-col gap-0.5">
+                <span className="text-xs text-(--text-muted)">{fmtDate(e.date)} · {MENTIRA_OUTCOME[e.outcome]}</span>
+                <span className="text-(--text-primary)"><b>{e.claimant}:</b> “{e.claim}”</span>
+                <span className="text-(--text-secondary)"><b>{e.contester}:</b> “{e.contest}”</span>
+                <span className="text-(--text-secondary)">↳ “{e.resolution}”</span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
       {stats.topics && (
         <Section title="Assuntos mais discutidos" note="Cada conversa foi classificada por uma IA local; as contagens são feitas por código.">
           <ul className="flex flex-col gap-1.5">
@@ -185,12 +215,10 @@ function Content({ stats }: { stats: ChatStats }) {
 export function ChatStatsPage() {
   const navigate = useNavigate();
   const { slug } = useParams();
-  const [devMode] = useDevMode();
   const [stats, setStats] = useState<ChatStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!devMode) return;
     let alive = true;
     fetchChatStats(slug).then((s) => {
       if (!alive) return;
@@ -200,7 +228,7 @@ export function ChatStatsPage() {
     return () => {
       alive = false;
     };
-  }, [devMode, slug]);
+  }, [slug]);
 
   return (
     <div className="max-w-[640px] mx-auto px-5 py-6 flex flex-col gap-4">
@@ -210,11 +238,7 @@ export function ChatStatsPage() {
           {stats?.title ?? "Estatísticas do chat"}
         </h1>
       </header>
-      {!devMode ? (
-        <p className="text-center text-(--text-secondary)">
-          Recurso em teste. Ligue o modo desenvolvedor no Perfil para ver.
-        </p>
-      ) : loading ? (
+      {loading ? (
         <p className="text-center text-(--text-muted)">Carregando…</p>
       ) : !stats ? (
         <p className="text-center text-(--text-secondary)">

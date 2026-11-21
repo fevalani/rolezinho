@@ -27,6 +27,24 @@ Letroso, Sudoku, Word500, Fronteiras e Ranking de Campeões.
 - Regra de cada selo em `achievementsLogic.ts` (pura, testável); leitura dos dados em `achievementsService.ts`.
 - Decidir na hora: calcular sob demanda a partir das tabelas ou gravar os selos numa tabela (migration em `supabase/`).
 
+## Jogo diário de geometria (Jogos Diários)
+
+Ideia de 21/11/2026, vinda do grupo ("já temos geografia, linguística e raciocínio lógico; que tal geometria plana?").
+Foco no **processo** de chegar ao resultado, não na complexidade da conta: de B e C chego a D, de D a E e de E ao A.
+
+Formatos propostos (decidir qual; recomendação: **A**):
+- **A. Cadeia de dedução (recomendado):** figura simples (triângulos, paralelas e transversal, polígonos) com alguns ângulos/medidas
+  dados e uma incógnita final. O jogador preenche os valores intermediários (B, C, D…) na ordem em que conseguir deduzir; o jogo
+  valida cada resposta. Regras usadas: soma dos ângulos = 180°, ângulos opostos pelo vértice, suplementares, triângulo isósceles.
+  Níveis = tamanho da cadeia (3, 5 ou 7 passos). Pontua por erros e tempo.
+- **B. Escolha a regra:** em cada passo escolher qual propriedade usar antes de dar o valor (mais didático, mais pesado).
+- **C. Área em partes:** área de figura composta decompondo em pedaços (visual, mas mais conta que dedução).
+
+Em aberto: formato (A/B/C) e se a resposta é digitada (mais difícil de chutar) ou escolhida entre 4 opções (mais rápida no celular).
+Como entra: nova aba em Jogos Diários, tabela `geometria_games` (cópia do esquema de `fronteiras_games`), desafio do dia
+determinístico por data (puzzles gerados por script, como o Sudoku, com solução única), ranking diário e geral separado,
+começando só no modo desenvolvedor como o Fronteiras. Testes em `src/test/` e entrada no `pages.smoke.test.tsx`.
+
 ## Auditoria de segurança/performance — itens restantes
 
 Ver tabela de status em `auditoria-seguranca-performance.md` (S-04, S-08, S-12, S-13, S-14, S-16,

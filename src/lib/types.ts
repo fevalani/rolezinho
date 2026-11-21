@@ -260,6 +260,14 @@ export const APP_FEATURES: Feature[] = [
     description: "Monte seu ranking escolhendo entre dois itens por vez",
   },
   {
+    id: "estatisticas",
+    name: "Estatísticas do chat",
+    icon: "📊",
+    path: "/estatisticas",
+    enabled: true,
+    description: "Análise detalhada do chat do grupo (só quem o admin liberar)",
+  },
+  {
     id: "ficha",
     name: "RPG",
     icon: "🏰",

@@ -13,3 +13,11 @@ export const RAW = {
   ],
   interactions: [{ from: "Ana", to: "Beto", count: 20 }, { from: "Beto", to: "Ana", count: 15 }, { from: "Caio", to: "Ana", count: 5 }],
 };
+
+export const MENTIRAS = {
+  episodes: [
+    { date: "2026-03-01", claimant: "Ana", contester: "Beto", outcome: "admitted", claim: "eu corri 10km ontem", contest: "mentira, você nem saiu de casa", resolution: "tá bom, menti, fiquei deitada" },
+    { date: "2026-05-10", claimant: "Ana", contester: "Caio", outcome: "proven_false", claim: "eu nunca me atraso", contest: "isso é mentira", resolution: "olha o print da hora que você chegou" },
+    { date: "2026-04-02", claimant: "Beto", contester: "Ana", outcome: "admitted", claim: "já paguei a conta", contest: "mentira, não pagou", resolution: "foi mal, esqueci de pagar" },
+  ],
+};

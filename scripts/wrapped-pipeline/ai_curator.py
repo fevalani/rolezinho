@@ -132,6 +132,18 @@ class OllamaClient:
         self.last_stats = stats
         return {"message": {"content": "".join(content)}}
 
+    def check(self) -> tuple[bool, str]:
+        """Verificação rápida (5 s) antes de gastar tempo: o Ollama responde e o modelo está baixado? (ok, mensagem)"""
+        try:
+            with urllib.request.urlopen(urllib.request.Request(self.base_url + "/api/tags"), timeout=5) as r:
+                models = json.loads(r.read()).get("models") or []
+        except (urllib.error.URLError, TimeoutError, ConnectionError, ValueError) as e:
+            return False, f"Não consegui falar com o Ollama em {self.base_url} ({getattr(e, 'reason', e)})."
+        names = {str(m.get("name", "")) for m in models}
+        if self.model not in names and f"{self.model}:latest" not in names:
+            return False, f"O Ollama respondeu, mas o modelo '{self.model}' não está baixado. Rode: ollama pull {self.model}"
+        return True, "ok"
+
     def has_vision(self) -> bool:
         """O modelo aceita imagens? (capabilities do /api/show; sem a info, assume que não.)"""
         if self._vision is None:

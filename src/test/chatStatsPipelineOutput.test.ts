@@ -21,6 +21,10 @@ describe("saída do pipeline chat-insights x frontend", () => {
     const stats = parseChatStats(fixture).stats!;
     expect(buildRankings(stats).map((r) => r.key)).toEqual(expect.arrayContaining(["talkers", "starters", "fast"]));
   });
+  it("o chat sintético não tem mentiras aprovadas: a seção é omitida, não vazia", () => {
+    expect(fixture).not.toHaveProperty("mentiras");
+    expect(parseChatStats(fixture).stats!.mentiras).toBeNull();
+  });
   it("nenhum campo de pessoa ficou de fora do tipo do app", () => {
     const keys = Object.keys(fixture.people[0]).sort();
     const parsed = Object.keys(parseChatStats(fixture).stats!.people[0]).sort();

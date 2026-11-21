@@ -29,14 +29,44 @@ sys.path.insert(0, str(HERE))
 
 import ai_curator  # noqa: E402
 import insights  # noqa: E402
+import mentiras  # noqa: E402
 import parser as chat_parser  # noqa: E402
 import topics  # noqa: E402
 from build_wrapped import DEFAULT_EXCLUDE, hide_phone_authors, load_config  # noqa: E402
 
 
-def build(args: argparse.Namespace, cfg: Optional[dict] = None, now: Optional[datetime] = None) -> dict[str, Any]:
-    cfg = cfg or {}
-    log = (lambda *a: print(*a, file=sys.stderr)) if not args.quiet else (lambda *a: None)
+OLLAMA_HELP = """\
+Sem o Ollama o pipeline não faz temas nem acha casos de mentira (use --no-ai para só os números).
+• Ollama no Windows e este script no WSL: o localhost do WSL NÃO enxerga o do Windows. Escolha um:
+  1) no Windows, crie %UserProfile%\\.wslconfig com  [wsl2]  e  networkingMode=mirrored , rode `wsl --shutdown` e reabra o WSL;
+  2) ou rode este script direto no Windows (PowerShell), onde o localhost já funciona.
+• Confira com:  curl localhost:11434/api/tags   (deve listar o modelo)
+• Ollama parado? `ollama serve`.  Modelo ausente? `ollama pull qwen3-vl:8b-instruct`."""
+
+
+def _mentiras_section(args: argparse.Namespace, messages, log, client=None) -> dict[str, Any]:
+    """Casos de mentira APROVADOS por você (review_mentiras.py). A IA só acha candidatos; nada vai ao app sem aprovação."""
+    decisions_path = Path(args.decisions)
+    cands_path = Path(args.out).parent / "mentiras_candidatas.json"
+    if client is not None:
+        cands, funnel = mentiras.find_episodes(client, messages, args.max_trechos, log)
+        cands_path.parent.mkdir(parents=True, exist_ok=True)
+        cands_path.write_text(json.dumps(cands, ensure_ascii=False, indent=2), encoding="utf-8")
+        log(f"✔ mentiras: {funnel['windows']} trechos → {funnel['disputes']} disputas → {funnel['verified']} verificados em código"
+            f"{' (' + str(funnel['errors']) + ' trechos com erro)' if funnel['errors'] else ''}")
+        if funnel["rejected"]:
+            log("  disputas descartadas por: " + "; ".join(f"{k} ×{v}" for k, v in sorted(funnel["rejected"].items(), key=lambda kv: -kv[1])))
+    else:
+        cands = json.loads(cands_path.read_text(encoding="utf-8")) if cands_path.exists() else []
+    decisions = mentiras.load_decisions(decisions_path)
+    todo = len(mentiras.pending(cands, decisions))
+    if todo:
+        log(f"! {todo} caso(s) de mentira aguardando sua revisão: python3 review_mentiras.py")
+    approved = mentiras.approved_for_app(decisions)
+    return {"mentiras": {"episodes": approved}} if approved else {}
+
+
+def load_messages(args: argparse.Namespace, cfg: dict, log) -> list:
     inp = Path(args.input)
     aliases = chat_parser.load_aliases(Path(args.aliases) if args.aliases else (inp / "aliases.json" if inp.is_dir() else None))
     messages, _media = chat_parser.load_input(inp, {"dmy": True, "mdy": False}.get(args.date_order))
@@ -49,17 +79,30 @@ def build(args: argparse.Namespace, cfg: Optional[dict] = None, now: Optional[da
         raise SystemExit("Nenhuma mensagem encontrada. Confira --input/--year (e --date-order).")
     messages.sort(key=lambda m: m.ts)
     log(f"✔ {len(messages)} mensagens")
+    return messages
+
+
+def build(args: argparse.Namespace, cfg: Optional[dict] = None, now: Optional[datetime] = None) -> dict[str, Any]:
+    cfg = cfg or {}
+    log = (lambda *a: print(*a, file=sys.stderr)) if not args.quiet else (lambda *a: None)
+    messages = load_messages(args, cfg, log)
 
     result = insights.compute_insights(messages, cfg.get("stopwords") or [])
     log(f"✔ estatísticas: {len(result['people'])} pessoas, {result['conversations']} conversas")
 
+    client = None
     if not args.no_ai:
         mcfg = cfg.get("model") or {}
         client = ai_curator.OllamaClient(args.model or mcfg.get("name") or ai_curator.DEFAULT_MODEL,
                                          args.ollama_url or mcfg.get("url") or ai_curator.DEFAULT_URL, timeout=args.timeout,
                                          cache_dir=None if args.no_cache else Path(args.out).parent / ".ai_cache")
+        ok, why = client.check()
+        if not ok:
+            raise SystemExit(f"{why}\n{OLLAMA_HELP}")
         result["topics"] = topics.analyze_topics(client, insights.conversations(messages), args.max_blocks, log)
         log(f"✔ temas ({client.cache_hits} do cache)")
+
+    result.update(_mentiras_section(args, messages, log, client if args.mentiras else None))
 
     now = now or datetime.now(timezone.utc)
     return {"slug": args.slug or str(result["periodEnd"] or "")[:4], "title": args.title,
@@ -99,6 +142,11 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument("--ollama-url")
     p.add_argument("--timeout", type=int, default=900)
     p.add_argument("--max-blocks", type=int, default=300, help="máx. de conversas rotuladas pela IA")
+    p.add_argument("--mentiras", action="store_true",
+                   help="também procura casos de mentira confirmada com a IA (lento; no chat testado rendeu 0 casos: 'mentira!' era só espanto)")
+    p.add_argument("--max-trechos", type=int, default=300, help="máx. de trechos analisados na busca de mentiras")
+    p.add_argument("--decisions", default=str(HERE.parent / "wrapped-pipeline" / "raw_data" / "mentiras_aprovadas.json"),
+                   help="casos aprovados em review_mentiras.py")
     p.add_argument("--no-cache", action="store_true")
     p.add_argument("--out", default=str(HERE / "output" / "chat_stats.json"))
     p.add_argument("--upload", action="store_true", help="grava no Supabase (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY)")

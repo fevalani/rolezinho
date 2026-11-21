@@ -1,4 +1,4 @@
-import type { ChatStats, ChatStatsPerson, ChatStatsTopics } from "./chatStatsTypes";
+import type { ChatStats, ChatStatsPerson, ChatStatsMentiras, ChatStatsTopics } from "./chatStatsTypes";
 
 // ═══════════════════════════════════════════
 // Validação do JSON (colado pelo admin ou lido do banco)
@@ -55,6 +55,20 @@ function parseTopics(v: unknown): ChatStatsTopics | null {
   };
 }
 
+function parseMentiras(v: unknown): ChatStatsMentiras | null {
+  if (!isObj(v)) return null;
+  const episodes = arr(v.episodes).filter(isObj).map((e) => ({
+    date: str(e.date),
+    claimant: str(e.claimant).trim(),
+    contester: str(e.contester).trim(),
+    outcome: e.outcome === "proven_false" ? ("proven_false" as const) : ("admitted" as const),
+    claim: str(e.claim).slice(0, 300),
+    contest: str(e.contest).slice(0, 300),
+    resolution: str(e.resolution).slice(0, 300),
+  })).filter((e) => e.claimant && e.contester && e.claimant !== e.contester && e.claim && e.contest && e.resolution);
+  return episodes.length ? { episodes } : null;
+}
+
 /** Valida e normaliza. Erros impedem salvar; `warnings` só avisam. */
 export function parseChatStats(raw: unknown): { stats: ChatStats | null; errors: string[]; warnings: string[] } {
   const errors: string[] = [];
@@ -95,6 +109,7 @@ export function parseChatStats(raw: unknown): { stats: ChatStats | null; errors:
       catchphrases: arr(raw.catchphrases).filter(isObj).map((c) => ({ phrase: str(c.phrase), count: num(c.count), topAuthor: str(c.topAuthor) })).filter((c) => c.phrase),
       topWords: arr(raw.topWords).filter(isObj).map((w) => ({ word: str(w.word), count: num(w.count) })).filter((w) => w.word),
       topics,
+      mentiras: parseMentiras(raw.mentiras),
     },
     errors,
     warnings,
@@ -218,3 +233,33 @@ export function topPairs(stats: ChatStats, n = 5): { a: string; b: string; count
   }
   return [...sums.values()].sort((x, y) => y.count - x.count || x.a.localeCompare(y.a, "pt-BR")).slice(0, n);
 }
+
+// ═══════════════════════════════════════════
+// Mentiras confirmadas (revisadas pelo admin, com as 3 frases literais)
+// ═══════════════════════════════════════════
+
+export interface MentirasView {
+  /** quem mais foi pego (admitiu ou foi provado) */
+  ranking: { name: string; count: number; label: string }[];
+  /** casos do mais recente ao mais antigo */
+  episodes: ChatStatsMentiras["episodes"];
+}
+
+/** Monta a seção. `null` quando não há nenhum caso aprovado (a tela esconde a seção). */
+export function buildMentiras(stats: ChatStats, n = 5): MentirasView | null {
+  const m = stats.mentiras;
+  if (!m || !m.episodes.length) return null;
+  const counts = new Map<string, number>();
+  for (const e of m.episodes) counts.set(e.claimant, (counts.get(e.claimant) ?? 0) + 1);
+  const ranking = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR"))
+    .slice(0, n)
+    .map(([name, count]) => ({ name, count, label: `${count} ${count === 1 ? "caso" : "casos"}` }));
+  const episodes = [...m.episodes].sort((a, b) => b.date.localeCompare(a.date) || a.claimant.localeCompare(b.claimant, "pt-BR"));
+  return { ranking, episodes };
+}
+
+export const MENTIRA_OUTCOME: Record<ChatStatsMentiras["episodes"][number]["outcome"], string> = {
+  admitted: "admitiu",
+  proven_false: "o chat provou que era falso",
+};

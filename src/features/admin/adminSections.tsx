@@ -28,7 +28,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   {
     id: "estatisticas",
     title: "Estatísticas do chat",
-    description: "Análise do WhatsApp e quem pode ver (modo dev)",
+    description: "Análise do WhatsApp e quem pode ver",
     icon: "📊",
     Component: ChatStatsAdminPage,
   },

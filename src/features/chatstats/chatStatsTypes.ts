@@ -29,6 +29,22 @@ export interface ChatStatsTopics {
   highlights: { label: string; category: string; date: string; messages: number }[];
 }
 
+/** Uma mentira confirmada no próprio chat: afirmação → contestação → desfecho (3 frases literais, revisadas pelo admin). */
+export interface ChatStatsMentira {
+  date: string;
+  claimant: string;
+  contester: string;
+  /** admitted = quem afirmou admitiu; proven_false = o chat provou que era falso */
+  outcome: "admitted" | "proven_false";
+  claim: string;
+  contest: string;
+  resolution: string;
+}
+
+export interface ChatStatsMentiras {
+  episodes: ChatStatsMentira[];
+}
+
 export interface ChatStats {
   slug: string;
   title: string;
@@ -50,4 +66,5 @@ export interface ChatStats {
   catchphrases: { phrase: string; count: number; topAuthor: string }[];
   topWords: { word: string; count: number }[];
   topics: ChatStatsTopics | null;
+  mentiras: ChatStatsMentiras | null;
 }

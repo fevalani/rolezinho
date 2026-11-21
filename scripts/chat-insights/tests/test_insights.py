@@ -142,6 +142,9 @@ class FakeClient:
     """Faz o papel do OllamaClient: devolve uma categoria conforme o texto."""
     cache_hits = 0
 
+    def check(self):
+        return True, "ok"
+
     def __init__(self, fail_on: str | None = None):
         self.prompts: list[str] = []
         self.fail_on = fail_on
@@ -181,6 +184,12 @@ class TopicsTest(unittest.TestCase):
         c = FakeClient(fail_on="pizza")
         r = topics.analyze_topics(c, [block(1, "futebol"), block(2, "pizza")])
         self.assertEqual([x["name"] for x in r["categories"]], ["Esporte"])
+
+    def test_para_apos_3_falhas_seguidas_em_vez_de_tentar_todas(self):
+        c = FakeClient(fail_on="oi")
+        r = topics.analyze_topics(c, [block(d, "oi") for d in range(1, 11)])
+        self.assertIsNone(r)
+        self.assertEqual(len(c.prompts), 3)
 
     def test_tudo_falhando_devolve_none(self):
         self.assertIsNone(topics.analyze_topics(FakeClient(fail_on="oi"), [block(1, "oi")]))
@@ -223,6 +232,33 @@ class BuildTest(unittest.TestCase):
             out = run_insights.build(self.args(d))
         self.assertIn("categories", out["topics"])
 
+    def test_busca_de_mentiras_e_opcional(self):
+        """Sem --mentiras a IA só rotula temas; com --mentiras ela também é chamada para os trechos de disputa."""
+        def asked_about_disputes(*extra):
+            client = FakeClient()
+            with tempfile.TemporaryDirectory() as d, mock.patch.object(ai_curator, "OllamaClient", return_value=client):
+                write_fixture(Path(d))
+                chat = Path(d) / "_chat.txt"
+                chat.write_text(chat.read_text(encoding="utf-8") + "05/10/2026 10:00 - Ana: isso é mentira\n", encoding="utf-8")
+                run_insights.build(self.args(d, "--decisions", str(Path(d) / "dec.json"), *extra))
+            return any("isDispute" in p for p in client.prompts)
+
+        self.assertFalse(asked_about_disputes())
+        self.assertTrue(asked_about_disputes("--mentiras"))
+
+    def test_ollama_fora_do_ar_para_na_hora_com_ajuda_para_wsl(self):
+        class Down(FakeClient):
+            def check(self):
+                return False, "Não consegui falar com o Ollama em http://localhost:11434 (Connection refused)."
+
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(ai_curator, "OllamaClient", return_value=Down()):
+            write_fixture(Path(d))
+            with self.assertRaises(SystemExit) as cm:
+                run_insights.build(self.args(d))
+        self.assertIn("Connection refused", str(cm.exception))
+        self.assertIn("networkingMode=mirrored", str(cm.exception))
+        self.assertIn("--no-ai", str(cm.exception))
+
     def test_cliente_recusa_host_remoto(self):
         with self.assertRaises(ValueError):
             ai_curator.OllamaClient(base_url="http://outro-host:11434")
@@ -250,6 +286,49 @@ class UploadTest(unittest.TestCase):
         self.assertNotIn("slug", seen["body"]["config"])
         self.assertNotIn("KEY", json.dumps(seen["body"]))
         self.assertEqual(seen["h"]["Apikey"], "KEY")
+
+
+
+
+class CheckTest(unittest.TestCase):
+    """OllamaClient.check: diagnóstico de 5 s antes de gastar tempo (urlopen falso, sem rede)."""
+
+    def client(self):
+        return ai_curator.OllamaClient("qwen3-vl:8b-instruct", "http://localhost:11434")
+
+    def respond(self, payload):
+        resp = mock.MagicMock()
+        resp.__enter__.return_value.read.return_value = json.dumps(payload).encode()
+        return mock.patch("urllib.request.urlopen", return_value=resp)
+
+    def test_ok_quando_o_modelo_esta_baixado(self):
+        with self.respond({"models": [{"name": "qwen3-vl:8b-instruct"}]}):
+            self.assertEqual(self.client().check(), (True, "ok"))
+
+    def test_aceita_sufixo_latest(self):
+        c = ai_curator.OllamaClient("llama3", "http://localhost:11434")
+        with self.respond({"models": [{"name": "llama3:latest"}]}):
+            self.assertTrue(c.check()[0])
+
+    def test_modelo_ausente_manda_baixar(self):
+        with self.respond({"models": [{"name": "outro:1b"}]}):
+            ok, msg = self.client().check()
+        self.assertFalse(ok)
+        self.assertIn("ollama pull qwen3-vl:8b-instruct", msg)
+
+    def test_conexao_recusada_explica(self):
+        import urllib.error
+        with mock.patch("urllib.request.urlopen", side_effect=urllib.error.URLError("[Errno 111] Connection refused")):
+            ok, msg = self.client().check()
+        self.assertFalse(ok)
+        self.assertIn("Connection refused", msg)
+        self.assertIn("http://localhost:11434", msg)
+
+    def test_resposta_que_nao_e_json_nao_estoura(self):
+        resp = mock.MagicMock()
+        resp.__enter__.return_value.read.return_value = b"<html>"
+        with mock.patch("urllib.request.urlopen", return_value=resp):
+            self.assertFalse(self.client().check()[0])
 
 
 if __name__ == "__main__":
