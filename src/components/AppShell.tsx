@@ -9,6 +9,8 @@ import { useAdmin } from "@/lib/useAdmin";
 import { SeasonalPreviewBanner } from "@/components/SeasonalPreviewBanner";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { useOfflineSync } from "@/lib/useOfflineSync";
+import { useEdgeSwipe } from "@/lib/useEdgeSwipe";
+import { isCloseSwipe, type SwipePoint } from "@/lib/swipeLogic";
 
 export function AppShell() {
   const { user, profile, signOut } = useAuth();
@@ -17,6 +19,12 @@ export function AppShell() {
   const features = useFeatures();
   const isBeta = useBetaMode();
   const [menuOpen, setMenuOpen] = useState(false);
+  // Gesto: puxar da borda esquerda abre o menu; arrastar o menu para a esquerda fecha.
+  useEdgeSwipe(() => {
+    if (isBeta) hapticTap();
+    setMenuOpen(true);
+  }, !menuOpen);
+  const closeSwipeStart = useRef<SwipePoint | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
@@ -116,6 +124,16 @@ export function AppShell() {
             onClick={() => setMenuOpen(false)}
           />
           <nav
+            onTouchStart={(e) => {
+              const t = e.touches[0];
+              closeSwipeStart.current = e.touches.length === 1 ? { x: t.clientX, y: t.clientY } : null;
+            }}
+            onTouchEnd={(e) => {
+              const from = closeSwipeStart.current;
+              closeSwipeStart.current = null;
+              const t = e.changedTouches[0];
+              if (from && t && isCloseSwipe(from, { x: t.clientX, y: t.clientY })) setMenuOpen(false);
+            }}
             className="fixed top-0 left-0 bottom-0 w-[300px] max-w-[82vw] bg-[var(--bg-deep)] border-r border-[rgba(201,165,90,0.08)] z-[101] flex flex-col animate-[slideFromLeft_0.3s_ease-out]"
             style={{
               paddingTop: "var(--safe-top)",
