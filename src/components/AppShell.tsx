@@ -102,7 +102,9 @@ export function AppShell() {
       <OfflineBanner online={online} pending={pending} />
 
       {/* ── Content ── */}
-      <main ref={mainRef} className="flex-1 overflow-y-auto">
+      {/* overflow-clip (e não overflow-y-auto): o app rola a JANELA; com overflow-auto o <main> viraria o
+          container de rolagem do `position: sticky` das telas (ex.: hero da Home) e ele nunca grudaria. */}
+      <main ref={mainRef} className="flex-1 overflow-clip">
         <Outlet />
       </main>
 

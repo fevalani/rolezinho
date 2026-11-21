@@ -678,6 +678,20 @@ body::before {
 @keyframes roots-upright { to { transform: rotate(-360deg); } }
 .roots-ring { animation: roots-orbit var(--roots-orbit-duration, 90s) linear infinite; }
 .roots-face { animation: roots-upright var(--roots-orbit-duration, 90s) linear infinite; }
+/* Brinde no centro do anel: largura proporcional ao quadrado do hero. */
+.roots-stage { container-type: inline-size; }
+.roots-toast {
+  width: 7rem; /* reserva p/ WebView sem container queries */
+  width: 30cqw;
+  height: auto;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.5));
+  animation: roots-toast 4s ease-in-out infinite;
+}
+@keyframes roots-toast {
+  0%, 100% { transform: translate(-50%, -50%) rotate(-6deg) scale(1); }
+  50% { transform: translate(-50%, -50%) rotate(6deg) scale(1.06); }
+}
 @media (prefers-reduced-motion: reduce) {
-  .roots-ring, .roots-face { animation: none; }
+  .roots-ring, .roots-face, .roots-toast { animation: none; }
 }

@@ -44,3 +44,5 @@ supabase/.temp/
 # chat-insights (estatísticas do chat): saída local
 scripts/chat-insights/output/
 scripts/chat-insights/**/__pycache__/
+scripts/tests/__pycache__/
+scripts/hero-source/
