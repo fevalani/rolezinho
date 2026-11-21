@@ -46,7 +46,7 @@ describe("registro de seções", () => {
     const ids = ADMIN_SECTIONS.map((s) => s.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const s of ADMIN_SECTIONS) expect(s.title && s.description && s.icon).toBeTruthy();
-    expect(ids).toEqual(expect.arrayContaining(["temas", "wrapped", "features", "usuarios", "admins"]));
+    expect(ids).toEqual(expect.arrayContaining(["temas", "wrapped", "estatisticas", "features", "usuarios", "admins"]));
   });
   it("findAdminSection", () => {
     expect(findAdminSection("wrapped")?.title).toBe("Wrapped");

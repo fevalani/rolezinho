@@ -123,6 +123,11 @@ const WrappedPage = lazyNamed(
   "WrappedPage",
 );
 
+const ChatStatsPage = lazyNamed(
+  () => import("./features/chatstats/ChatStatsPage"),
+  "ChatStatsPage",
+);
+
 function RouteFallback() {
   return (
     <div
@@ -243,6 +248,8 @@ function AppRoutes() {
           <Route path="/duelos/:id" element={<DuelosPlayPage />} />
           <Route path="/wrapped" element={<WrappedPage />} />
           <Route path="/wrapped/:slug" element={<WrappedPage />} />
+          <Route path="/estatisticas" element={<ChatStatsPage />} />
+          <Route path="/estatisticas/:slug" element={<ChatStatsPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -37,6 +37,8 @@ import { RankingPage } from "@/features/ranking/RankingPage";
 import { RankingDetailPage } from "@/features/ranking/RankingDetailPage";
 import { DuelosPage } from "@/features/duelos/DuelosPage";
 import { DuelosPlayPage } from "@/features/duelos/DuelosPlayPage";
+import { ChatStatsPage } from "@/features/chatstats/ChatStatsPage";
+import { ChatStatsAdminPage } from "@/features/chatstats/ChatStatsAdminPage";
 import { WrappedPage } from "@/features/wrapped/WrappedPage";
 import { WrappedAdminPage } from "@/features/wrapped/WrappedAdminPage";
 import { AdminPage, AdminSectionPage } from "@/features/admin/AdminPage";
@@ -84,6 +86,9 @@ const PAGES: Case[] = [
   { name: "DuelosPage", Component: DuelosPage, pattern: "/duelos", route: "/duelos" },
   { name: "DuelosPlayPage", Component: DuelosPlayPage, pattern: "/duelos/:id", route: "/duelos/d1" },
   { name: "WrappedPage", Component: WrappedPage, pattern: "/wrapped", route: "/wrapped" },
+  { name: "ChatStatsPage", Component: ChatStatsPage, pattern: "/estatisticas", route: "/estatisticas" },
+  { name: "ChatStatsAdminPage", Component: ChatStatsAdminPage, pattern: "/admin/estatisticas", route: "/admin/estatisticas" },
+  { name: "AdminSectionEstatisticas", Component: AdminSectionPage, pattern: "/admin/:section", route: "/admin/estatisticas" },
   { name: "AdminPage", Component: AdminPage, pattern: "/admin", route: "/admin" },
   { name: "AdminSectionPage", Component: AdminSectionPage, pattern: "/admin/:section", route: "/admin/wrapped" },
   { name: "AdminSectionFeatures", Component: AdminSectionPage, pattern: "/admin/:section", route: "/admin/features" },

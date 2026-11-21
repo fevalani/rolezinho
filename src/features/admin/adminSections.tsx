@@ -1,4 +1,5 @@
 import { ThemesAdminPage } from "@/pages/ThemesAdminPage";
+import { ChatStatsAdminPage } from "@/features/chatstats/ChatStatsAdminPage";
 import { WrappedAdminPage } from "@/features/wrapped/WrappedAdminPage";
 import { AdminsSection } from "./AdminsSection";
 import { FeaturesSection } from "./FeaturesSection";
@@ -23,6 +24,13 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     description: "Edições da retrospectiva e quem pode ver",
     icon: "🎁",
     Component: WrappedAdminPage,
+  },
+  {
+    id: "estatisticas",
+    title: "Estatísticas do chat",
+    description: "Análise do WhatsApp e quem pode ver (modo dev)",
+    icon: "📊",
+    Component: ChatStatsAdminPage,
   },
   {
     id: "features",

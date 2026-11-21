@@ -1,0 +1,341 @@
+{
+  "slug": "2026",
+  "title": "Estatísticas 2026",
+  "generatedAt": "2026-11-01T00:00:00",
+  "periodStart": "2026-01-05",
+  "periodEnd": "2026-10-29",
+  "totalMessages": 480,
+  "activeDays": 102,
+  "conversations": 73,
+  "byHour": [
+    0,
+    0,
+    3,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    24,
+    34,
+    81,
+    94,
+    68,
+    32,
+    0,
+    0,
+    0,
+    144,
+    0,
+    0
+  ],
+  "byWeekday": [
+    54,
+    37,
+    47,
+    47,
+    46,
+    199,
+    50
+  ],
+  "byMonth": [
+    {
+      "month": "2026-01",
+      "messages": 29,
+      "avgChars": 16.9
+    },
+    {
+      "month": "2026-02",
+      "messages": 31,
+      "avgChars": 17.3
+    },
+    {
+      "month": "2026-03",
+      "messages": 78,
+      "avgChars": 17.8
+    },
+    {
+      "month": "2026-04",
+      "messages": 37,
+      "avgChars": 16.3
+    },
+    {
+      "month": "2026-05",
+      "messages": 36,
+      "avgChars": 15.7
+    },
+    {
+      "month": "2026-06",
+      "messages": 81,
+      "avgChars": 19.1
+    },
+    {
+      "month": "2026-07",
+      "messages": 38,
+      "avgChars": 16.0
+    },
+    {
+      "month": "2026-08",
+      "messages": 40,
+      "avgChars": 19.0
+    },
+    {
+      "month": "2026-09",
+      "messages": 82,
+      "avgChars": 19.0
+    },
+    {
+      "month": "2026-10",
+      "messages": 28,
+      "avgChars": 15.9
+    }
+  ],
+  "longestStreak": {
+    "days": 2,
+    "start": "2026-03-14",
+    "end": "2026-03-15"
+  },
+  "people": [
+    {
+      "name": "Beto",
+      "messages": 170,
+      "share": 35.4,
+      "avgChars": 17.5,
+      "medianResponseSec": 240,
+      "starts": 25,
+      "enders": 23,
+      "questionRate": 12.0,
+      "nightMessages": 0,
+      "audio": 0,
+      "stickers": 0,
+      "photos": 3,
+      "laughPercent": 20.0,
+      "signatureEmoji": "☕"
+    },
+    {
+      "name": "Ana",
+      "messages": 167,
+      "share": 34.8,
+      "avgChars": 17.3,
+      "medianResponseSec": 300,
+      "starts": 34,
+      "enders": 33,
+      "questionRate": 6.0,
+      "nightMessages": 0,
+      "audio": 0,
+      "stickers": 0,
+      "photos": 0,
+      "laughPercent": 19.2,
+      "signatureEmoji": "☕"
+    },
+    {
+      "name": "Caio",
+      "messages": 106,
+      "share": 22.1,
+      "avgChars": 18.0,
+      "medianResponseSec": 60,
+      "starts": 14,
+      "enders": 16,
+      "questionRate": 5.9,
+      "nightMessages": 2,
+      "audio": 1,
+      "stickers": 0,
+      "photos": 3,
+      "laughPercent": 29.2,
+      "signatureEmoji": "☕"
+    },
+    {
+      "name": "Dani",
+      "messages": 37,
+      "share": 7.7,
+      "avgChars": 19.6,
+      "medianResponseSec": 60,
+      "starts": 0,
+      "enders": 1,
+      "questionRate": 15.2,
+      "nightMessages": 1,
+      "audio": 0,
+      "stickers": 1,
+      "photos": 3,
+      "laughPercent": 78.4,
+      "signatureEmoji": "😂"
+    }
+  ],
+  "interactions": [
+    {
+      "from": "Beto",
+      "to": "Ana",
+      "count": 70
+    },
+    {
+      "from": "Caio",
+      "to": "Beto",
+      "count": 50
+    },
+    {
+      "from": "Ana",
+      "to": "Beto",
+      "count": 37
+    },
+    {
+      "from": "Dani",
+      "to": "Caio",
+      "count": 34
+    },
+    {
+      "from": "Ana",
+      "to": "Dani",
+      "count": 33
+    },
+    {
+      "from": "Caio",
+      "to": "Ana",
+      "count": 21
+    },
+    {
+      "from": "Beto",
+      "to": "Caio",
+      "count": 20
+    },
+    {
+      "from": "Ana",
+      "to": "Caio",
+      "count": 19
+    }
+  ],
+  "catchphrases": [
+    {
+      "phrase": "manda a localização",
+      "count": 61,
+      "topAuthor": "Ana"
+    },
+    {
+      "phrase": "bom dia grupo",
+      "count": 55,
+      "topAuthor": "Ana"
+    },
+    {
+      "phrase": "leva o gelo",
+      "count": 52,
+      "topAuthor": "Ana"
+    },
+    {
+      "phrase": "quem leva o",
+      "count": 52,
+      "topAuthor": "Ana"
+    },
+    {
+      "phrase": "alguém viu o",
+      "count": 48,
+      "topAuthor": "Ana"
+    },
+    {
+      "phrase": "o jogo ontem",
+      "count": 48,
+      "topAuthor": "Ana"
+    },
+    {
+      "phrase": "viu o jogo",
+      "count": 48,
+      "topAuthor": "Ana"
+    },
+    {
+      "phrase": "chego em 10",
+      "count": 45,
+      "topAuthor": "Ana"
+    },
+    {
+      "phrase": "em 10 min",
+      "count": 45,
+      "topAuthor": "Ana"
+    },
+    {
+      "phrase": "foi muito engraçado",
+      "count": 42,
+      "topAuthor": "Beto"
+    },
+    {
+      "phrase": "bora pro rolê",
+      "count": 40,
+      "topAuthor": "Beto"
+    }
+  ],
+  "topWords": [
+    {
+      "word": "localização",
+      "count": 61
+    },
+    {
+      "word": "manda",
+      "count": 61
+    },
+    {
+      "word": "grupo",
+      "count": 56
+    },
+    {
+      "word": "gelo",
+      "count": 52
+    },
+    {
+      "word": "leva",
+      "count": 52
+    },
+    {
+      "word": "jogo",
+      "count": 48
+    },
+    {
+      "word": "morri",
+      "count": 48
+    },
+    {
+      "word": "viu",
+      "count": 48
+    },
+    {
+      "word": "chego",
+      "count": 45
+    },
+    {
+      "word": "min",
+      "count": 45
+    },
+    {
+      "word": "engraçado",
+      "count": 42
+    },
+    {
+      "word": "chegando",
+      "count": 41
+    },
+    {
+      "word": "bora",
+      "count": 40
+    },
+    {
+      "word": "rolê",
+      "count": 40
+    },
+    {
+      "word": "dormir",
+      "count": 36
+    },
+    {
+      "word": "dorme",
+      "count": 1
+    },
+    {
+      "word": "nesse",
+      "count": 1
+    },
+    {
+      "word": "ninguém",
+      "count": 1
+    }
+  ]
+}

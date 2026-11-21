@@ -40,3 +40,7 @@ scripts/wrapped-pipeline/wrapped_config.json
 
 # Estado local do Supabase CLI (link, versões) — muda a cada comando
 supabase/.temp/
+
+# chat-insights (estatísticas do chat): saída local
+scripts/chat-insights/output/
+scripts/chat-insights/**/__pycache__/

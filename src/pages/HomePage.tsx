@@ -10,6 +10,8 @@ import { useSeasonalTheme } from "@/lib/seasonal/SeasonalThemeContext";
 import { formatMdLong, occasionMdFor } from "@/lib/seasonal/themes";
 import { JumbledText } from "@/components/JumbledText";
 import { fetchEdition } from "@/features/wrapped/wrappedService";
+import { fetchChatStats } from "@/features/chatstats/chatStatsService";
+import type { ChatStats } from "@/features/chatstats/chatStatsTypes";
 import type { WrappedEdition } from "@/features/wrapped/wrappedTypes";
 import { useDevMode } from "@/lib/useDevMode";
 import { RolezinhoOrbit } from "@/features/home/RolezinhoOrbit";
@@ -59,6 +61,16 @@ export function HomePage() {
   const [nextEvent, setNextEvent] = useState<NextAgendaEvent | null>(null);
 
   const [wrapped, setWrapped] = useState<WrappedEdition | null>(null);
+  // Estatísticas do chat: só em modo dev, e o card só aparece se a RLS deixar esta pessoa ver algum snapshot.
+  const [chatStats, setChatStats] = useState<ChatStats | null>(null);
+  useEffect(() => {
+    if (!devMode) return;
+    let alive = true;
+    fetchChatStats().then((s) => alive && setChatStats(s));
+    return () => {
+      alive = false;
+    };
+  }, [devMode]);
   useEffect(() => {
     let alive = true;
     fetchEdition().then((e) => alive && setWrapped(e));
@@ -324,6 +336,21 @@ export function HomePage() {
               <span className="block text-xs opacity-90 mt-0.5">
                 {wrapped.subtitle ?? "Veja a sua retrospectiva"}
               </span>
+            </span>
+          </button>
+        )}
+
+        {/* Estatísticas do chat (modo dev + acesso liberado pelo admin) */}
+        {devMode && chatStats && (
+          <button
+            onClick={() => navigate(`/estatisticas/${chatStats.slug}`)}
+            className="w-full flex items-center gap-3 py-3.5 px-4 rounded-xl text-left bg-(--bg-card)
+              border border-[rgba(201,165,90,0.25)] hover:-translate-y-0.5 transition-all anim-slideUp"
+          >
+            <span className="text-2xl shrink-0">📊</span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-bold leading-tight text-(--text-primary)">{chatStats.title}</span>
+              <span className="block text-xs text-(--text-muted) mt-0.5">Análise do chat do grupo</span>
             </span>
           </button>
         )}

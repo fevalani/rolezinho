@@ -110,3 +110,31 @@ describe("bolao_permissions_migration.sql", () => {
     expect(count).toBe(6); // can_manage + as 5 protegidas
   });
 });
+
+describe("chat_stats_migration.sql", () => {
+  const s = sql("chat_stats_migration.sql");
+  const code = s.replace(/--.*$/gm, "");
+  it("cria as duas tabelas com RLS ligada", () => {
+    expect(code).toMatch(/create table if not exists public\.chat_stats_snapshots/i);
+    expect(code).toMatch(/create table if not exists public\.chat_stats_viewers/i);
+    expect(code.match(/enable row level security/gi)?.length).toBe(2);
+  });
+  it("só admin escreve (is_app_admin), sem e-mail fixo", () => {
+    expect(code).not.toMatch(EMAIL);
+    expect(code).toMatch(/"chat_stats_snapshots_admin_write"[\s\S]*?for all to authenticated\s+using \(public\.is_app_admin\(\)\)\s+with check \(public\.is_app_admin\(\)\)/i);
+    expect(code).toMatch(/"chat_stats_viewers_admin_write"[\s\S]*?using \(public\.is_app_admin\(\)\)\s+with check \(public\.is_app_admin\(\)\)/i);
+  });
+  it("leitura do snapshot exige estar na lista de viewers (ou ser admin) e estar ativo", () => {
+    const sel = code.match(/create policy "chat_stats_snapshots_select"[\s\S]*?;/i)![0];
+    expect(sel).toMatch(/is_active/);
+    expect(sel).toMatch(/from public\.chat_stats_viewers/);
+    expect(sel).toMatch(/v\.user_id = auth\.uid\(\)/);
+    expect(sel).toMatch(/public\.is_app_admin\(\)/);
+  });
+  it("viewer só enxerga a própria linha", () => {
+    expect(code).toMatch(/"chat_stats_viewers_select"[\s\S]*?user_id = auth\.uid\(\) or public\.is_app_admin\(\)/i);
+  });
+  it("nenhuma política dá acesso a anon ou a todos", () => {
+    expect(code).not.toMatch(/to anon|to public|using \(true\)/i);
+  });
+});
