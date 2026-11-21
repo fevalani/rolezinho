@@ -1,4 +1,8 @@
-const CACHE_NAME = 'rolezinho-v2';
+// BUILD_ID e PRECACHE_URLS são preenchidos no build por scripts/inject-precache.mjs
+// (todos os arquivos de /assets/, para o app abrir offline em qualquer tela).
+const BUILD_ID = '__BUILD_ID__';
+const PRECACHE_URLS = /*__PRECACHE__*/ [];
+const CACHE_NAME = 'rolezinho-' + BUILD_ID;
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -34,7 +38,10 @@ if (IS_DEV) {
   // Install — cache shell assets
   self.addEventListener('install', (event) => {
     event.waitUntil(
-      caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
+      caches.open(CACHE_NAME).then(async (cache) => {
+        // Um arquivo que falhe não impede o resto de ser guardado nem a instalação
+        await Promise.allSettled([...ASSETS_TO_CACHE, ...PRECACHE_URLS].map((u) => cache.add(u)));
+      })
     );
     self.skipWaiting();
   });
@@ -49,7 +56,10 @@ if (IS_DEV) {
     self.clients.claim();
   });
 
-  // Fetch — network first, fallback to cache
+  // Fetch
+  //  • /assets/ (nome com hash, nunca muda): cache primeiro
+  //  • páginas (navegação): rede primeiro; sem rede, a página guardada ou o index.html (SPA)
+  //  • demais: rede primeiro, cache como reserva
   self.addEventListener('fetch', (event) => {
     if (event.request.method !== 'GET') return;
 
@@ -63,16 +73,35 @@ if (IS_DEV) {
       url.includes('youtube.com/oembed')
     ) return;
 
+    const store = (response) => {
+      if (response.ok) {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+      }
+      return response;
+    };
+
+    const { pathname } = new URL(url);
+    if (pathname.startsWith('/assets/')) {
+      event.respondWith(
+        caches.match(event.request).then((hit) => hit || fetch(event.request).then(store))
+      );
+      return;
+    }
+
+    if (event.request.mode === 'navigate') {
+      event.respondWith(
+        fetch(event.request)
+          .then(store)
+          .catch(() =>
+            caches.match(event.request).then((hit) => hit || caches.match('/index.html'))
+          )
+      );
+      return;
+    }
+
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => caches.match(event.request))
+      fetch(event.request).then(store).catch(() => caches.match(event.request))
     );
   });
 }

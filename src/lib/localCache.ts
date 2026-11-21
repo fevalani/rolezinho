@@ -66,3 +66,53 @@ export function clearAllCache(): void {
     /* noop */
   }
 }
+
+// ── Leitura com cache (funciona offline) ────────────────────────
+
+/** Resultado de uma consulta do Supabase (`{ data, error }`), sem depender do tipo do builder. */
+interface QueryResult<T> {
+  data: T | null;
+  error: { message: string } | null;
+}
+
+/**
+ * Executa a consulta e guarda o resultado. Se ela falhar (sem rede, erro do servidor)
+ * e houver um resultado guardado, devolve esse — assim a tela abre offline com os
+ * últimos dados. Sem cache, devolve `{ data: null, error }` como o Supabase faria.
+ */
+export async function cachedQuery<T>(
+  key: string,
+  run: () => PromiseLike<QueryResult<T>>,
+): Promise<QueryResult<T>> {
+  let result: QueryResult<T>;
+  try {
+    result = await run();
+  } catch (e) {
+    result = { data: null, error: { message: e instanceof Error ? e.message : String(e) } };
+  }
+  if (!result.error && result.data !== null) {
+    writeCache(key, result.data);
+    return result;
+  }
+  const cached = readCache<T>(key);
+  if (cached !== null) return { data: cached, error: null };
+  return result;
+}
+
+/**
+ * Como `cachedQuery`, mas para uma função inteira (várias consultas + montagem do
+ * resultado). `load` deve LANÇAR erro quando a consulta principal falhar; nesse caso
+ * devolve a última cópia guardada ou, sem cópia, `fallback`.
+ */
+export async function cachedValue<T>(key: string, load: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    const value = await load();
+    writeCache(key, value);
+    return value;
+  } catch (e) {
+    const cached = readCache<T>(key);
+    if (cached !== null) return cached;
+    console.error(`[${key}]`, e);
+    return fallback;
+  }
+}

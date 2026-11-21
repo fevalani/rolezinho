@@ -1,4 +1,6 @@
 import { supabase } from "@/lib/supabase";
+import { cachedQuery } from "@/lib/localCache";
+import { fetchMyGameRow, saveMyGameRow } from "@/lib/offlineGames";
 import type {
   GameStatus,
   LeaderboardEntry,
@@ -32,14 +34,12 @@ export async function getTodayGame(
   userId: string,
   gameDate: string,
 ): Promise<LetrecoGame | null> {
-  const { data } = await supabase
-    .from("letreco_games")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("game_date", gameDate)
-    .maybeSingle();
-
-  return data ? mapGameRow(data as Record<string, unknown>) : null;
+  try {
+    const row = await fetchMyGameRow("letreco_games", userId, gameDate);
+    return row ? mapGameRow(row) : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -59,20 +59,15 @@ export async function saveGame(
   const finished_at =
     fields.status === "playing" ? null : new Date().toISOString();
 
-  const { error } = await supabase.from("letreco_games").upsert(
-    {
-      user_id: userId,
-      game_date: gameDate,
+  const { error } = await saveMyGameRow("letreco_games", userId, gameDate, {
       guesses: fields.guesses,
       status: fields.status,
       attempts: fields.attempts,
       score: fields.score,
       finished_at,
-    },
-    { onConflict: "user_id,game_date" },
-  );
+    });
 
-  return { error: error?.message ?? null };
+  return { error };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -86,10 +81,12 @@ export async function saveGame(
  * dicionário base do `words.txt`.
  */
 export async function getApprovedWords(): Promise<string[]> {
-  const { data, error } = await supabase
-    .from("letreco_suggested_words")
-    .select("word")
-    .eq("status", "approved");
+  const { data, error } = await cachedQuery(`lb:getApprovedWords`, () =>
+      supabase
+        .from("letreco_suggested_words")
+        .select("word")
+        .eq("status", "approved"),
+    );
 
   if (error || !data) return [];
   return data.map((d) => (d as { word: string }).word);
@@ -155,11 +152,13 @@ export async function suggestWord(
 export async function getDailyLeaderboard(
   gameDate: string,
 ): Promise<LeaderboardEntry[]> {
-  const { data } = await supabase
-    .from("letreco_games")
-    .select("user_id, status, attempts, score, finished_at, profiles(display_name, avatar_url)")
-    .eq("game_date", gameDate)
-    .neq("status", "playing");
+  const { data } = await cachedQuery(`lb:getDailyLeaderboard:${gameDate}`, () =>
+      supabase
+        .from("letreco_games")
+        .select("user_id, status, attempts, score, finished_at, profiles(display_name, avatar_url)")
+        .eq("game_date", gameDate)
+        .neq("status", "playing"),
+    );
 
   const rows = (data ?? []) as Record<string, unknown>[];
 
@@ -190,10 +189,12 @@ export async function getDailyLeaderboard(
  * Ordena por pontos desc, depois mais vitórias, depois mais jogos.
  */
 export async function getOverallLeaderboard(): Promise<OverallEntry[]> {
-  const { data } = await supabase
-    .from("letreco_games")
-    .select("user_id, status, score, profiles(display_name, avatar_url)")
-    .neq("status", "playing");
+  const { data } = await cachedQuery(`lb:getOverallLeaderboard`, () =>
+      supabase
+        .from("letreco_games")
+        .select("user_id, status, score, profiles(display_name, avatar_url)")
+        .neq("status", "playing"),
+    );
 
   const rows = (data ?? []) as Record<string, unknown>[];
   const byUser = new Map<string, OverallEntry>();
@@ -236,12 +237,14 @@ export async function getUserStats(
   userId: string,
   today: string = getGameDate(),
 ): Promise<LetrecoStats> {
-  const { data } = await supabase
-    .from("letreco_games")
-    .select("game_date, status, attempts, score")
-    .eq("user_id", userId)
-    .neq("status", "playing")
-    .order("game_date", { ascending: true });
+  const { data } = await cachedQuery(`lb:getUserStats:${userId}`, () =>
+      supabase
+        .from("letreco_games")
+        .select("game_date, status, attempts, score")
+        .eq("user_id", userId)
+        .neq("status", "playing")
+        .order("game_date", { ascending: true }),
+    );
 
   const rows = (data ?? []) as {
     game_date: string;

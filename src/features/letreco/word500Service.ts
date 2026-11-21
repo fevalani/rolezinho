@@ -1,4 +1,6 @@
 import { supabase } from "@/lib/supabase";
+import { cachedQuery } from "@/lib/localCache";
+import { fetchMyGameRow, saveMyGameRow } from "@/lib/offlineGames";
 import type {
   GameStatus,
   Word500Game,
@@ -29,15 +31,8 @@ export async function getWord500TodayGame(
   gameDate: string,
 ): Promise<Word500Game | null> {
   try {
-    const { data, error } = await supabase
-      .from("word500_games")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("game_date", gameDate)
-      .maybeSingle();
-
-    if (error) return null;
-    return data ? mapRow(data as Record<string, unknown>) : null;
+    const row = await fetchMyGameRow("word500_games", userId, gameDate);
+    return row ? mapRow(row) : null;
   } catch {
     return null;
   }
@@ -50,19 +45,14 @@ export async function saveWord500Game(
 ): Promise<{ error: string | null }> {
   try {
     const finished_at = fields.status === "playing" ? null : new Date().toISOString();
-    const { error } = await supabase.from("word500_games").upsert(
-      {
-        user_id: userId,
-        game_date: gameDate,
+    const { error } = await saveMyGameRow("word500_games", userId, gameDate, {
         guesses: fields.guesses,
         status: fields.status,
         attempts: fields.attempts,
         score: fields.score,
         finished_at,
-      },
-      { onConflict: "user_id,game_date" },
-    );
-    return { error: error?.message ?? null };
+      });
+    return { error };
   } catch (e) {
     return { error: String(e) };
   }
@@ -72,11 +62,13 @@ export async function getWord500DailyLeaderboard(
   gameDate: string,
 ): Promise<Word500LeaderboardEntry[]> {
   try {
-    const { data } = await supabase
-      .from("word500_games")
-      .select("user_id, status, attempts, score, finished_at, profiles(display_name, avatar_url)")
-      .eq("game_date", gameDate)
-      .neq("status", "playing");
+    const { data } = await cachedQuery(`lb:getWord500DailyLeaderboard:${gameDate}`, () =>
+      supabase
+        .from("word500_games")
+        .select("user_id, status, attempts, score, finished_at, profiles(display_name, avatar_url)")
+        .eq("game_date", gameDate)
+        .neq("status", "playing"),
+    );
 
     const rows = (data ?? []) as Record<string, unknown>[];
     return rows
@@ -104,10 +96,12 @@ export async function getWord500DailyLeaderboard(
 
 export async function getWord500OverallEntries(): Promise<Word500OverallEntry[]> {
   try {
-    const { data } = await supabase
-      .from("word500_games")
-      .select("user_id, status, score, profiles(display_name, avatar_url)")
-      .neq("status", "playing");
+    const { data } = await cachedQuery(`lb:getWord500OverallEntries`, () =>
+      supabase
+        .from("word500_games")
+        .select("user_id, status, score, profiles(display_name, avatar_url)")
+        .neq("status", "playing"),
+    );
 
     const rows = (data ?? []) as Record<string, unknown>[];
     const byUser = new Map<string, Word500OverallEntry>();

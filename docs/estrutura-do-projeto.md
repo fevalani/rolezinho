@@ -122,6 +122,7 @@ Arquivos locais: `.env.local` (dev) e `.env.production`.
 - Lógica sensível a permissões fica em RPC `SECURITY DEFINER` (ranking, bolão, racha-conta), não em policies de UPDATE.
 - Perfis são lidos por join em `profiles` e FKs apontam para `profiles`; houve bug de FK nos leaderboards dos jogos (`game_leaderboard_fk_fix_migration.sql`).
 - Jogos diários usam seed por data (fuso de São Paulo) e uma linha por usuário/dia.
+- **Uso offline** (`src/lib/online.ts`, `localCache.ts`, `offlineQueue.ts`, `offlineGames.ts`, `useOfflineSync.ts`): `public/sw.js` guarda a tela e todos os arquivos de `/assets/` (a lista é gravada no build por `scripts/inject-precache.mjs`) e abre o app sem rede; leituras de jogos, ranking, agenda e home usam `cachedQuery`/`cachedValue` (última cópia em `localStorage`, limpa no logout); escritas de partidas dos jogos diários e confirmações da agenda usam `upsertOrQueue` (fila em `localStorage`, reenviada ao abrir o app e quando a rede volta; erro do banco/RLS descarta após 5 tentativas). O Letroso valida palpite offline só com a lista de respostas, as palavras já aceitas antes e o dicionário de 5 letras do Letreco. Serviço novo que leia dados importantes deve usar esses helpers.
 - Chamadas a APIs de futebol: dev usa proxy do Vite, web em produção usa `/api/*-proxy`, APK usa fetch nativo com a chave.
 - Estilo: Tailwind + `global.css` com variáveis CSS (`--bg-abyss` etc.); temas sazonais por `data-decor` e CSS em `styles/seasons`.
 - Mensagens e UI em pt-BR; commits em português com prefixo (`feat:`, `docs:`).

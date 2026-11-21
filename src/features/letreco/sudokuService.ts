@@ -1,4 +1,6 @@
 import { supabase } from "@/lib/supabase";
+import { cachedQuery } from "@/lib/localCache";
+import { fetchMyGameRow, saveMyGameRow } from "@/lib/offlineGames";
 import type {
   GameStatus,
   SudokuDifficulty,
@@ -34,15 +36,8 @@ export async function getSudokuTodayGame(
   gameDate: string,
 ): Promise<SudokuGameRow | null> {
   try {
-    const { data, error } = await supabase
-      .from("sudoku_games")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("game_date", gameDate)
-      .maybeSingle();
-
-    if (error) return null;
-    return data ? mapRow(data as Record<string, unknown>) : null;
+    const row = await fetchMyGameRow("sudoku_games", userId, gameDate);
+    return row ? mapRow(row) : null;
   } catch {
     return null;
   }
@@ -63,10 +58,7 @@ export async function saveSudokuGame(
 ): Promise<{ error: string | null }> {
   try {
     const finished_at = fields.status === "won" ? new Date().toISOString() : null;
-    const { error } = await supabase.from("sudoku_games").upsert(
-      {
-        user_id: userId,
-        game_date: gameDate,
+    const { error } = await saveMyGameRow("sudoku_games", userId, gameDate, {
         difficulty: fields.difficulty,
         board: fields.board,
         mistakes: fields.mistakes,
@@ -75,10 +67,8 @@ export async function saveSudokuGame(
         score: fields.score,
         started_at: fields.started_at,
         finished_at,
-      },
-      { onConflict: "user_id,game_date" },
-    );
-    return { error: error?.message ?? null };
+      });
+    return { error };
   } catch (e) {
     return { error: String(e) };
   }
@@ -88,13 +78,15 @@ export async function getSudokuDailyLeaderboard(
   gameDate: string,
 ): Promise<SudokuLeaderboardEntry[]> {
   try {
-    const { data } = await supabase
-      .from("sudoku_games")
-      .select(
+    const { data } = await cachedQuery(`lb:getSudokuDailyLeaderboard:${gameDate}`, () =>
+      supabase
+        .from("sudoku_games")
+        .select(
         "user_id, status, difficulty, mistakes, elapsed_seconds, score, finished_at, profiles(display_name, avatar_url)",
-      )
-      .eq("game_date", gameDate)
-      .eq("status", "won");
+        )
+        .eq("game_date", gameDate)
+        .eq("status", "won"),
+    );
 
     const rows = (data ?? []) as Record<string, unknown>[];
     return rows
@@ -124,10 +116,12 @@ export async function getSudokuDailyLeaderboard(
 
 export async function getSudokuOverallEntries(): Promise<SudokuOverallEntry[]> {
   try {
-    const { data } = await supabase
-      .from("sudoku_games")
-      .select("user_id, status, score, profiles(display_name, avatar_url)")
-      .eq("status", "won");
+    const { data } = await cachedQuery(`lb:getSudokuOverallEntries`, () =>
+      supabase
+        .from("sudoku_games")
+        .select("user_id, status, score, profiles(display_name, avatar_url)")
+        .eq("status", "won"),
+    );
 
     const rows = (data ?? []) as Record<string, unknown>[];
     const byUser = new Map<string, SudokuOverallEntry>();

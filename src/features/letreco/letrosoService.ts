@@ -1,5 +1,9 @@
 import { supabase } from "@/lib/supabase";
+import { cachedQuery, readCache, writeCache } from "@/lib/localCache";
+import { isNetworkErrorMessage, isOnline } from "@/lib/online";
+import { fetchMyGameRow, saveMyGameRow } from "@/lib/offlineGames";
 import { LETROSO_WORDS, normalize } from "./letrosoLogic";
+import { isValidWord } from "./letrecoLogic";
 import type {
   GameStatus,
   LetrosoGame,
@@ -14,15 +18,33 @@ import type { OverallEntry } from "./letrecoTypes";
 // uma resposta ausente dele seria recusada como "palavra não encontrada".
 const ANSWER_POOL = new Set(LETROSO_WORDS);
 
+const VALIDATED_KEY = "letroso:validated-words";
+const MAX_REMEMBERED = 3000;
+
+function rememberValid(word: string): void {
+  const known = readCache<string[]>(VALIDATED_KEY) ?? [];
+  if (known.includes(word)) return;
+  writeCache(VALIDATED_KEY, [...known, word].slice(-MAX_REMEMBERED));
+}
+
+/**
+ * Valida o palpite. Online: pelo dicionário do banco (e lembra as palavras aceitas).
+ * Sem rede: aceita as respostas do jogo, as já validadas antes neste aparelho e as
+ * palavras de 5 letras do dicionário local do Letreco.
+ */
 export async function validateLetrosoWord(word: string): Promise<boolean> {
   const w = normalize(word);
   if (ANSWER_POOL.has(w)) return true;
+  if ((readCache<string[]>(VALIDATED_KEY) ?? []).includes(w)) return true;
+  const offlineGuess = () => isValidWord(w);
+  if (!isOnline()) return offlineGuess();
   try {
     const { data, error } = await supabase.rpc("validate_letroso_word", { p_word: w });
-    if (error) return false;
+    if (error) return isNetworkErrorMessage(error.message) ? offlineGuess() : false;
+    if (data === true) rememberValid(w);
     return data === true;
-  } catch {
-    return false;
+  } catch (e) {
+    return isNetworkErrorMessage(e) ? offlineGuess() : false;
   }
 }
 
@@ -49,15 +71,8 @@ export async function getLetrosoTodayGame(
   gameDate: string,
 ): Promise<LetrosoGame | null> {
   try {
-    const { data, error } = await supabase
-      .from("letroso_games")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("game_date", gameDate)
-      .maybeSingle();
-
-    if (error) return null;
-    return data ? mapRow(data as Record<string, unknown>) : null;
+    const row = await fetchMyGameRow("letroso_games", userId, gameDate);
+    return row ? mapRow(row) : null;
   } catch {
     return null;
   }
@@ -70,19 +85,14 @@ export async function saveLetrosoGame(
 ): Promise<{ error: string | null }> {
   try {
     const finished_at = fields.status === "playing" ? null : new Date().toISOString();
-    const { error } = await supabase.from("letroso_games").upsert(
-      {
-        user_id: userId,
-        game_date: gameDate,
+    const { error } = await saveMyGameRow("letroso_games", userId, gameDate, {
         guesses: fields.guesses,
         status: fields.status,
         attempts: fields.attempts,
         score: fields.score,
         finished_at,
-      },
-      { onConflict: "user_id,game_date" },
-    );
-    return { error: error?.message ?? null };
+      });
+    return { error };
   } catch (e) {
     return { error: String(e) };
   }
@@ -92,11 +102,13 @@ export async function getLetrosoDailyLeaderboard(
   gameDate: string,
 ): Promise<LetrosoLeaderboardEntry[]> {
   try {
-    const { data } = await supabase
-      .from("letroso_games")
-      .select("user_id, status, attempts, score, finished_at, profiles(display_name, avatar_url)")
-      .eq("game_date", gameDate)
-      .neq("status", "playing");
+    const { data } = await cachedQuery(`lb:getLetrosoDailyLeaderboard:${gameDate}`, () =>
+      supabase
+        .from("letroso_games")
+        .select("user_id, status, attempts, score, finished_at, profiles(display_name, avatar_url)")
+        .eq("game_date", gameDate)
+        .neq("status", "playing"),
+    );
 
     const rows = (data ?? []) as Record<string, unknown>[];
     return rows
@@ -124,10 +136,12 @@ export async function getLetrosoDailyLeaderboard(
 
 export async function getLetrosoOverallEntries(): Promise<LetrosoOverallEntry[]> {
   try {
-    const { data } = await supabase
-      .from("letroso_games")
-      .select("user_id, status, score, profiles(display_name, avatar_url)")
-      .neq("status", "playing");
+    const { data } = await cachedQuery(`lb:getLetrosoOverallEntries`, () =>
+      supabase
+        .from("letroso_games")
+        .select("user_id, status, score, profiles(display_name, avatar_url)")
+        .neq("status", "playing"),
+    );
 
     const rows = (data ?? []) as Record<string, unknown>[];
     const byUser = new Map<string, LetrosoOverallEntry>();

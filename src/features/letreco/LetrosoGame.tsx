@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/lib/AuthContext";
+import { isOnline } from "@/lib/online";
 import { Avatar } from "@/components/Avatar";
 import {
   getLetrosoWordOfDay,
@@ -548,7 +549,7 @@ export function LetrosoGame() {
     setValidating(false);
     if (!valid) {
       setShake(true);
-      flashToast("Palavra não encontrada");
+      flashToast(isOnline() ? "Palavra não encontrada" : "Sem internet: palavra fora da lista offline");
       setTimeout(() => setShake(false), 450);
       return;
     }

@@ -1,4 +1,6 @@
 import { supabase } from "@/lib/supabase";
+import { cachedQuery } from "@/lib/localCache";
+import { fetchMyGameRow, saveMyGameRow } from "@/lib/offlineGames";
 import type {
   FronteirasDifficulty,
   FronteirasGame,
@@ -31,14 +33,8 @@ export async function getFronteirasTodayGame(
   gameDate: string,
 ): Promise<FronteirasGame | null> {
   try {
-    const { data, error } = await supabase
-      .from("fronteiras_games")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("game_date", gameDate)
-      .maybeSingle();
-    if (error) return null;
-    return data ? mapRow(data as Record<string, unknown>) : null;
+    const row = await fetchMyGameRow("fronteiras_games", userId, gameDate);
+    return row ? mapRow(row) : null;
   } catch {
     return null;
   }
@@ -56,20 +52,15 @@ export async function saveFronteirasGame(
 ): Promise<{ error: string | null }> {
   try {
     const finished_at = fields.status === "playing" ? null : new Date().toISOString();
-    const { error } = await supabase.from("fronteiras_games").upsert(
-      {
-        user_id: userId,
-        game_date: gameDate,
+    const { error } = await saveMyGameRow("fronteiras_games", userId, gameDate, {
         difficulty: fields.difficulty,
         guesses: fields.guesses,
         status: fields.status,
         attempts: fields.attempts,
         score: fields.score,
         finished_at,
-      },
-      { onConflict: "user_id,game_date" },
-    );
-    return { error: error?.message ?? null };
+      });
+    return { error };
   } catch (e) {
     return { error: String(e) };
   }
@@ -81,11 +72,13 @@ export async function getFronteirasDailyLeaderboard(
   gameDate: string,
 ): Promise<FronteirasLeaderboardEntry[]> {
   try {
-    const { data } = await supabase
-      .from("fronteiras_games")
-      .select("user_id, status, difficulty, attempts, score, finished_at, profiles(display_name, avatar_url)")
-      .eq("game_date", gameDate)
-      .neq("status", "playing");
+    const { data } = await cachedQuery(`lb:getFronteirasDailyLeaderboard:${gameDate}`, () =>
+      supabase
+        .from("fronteiras_games")
+        .select("user_id, status, difficulty, attempts, score, finished_at, profiles(display_name, avatar_url)")
+        .eq("game_date", gameDate)
+        .neq("status", "playing"),
+    );
 
     return ((data ?? []) as Record<string, unknown>[])
       .map((r) => {
@@ -113,10 +106,12 @@ export async function getFronteirasDailyLeaderboard(
 
 export async function getFronteirasOverallEntries(): Promise<FronteirasOverallEntry[]> {
   try {
-    const { data } = await supabase
-      .from("fronteiras_games")
-      .select("user_id, status, score, profiles(display_name, avatar_url)")
-      .neq("status", "playing");
+    const { data } = await cachedQuery(`lb:getFronteirasOverallEntries`, () =>
+      supabase
+        .from("fronteiras_games")
+        .select("user_id, status, score, profiles(display_name, avatar_url)")
+        .neq("status", "playing"),
+    );
 
     const byUser = new Map<string, FronteirasOverallEntry>();
     for (const r of (data ?? []) as Record<string, unknown>[]) {

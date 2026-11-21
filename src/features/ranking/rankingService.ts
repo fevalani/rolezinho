@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { cachedQuery, cachedValue } from "@/lib/localCache";
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_TABLE_ICON,
@@ -86,20 +87,28 @@ function buildEntries(
 export async function fetchAllProfiles(): Promise<
   { id: string; display_name: string; avatar_url: string | null }[]
 > {
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, display_name, avatar_url")
-    .order("display_name", { ascending: true });
+  const { data } = await cachedQuery("ranking:profiles", () =>
+    supabase
+      .from("profiles")
+      .select("id, display_name, avatar_url")
+      .order("display_name", { ascending: true }),
+  );
   return data ?? [];
 }
 
 // ─── Tabelas ────────────────────────────────────────────────────────────────
 
 export async function fetchAllTables(): Promise<RankingTableSummary[]> {
-  const { data: tableRows } = await supabase
+  // Sem rede, mostra a última lista guardada neste aparelho.
+  return cachedValue("ranking:tables", loadAllTables, []);
+}
+
+async function loadAllTables(): Promise<RankingTableSummary[]> {
+  const { data: tableRows, error } = await supabase
     .from("ranking_tables")
     .select("*")
     .order("created_at", { ascending: false });
+  if (error) throw error;
 
   const tables = ((tableRows ?? []) as Record<string, unknown>[]).map(mapTable);
   if (tables.length === 0) return [];
@@ -143,6 +152,10 @@ export async function fetchAllTables(): Promise<RankingTableSummary[]> {
 }
 
 export async function fetchTableDetail(tableId: string): Promise<RankingTableDetail | null> {
+  return cachedValue(`ranking:table:${tableId}`, () => loadTableDetail(tableId), null);
+}
+
+async function loadTableDetail(tableId: string): Promise<RankingTableDetail | null> {
   const [tableRes, categoriesRes, entriesRes] = await Promise.all([
     supabase.from("ranking_tables").select("*").eq("id", tableId).maybeSingle(),
     supabase
@@ -156,6 +169,9 @@ export async function fetchTableDetail(tableId: string): Promise<RankingTableDet
       .eq("table_id", tableId),
   ]);
 
+  if (tableRes.error || categoriesRes.error || entriesRes.error) {
+    throw tableRes.error ?? categoriesRes.error ?? entriesRes.error;
+  }
   if (!tableRes.data) return null;
 
   const categories = ((categoriesRes.data ?? []) as Record<string, unknown>[]).map(mapCategory);

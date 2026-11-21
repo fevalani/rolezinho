@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { cachedValue } from "@/lib/localCache";
 import {
   daysUntilYmd,
   filterBirthdaysToday,
@@ -13,10 +14,20 @@ const PROFILE_COLS = "id, display_name, avatar_url, birthday";
 
 /** Só quem faz aniversário hoje (carga leve, usada fora do modo desenvolvedor). */
 export async function fetchTodayBirthdays(today = getLocalToday()): Promise<BirthdayPerson[]> {
-  const { data } = await supabase
+  try {
+    return await queryTodayBirthdays(today);
+  } catch {
+    return [];
+  }
+}
+
+/** Igual a `fetchTodayBirthdays`, mas lança erro se a consulta falhar (para o cache saber). */
+async function queryTodayBirthdays(today: Date): Promise<BirthdayPerson[]> {
+  const { data, error } = await supabase
     .from("profiles")
     .select(PROFILE_COLS)
     .like("birthday", `%-${getTodayMD(today)}`);
+  if (error) throw error;
   return (data as BirthdayPerson[]) ?? [];
 }
 
@@ -54,14 +65,21 @@ export async function fetchNextAgendaEvent(today = getLocalToday()): Promise<Nex
  * (omitido no dia do aniversário de alguém) e o próximo evento da agenda.
  */
 export async function fetchHomeHighlights(extended: boolean, today = getLocalToday()): Promise<HomeHighlights> {
+  const empty: HomeHighlights = { todayBirthdays: [], nextBirthday: null, nextEvent: null };
+  // Sem rede, usa os últimos destaques guardados (só vale para o mesmo dia).
+  return cachedValue(`home:highlights:${extended}:${getTodayYMD(today)}`, () => loadHomeHighlights(extended, today), empty);
+}
+
+async function loadHomeHighlights(extended: boolean, today: Date): Promise<HomeHighlights> {
   if (!extended) {
-    return { todayBirthdays: await fetchTodayBirthdays(today), nextBirthday: null, nextEvent: null };
+    return { todayBirthdays: await queryTodayBirthdays(today), nextBirthday: null, nextEvent: null };
   }
 
   const [profilesRes, nextEvent] = await Promise.all([
     supabase.from("profiles").select(PROFILE_COLS).not("birthday", "is", null),
     fetchNextAgendaEvent(today),
   ]);
+  if (profilesRes.error) throw profilesRes.error;
   const profiles = ((profilesRes.data ?? []) as BirthdayPerson[]).filter((p) => Boolean(p.birthday));
   const todayBirthdays = filterBirthdaysToday(profiles, today);
 

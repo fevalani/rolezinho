@@ -1,4 +1,6 @@
 import { supabase } from "@/lib/supabase";
+import { cachedValue } from "@/lib/localCache";
+import { upsertOrQueue, writeKey } from "@/lib/offlineQueue";
 
 // ═══════════════════════════════════════════
 // Types
@@ -135,16 +137,18 @@ function enrichEvents(
 export async function fetchEvents(
   currentUserId?: string,
 ): Promise<AgendaEvent[]> {
+  // Sem rede, mostra a última agenda guardada neste aparelho.
+  return cachedValue(`agenda:events:${currentUserId ?? "anon"}`, () => loadEvents(currentUserId), []);
+}
+
+async function loadEvents(currentUserId?: string): Promise<AgendaEvent[]> {
   const { data: events, error } = await supabase
     .from("agenda_events")
     .select("*")
     .order("event_date", { ascending: true })
     .order("event_time", { ascending: true, nullsFirst: true });
 
-  if (error) {
-    console.error("[fetchEvents]", error);
-    return [];
-  }
+  if (error) throw error;
   if (!events?.length) return [];
 
   // RSVPs for all events
@@ -218,18 +222,15 @@ export async function upsertRsvp(
   eventId: string,
   status: RsvpStatus,
 ): Promise<{ error: string | null }> {
-  const { error } = await supabase.from("agenda_rsvps").upsert(
-    {
-      user_id: userId,
-      event_id: eventId,
-      status,
-      updated_at: new Date().toISOString(),
-    },
-    {
-      onConflict: "event_id,user_id",
-    },
-  );
-  return { error: error?.message ?? null };
+  // Sem rede, a confirmação fica na fila e é enviada quando a conexão voltar.
+  const { error } = await upsertOrQueue({
+    table: "agenda_rsvps",
+    userId,
+    key: writeKey("agenda_rsvps", userId, eventId),
+    row: { user_id: userId, event_id: eventId, status, updated_at: new Date().toISOString() },
+    onConflict: "event_id,user_id",
+  });
+  return { error };
 }
 
 export async function removeRsvp(

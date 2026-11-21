@@ -7,9 +7,12 @@ import { useFeatures } from "@/lib/FeatureFlagsContext";
 import { Avatar } from "@/components/Avatar";
 import { useAdmin } from "@/lib/useAdmin";
 import { SeasonalPreviewBanner } from "@/components/SeasonalPreviewBanner";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { useOfflineSync } from "@/lib/useOfflineSync";
 
 export function AppShell() {
-  const { profile, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
+  const { online, pending } = useOfflineSync(user?.id);
   const { isAdmin } = useAdmin();
   const features = useFeatures();
   const isBeta = useBetaMode();
@@ -95,6 +98,8 @@ export function AppShell() {
           />
         </button>
       </header>
+
+      <OfflineBanner online={online} pending={pending} />
 
       {/* ── Content ── */}
       <main ref={mainRef} className="flex-1 overflow-y-auto">

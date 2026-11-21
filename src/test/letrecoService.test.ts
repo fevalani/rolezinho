@@ -37,11 +37,18 @@ describe("partida do dia", () => {
 });
 
 describe("palavras da comunidade", () => {
-  it("getApprovedWords devolve a lista; erro = vazio", async () => {
+  it("getApprovedWords devolve a lista; erro sem cache = vazio", async () => {
     mockDb.tables.letreco_suggested_words = [{ word: "FOFOS" }, { word: "BAITA" }];
     expect(await getApprovedWords()).toEqual(["FOFOS", "BAITA"]);
+    localStorage.clear();
     mockDb.errors.letreco_suggested_words = { message: "x" };
     expect(await getApprovedWords()).toEqual([]);
+  });
+  it("getApprovedWords com erro (ex.: sem rede) usa a última lista guardada", async () => {
+    mockDb.tables.letreco_suggested_words = [{ word: "FOFOS" }, { word: "BAITA" }];
+    await getApprovedWords();
+    mockDb.errors.letreco_suggested_words = { message: "TypeError: Failed to fetch" };
+    expect(await getApprovedWords()).toEqual(["FOFOS", "BAITA"]);
   });
   it("suggestWord grava como aprovada e trata duplicada como sucesso", async () => {
     expect(await suggestWord("u1", "FOFOS")).toEqual({ error: null });
