@@ -26,6 +26,8 @@
     "@capacitor/share": "^8.0.3",
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.1",
+    "@simplewebauthn/browser": "^14.0.0",
+    "@simplewebauthn/server": "^14.1.0",
     "@supabase/supabase-js": "^2.99.0",
     "@tailwindcss/vite": "^4.2.1",
     "@vercel/og": "^1.0.3",
