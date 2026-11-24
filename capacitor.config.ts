@@ -17,9 +17,12 @@ const config: CapacitorConfig = {
   appId: "com.taverna.amigos",
   appName: "Rolezinho Roots",
   webDir: "dist",
+  // server: {
+  //   androidScheme: "https",
+  //   ...(serverUrl ? { url: serverUrl } : {}),
+  // },
   server: {
-    androidScheme: "https",
-    ...(serverUrl ? { url: serverUrl } : {}),
+     androidScheme: "https"
   },
   plugins: {
     SplashScreen: {

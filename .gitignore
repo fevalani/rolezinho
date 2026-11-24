@@ -46,3 +46,7 @@ scripts/chat-insights/output/
 scripts/chat-insights/**/__pycache__/
 scripts/tests/__pycache__/
 scripts/hero-source/
+
+# Local server for API testing
+server/*
+package-json-backup.json

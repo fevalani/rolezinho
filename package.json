@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:all": "concurrently \"npm:server\" \"npm:dev\"",
+    "server": "tsx server/api.ts",
     "build": "tsc -b && npx vite build && node scripts/inject-precache.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -14,6 +16,7 @@
     "build:android:bundled": "CAP_BUNDLED=1 npm run build:android",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run"
+
   },
   "dependencies": {
     "@capacitor/android": "^8.2.0",

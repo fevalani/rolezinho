@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
+import { isPasskeySupported } from "@/lib/webauthn";
+
 
 export function LoginPage() {
-  const { signIn, signUp, resetPassword, loading } = useAuth();
+  const { signIn, signUp, resetPassword, loading, signInWithPasskey } = useAuth();
   const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -10,11 +12,31 @@ export function LoginPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  //Opção de login com email + senha ou passkey
+  const [loginMethod, setLoginMethod] = useState<"email" | "passkey" | null>(
+    null,
+  )
+
+  // Implementação do passkey
+  const supportsPasskey = isPasskeySupported();
 
   const clearMessages = () => {
     setError("");
     setSuccess("");
   };
+
+  const handlePasskeyLogin = async () => {
+    if (!signInWithPasskey) return;
+    clearMessages();
+    setSubmitting(true);
+
+
+    const { error: err } = await signInWithPasskey(email);
+    if (err) setError(err);
+    setSubmitting(false);
+  }
+
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,20 +150,61 @@ export function LoginPage() {
           style={{ animationDelay: "0.15s" }}
         >
           {mode === "signup" && (
+            <>
+              <input
+                className={inputClass}
+                type="text"
+                placeholder="Seu nome"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  clearMessages();
+                }}
+                autoComplete="name"
+                maxLength={40}
+              />
+
+              <input
+                className={inputClass}
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  clearMessages();
+                }}
+                autoComplete="email"
+              />
+
+              <input
+                className={inputClass}
+                type="password"
+                placeholder="Senha (mínimo 6 caracteres)"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  clearMessages();
+                }}
+                autoComplete="new-password"
+              />
+            </>
+          )}
+
+          {mode === "forgot" && (
             <input
               className={inputClass}
-              type="text"
-              placeholder="Seu nome"
-              value={name}
+              type="email"
+              placeholder="Email"
+              value={email}
               onChange={(e) => {
-                setName(e.target.value);
+                setEmail(e.target.value);
                 clearMessages();
               }}
-              autoComplete="name"
-              maxLength={40}
+              autoComplete="email"
             />
           )}
-          <input
+          {/* REMOVER BLOCO APÓS CONFERÊNCIA DO NOVO MÉTODO DE LOGIN */}
+          {/* <input
             className={inputClass}
             type="email"
             placeholder="Email"
@@ -165,21 +228,22 @@ export function LoginPage() {
               autoComplete={
                 mode === "login" ? "current-password" : "new-password"
               }
-            />
-          )}
+            /> 
+          )}*/}
 
           {error && (
             <p className="text-sm text-center py-2 px-3 rounded-lg text-(--red) bg-[rgba(196,64,64,0.08)] border border-[rgba(196,64,64,0.15)]">
               {error}
             </p>
           )}
+
           {success && (
             <p className="text-sm text-center py-2 px-3 rounded-lg text-[var(--green)] bg-[rgba(58,186,122,0.08)] border border-[rgba(58,186,122,0.15)] leading-snug">
               {success}
             </p>
           )}
 
-          <button
+          {/* <button
             type="submit"
             disabled={submitting}
             className="w-full py-3.5 px-6 rounded-lg font-semibold text-lg text-[var(--bg-abyss)] bg-gradient-to-br from-(--gold-dark) to-(--gold) shadow-[0_2px_8px_rgba(0,0,0,0.5),0_0_12px_rgba(201,165,90,0.1)] hover:from-(--gold) hover:to-[var(--gold-bright)] hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
@@ -191,7 +255,111 @@ export function LoginPage() {
                 : mode === "signup"
                   ? "Criar conta"
                   : "Enviar link"}
-          </button>
+          </button> */}
+          {/* <button
+                type="submit"
+                disabled={submitting}
+                className="w-full py-3.5 px-6 rounded-lg font-semibold text-lg text-[var(--bg-abyss)] bg-gradient-to-br from-(--gold-dark) to-(--gold) shadow-[0_2px_8px_rgba(0,0,0,0.5),0_0_12px_rgba(201,165,90,0.1)] hover:from-(--gold) hover:to-[var(--gold-bright)] hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+              >
+                {submitting ? "Carregando..." : "Criar conta"}
+              </button> */}
+          {/* </> */}
+          {/* )} */}
+
+          {mode === "login" && loginMethod === null && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginMethod("email");
+                  clearMessages();
+                }}
+                className="w-full py-3.5 px-6 rounded-lg font-semibold text-lg text-[var(--bg-abyss)] bg-gradient-to-br from-(--gold-dark) to-(--gold) shadow-[0_2px_8px_rgba(0,0,0,0.5),0_0_12px_rgba(201,165,90,0.1)] hover:from-(--gold) hover:to-[var(--gold-bright)] hover:-translate-y-0.5 transition-all"
+              >
+                Entrar com e-mail e senha
+              </button>
+
+              {/* {supportsPasskey && signInWithPasskey && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginMethod("passkey");
+                    clearMessages();
+                  }}
+                  className="w-full py-3.5 px-6 rounded-lg font-semibold text-lg text-(--gold) bg-transparent border border-[rgba(201,165,90,0.25)] hover:bg-[rgba(201,165,90,0.08)] transition-all"
+                >
+                  Entrar com chave de acesso
+                </button>
+              )} */}
+            </>
+          )}
+
+          {mode === "login" && loginMethod === "email" && (
+            <>
+              <input
+                className={inputClass}
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  clearMessages();
+                }}
+                autoComplete="email"
+              />
+
+              <input
+                className={inputClass}
+                type="password"
+                placeholder="Senha"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  clearMessages();
+                }}
+                autoComplete="current-password"
+              />
+
+              {error && (
+                <p className="text-sm text-center py-2 px-3 rounded-lg text-(--red) bg-[rgba(196,64,64,0.08)] border border-[rgba(196,64,64,0.15)]">
+                  {error}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full py-3.5 px-6 rounded-lg font-semibold text-lg text-[var(--bg-abyss)] bg-gradient-to-br from-(--gold-dark) to-(--gold) shadow-[0_2px_8px_rgba(0,0,0,0.5),0_0_12px_rgba(201,165,90,0.1)] hover:from-(--gold) hover:to-[var(--gold-bright)] hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+              >
+                {submitting ? "Carregando..." : "Entrar"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginMethod(null);
+                  clearMessages();
+                }}
+                className="text-sm text-(--gold-dark) hover:text-(--gold) transition-colors p-2"
+              >
+                ← Voltar
+              </button>
+            </>
+          )}
+
+          {mode === "login" &&
+            loginMethod === null &&
+            supportsPasskey &&
+            signInWithPasskey && (
+              <button
+                type="button"
+                onClick={handlePasskeyLogin}
+                disabled={submitting}
+                className="w-full py-3.5 px-6 rounded-lg font-semibold text-lg text-(--gold) bg-transparent border border-[rgba(201,165,90,0.25)] hover:bg-[rgba(201,165,90,0.08)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? "Carregando..." : "Entrar com chave de acesso"}
+              </button>
+            )}
         </form>
 
         {mode === "login" && (

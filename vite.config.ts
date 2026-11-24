@@ -28,7 +28,12 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true,
+    allowedHosts: ["stack-chili-subgroup.ngrok-free.dev"],
     proxy: {
+      "/api": {
+      target: "http://localhost:3001",
+      changeOrigin: true,
+      },
       "/fd-api": {
         target: "https://api.football-data.org/v4",
         changeOrigin: true,

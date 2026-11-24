@@ -11,8 +11,14 @@ import {
 import type { User, Session } from "@supabase/supabase-js";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
+import {
+  browserSupportsWebAuthn,
+  startAuthentication,
+  startRegistration,
+} from "@simplewebauthn/browser";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
+import { getDefaultDeviceName, isPasskeySupported } from "./webauthn";
 
 interface AuthContextValue {
   user: User | null;
@@ -53,6 +59,10 @@ interface AuthContextValue {
     >,
   ) => Promise<void>;
   changePassword: (newPassword: string) => Promise<{ error: string | null }>;
+  // Opcionais para não quebrar mocks de testes existentes
+  signInWithPasskey?: (email?: string) => Promise<{ error?: string }>;
+  registerPasskey?: (friendlyName?: string) => Promise<{ error?: string }>;
+  removePasskey: () => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -70,8 +80,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       let version: string;
       if (Capacitor.isNativePlatform()) {
-        // APK: versão nativa + versão do código web carregado (OTA), ex.:
-        // "0.0.76 (76) · web 0.0.80". Site/navegador grava só "web 0.0.80".
         const info = await App.getInfo();
         version = `${info.version} (${info.build}) · web ${import.meta.env.VITE_APP_VERSION ?? "?"}`;
       } else {
@@ -183,10 +191,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.theme = profile?.theme ?? "dark";
   }, [profile?.theme]);
 
-  // Modo beta (ver useBetaMode) é fixo — liga tratamentos visuais globais
-  // via CSS puro (fonte, transição de tema) sem precisar de classe por componente.
   useEffect(() => {
     document.documentElement.dataset.beta = "true";
+  }, []);
+
+  const parseJson = useCallback(async (res: Response) => {
+    const text = await res.text();
+    if (!text) {
+      throw new Error(
+        `Resposta vazia do servidor (${res.status}) em ${res.url}`,
+      );
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(
+        `Resposta inválida do servidor (${res.status}): ${text.slice(0, 200)}`,
+      );
+    }
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
@@ -268,6 +291,183 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null };
   }, []);
 
+  const signInWithPasskey = useCallback(
+    async (email?: string): Promise<{ error?: string }> => {
+      if (!isPasskeySupported()) {
+        return { error: "Chave de acesso não suportada neste dispositivo." };
+      }
+
+      const parseJson = async (res: Response) => {
+        const text = await res.text();
+
+        if (!text) {
+          throw new Error(
+            `Resposta inválida do servidor (${res.status}) em ${res.url}`,
+          );
+        }
+
+        try {
+          return JSON.parse(text);
+        } catch {
+          throw new Error(
+            `Resposta inválida do servidor (${res.status}): ${text.slice(0, 200)}`,
+          );
+        }
+      };
+
+      try {
+        const API_URL = "https://stack-chili-subgroup.ngrok-free.dev";
+
+        console.log("[Passkey] native:", Capacitor.isNativePlatform());
+        console.log("[Passkey] browserSupportsWebAuthn:", browserSupportsWebAuthn());
+        console.log("[Passkey] PublicKeyCredential:", typeof window.PublicKeyCredential);
+        console.log("[Passkey] Tentando iniciar ceremony no APK");
+        console.log("[Passkey] API_URL:", API_URL);
+        console.log("[Passkey] fetch URL:", `${API_URL}/api/webauthn/login-options`);
+
+        //const optRes = await fetch("/api/webauthn/login-options", {
+        const optRes = await fetch(`${API_URL}/api/webauthn/login-options`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email?.trim().toLowerCase() || undefined }),
+        });
+        console.log("[Passkey] login-options status:", optRes.status);
+        const optData = await parseJson(optRes);
+        if (!optRes.ok) {
+          return { error: optData.error || "Erro ao iniciar Passkey." };
+        }
+
+        const credential = await startAuthentication({
+          optionsJSON: optData.options,
+        });
+
+        //const verifyRes = await fetch("/api/webauthn/login-verify", {
+        const verifyRes = await fetch(`${API_URL}/api/webauthn/login-verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            credential,
+            challengeId: optData.challengeId,
+          }),
+        });
+
+        const verifyData = await parseJson(verifyRes);
+        if (!verifyRes.ok || !verifyData.token_hash) {
+          return { error: verifyData.error || "Passkey inválida." };
+        }
+
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: verifyData.token_hash,
+          type: "magiclink",
+        });
+
+        if (error) return { error: error.message };
+        return {};
+      } catch (err: any) {
+        if (err?.name === "NotAllowedError") {
+          return { error: "Autenticação cancelada." };
+        }
+        return { error: err?.message || "Erro ao entrar com Chave de acesso." };
+      }
+    },
+    [],
+  );
+
+  const registerPasskey = useCallback(
+    async (friendlyName?: string): Promise<{ error?: string }> => {
+      if (!isPasskeySupported()) {
+        return { error: "Passkeys não suportadas neste dispositivo." };
+      }
+
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        if (!accessToken) return { error: "Faça login primeiro." };
+
+        const optRes = await fetch("/api/webauthn/register-options", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const optData = await optRes.json();
+        if (!optRes.ok) {
+          return { error: optData.error || "Erro ao iniciar cadastro." };
+        }
+
+        const credential = await startRegistration({
+          optionsJSON: optData.options,
+        });
+
+        const verifyRes = await fetch("/api/webauthn/register-verify", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            credential,
+            challengeId: optData.challengeId,
+            friendlyName: friendlyName || getDefaultDeviceName(),
+          }),
+        });
+
+        const verifyData = await parseJson(verifyRes);
+        if (!verifyRes.ok || !verifyData.verified) {
+          return { error: verifyData.error || "Erro ao salvar Passkey." };
+        }
+
+        return {};
+      } catch (err: any) {
+        if (err?.name === "NotAllowedError") {
+          return { error: "Cadastro de Passkey cancelado." };
+        }
+        return { error: err?.message || "Erro ao cadastrar Passkey." };
+      }
+    },
+    [],
+  );
+
+  const removePasskey = useCallback(async () => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+
+    if (!accessToken) {
+      return { error: "Faça login novamente." };
+    }
+
+    const response = await fetch("/api/webauthn/remove-passkey", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    const text = await response.text();
+
+    if (!text) {
+      return {
+        error: `Resposta vazia do servidor (${response.status}).`,
+      };
+    }
+
+    let data: any;
+
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return {
+        error: `Resposta inválida do servidor (${response.status}).`,
+      };
+    }
+
+    if (!response.ok) {
+      return {
+        error: data.error || "Erro ao remover a chave de acesso.",
+      };
+    }
+
+    return { error: null };
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -285,6 +485,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         updateProfile,
         changePassword,
+        signInWithPasskey,
+        registerPasskey,
+        removePasskey,
       }}
     >
       {children}

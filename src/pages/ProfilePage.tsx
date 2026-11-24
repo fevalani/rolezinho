@@ -7,6 +7,7 @@ import { getInitials } from "@/lib/utils";
 import { DevModeCard } from "@/components/DevModeCard";
 import type { ThemeMode } from "@/lib/types";
 import { useFeatures } from "@/lib/FeatureFlagsContext";
+import { PasskeySettings } from "@/components/PasskeySettings";
 
 const EMOJI_AVATARS = [
   "🧙",
@@ -567,6 +568,8 @@ export function ProfilePage() {
         <div className={divider} />
         <DevModeCard />
 
+        <div className={divider} />
+        <PasskeySettings />
         <div className={divider} />
         <div className="flex flex-col gap-3">
           <h2
