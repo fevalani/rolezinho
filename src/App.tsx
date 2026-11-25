@@ -123,6 +123,16 @@ const WrappedPage = lazyNamed(
   "WrappedPage",
 );
 
+const AwardsPage = lazyNamed(() => import("./features/awards/AwardsPage"), "AwardsPage");
+const AwardsCategoryPage = lazyNamed(
+  () => import("./features/awards/AwardsCategoryPage"),
+  "AwardsCategoryPage",
+);
+const AwardsBallotPage = lazyNamed(
+  () => import("./features/awards/AwardsBallotPage"),
+  "AwardsBallotPage",
+);
+
 const ChatStatsPage = lazyNamed(
   () => import("./features/chatstats/ChatStatsPage"),
   "ChatStatsPage",
@@ -248,6 +258,9 @@ function AppRoutes() {
           <Route path="/duelos/:id" element={<DuelosPlayPage />} />
           <Route path="/wrapped" element={<WrappedPage />} />
           <Route path="/wrapped/:slug" element={<WrappedPage />} />
+          <Route path="/awards" element={<AwardsPage />} />
+          <Route path="/awards/votar" element={<AwardsBallotPage />} />
+          <Route path="/awards/c/:categoryId" element={<AwardsCategoryPage />} />
           <Route path="/estatisticas" element={<ChatStatsPage />} />
           <Route path="/estatisticas/:slug" element={<ChatStatsPage />} />
         </Route>

@@ -1,6 +1,7 @@
 import { ThemesAdminPage } from "@/pages/ThemesAdminPage";
 import { ChatStatsAdminPage } from "@/features/chatstats/ChatStatsAdminPage";
 import { WrappedAdminPage } from "@/features/wrapped/WrappedAdminPage";
+import { AwardsAdminPage } from "@/features/awards/AwardsAdminPage";
 import { AdminsSection } from "./AdminsSection";
 import { FeaturesSection } from "./FeaturesSection";
 import { UsersSection } from "./UsersSection";
@@ -24,6 +25,13 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     description: "Edições da retrospectiva e quem pode ver",
     icon: "🎁",
     Component: WrappedAdminPage,
+  },
+  {
+    id: "awards",
+    title: "Awards",
+    description: "Edições, fase (indicação/votação) e ordem das categorias",
+    icon: "🏆",
+    Component: AwardsAdminPage,
   },
   {
     id: "estatisticas",

@@ -10,6 +10,8 @@ import { useSeasonalTheme } from "@/lib/seasonal/SeasonalThemeContext";
 import { formatMdLong, occasionMdFor } from "@/lib/seasonal/themes";
 import { JumbledText } from "@/components/JumbledText";
 import { fetchEdition } from "@/features/wrapped/wrappedService";
+import { fetchEdition as fetchAwardsEdition } from "@/features/awards/awardsService";
+import type { AwardsEdition } from "@/features/awards/awardsTypes";
 import type { WrappedEdition } from "@/features/wrapped/wrappedTypes";
 import { useDevMode } from "@/lib/useDevMode";
 import { RolezinhoOrbit } from "@/features/home/RolezinhoOrbit";
@@ -71,6 +73,15 @@ export function HomePage() {
   useEffect(() => {
     let alive = true;
     fetchEdition().then((e) => alive && setWrapped(e));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const [awards, setAwards] = useState<AwardsEdition | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchAwardsEdition().then((e) => alive && setAwards(e && e.phase !== "hidden" ? e : null));
     return () => {
       alive = false;
     };
@@ -288,6 +299,27 @@ export function HomePage() {
             </span>
             <span className="block text-xs opacity-90 mt-0.5">
               {wrapped.subtitle ?? "Veja a sua retrospectiva"}
+            </span>
+          </span>
+        </button>
+      )}
+
+      {/* Awards: indicação, votação ou resultado */}
+      {awards && (
+        <button
+          onClick={() => navigate("/awards")}
+          className="w-full flex items-center gap-3 py-3.5 px-4 rounded-xl text-left text-white
+          bg-gradient-to-r from-[#c9a55a] to-[#7c5cff] hover:-translate-y-0.5 transition-all anim-slideUp"
+        >
+          <span className="text-2xl shrink-0">🏆</span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-sm font-bold leading-tight">{awards.title}</span>
+            <span className="block text-xs opacity-90 mt-0.5">
+              {awards.phase === "nominations"
+                ? "Indique categorias e nomes"
+                : awards.phase === "voting"
+                  ? "A votação está aberta"
+                  : "Veja os resultados"}
             </span>
           </span>
         </button>

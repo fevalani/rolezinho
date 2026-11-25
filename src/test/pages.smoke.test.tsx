@@ -41,6 +41,10 @@ import { ChatStatsPage } from "@/features/chatstats/ChatStatsPage";
 import { ChatStatsAdminPage } from "@/features/chatstats/ChatStatsAdminPage";
 import { WrappedPage } from "@/features/wrapped/WrappedPage";
 import { WrappedAdminPage } from "@/features/wrapped/WrappedAdminPage";
+import { AwardsPage } from "@/features/awards/AwardsPage";
+import { AwardsCategoryPage } from "@/features/awards/AwardsCategoryPage";
+import { AwardsBallotPage } from "@/features/awards/AwardsBallotPage";
+import { AwardsAdminPage } from "@/features/awards/AwardsAdminPage";
 import { AdminPage, AdminSectionPage } from "@/features/admin/AdminPage";
 
 vi.mock("@capacitor/core", async (orig) => ({
@@ -95,6 +99,10 @@ const PAGES: Case[] = [
   { name: "AdminSectionUsuarios", Component: AdminSectionPage, pattern: "/admin/:section", route: "/admin/usuarios" },
   { name: "AdminSectionAdmins", Component: AdminSectionPage, pattern: "/admin/:section", route: "/admin/admins" },
   { name: "WrappedAdminPage", Component: WrappedAdminPage, pattern: "/wrapped-admin", route: "/wrapped-admin" },
+  { name: "AwardsPage", Component: AwardsPage, pattern: "/awards", route: "/awards" },
+  { name: "AwardsCategoryPage", Component: AwardsCategoryPage, pattern: "/awards/c/:categoryId", route: "/awards/c/c1" },
+  { name: "AwardsBallotPage", Component: AwardsBallotPage, pattern: "/awards/votar", route: "/awards/votar" },
+  { name: "AwardsAdminPage", Component: AwardsAdminPage, pattern: "/admin/awards", route: "/admin/awards" },
 ];
 
 // Igual ao ProtectedRoute do App: só monta a tela depois da sessão carregada.

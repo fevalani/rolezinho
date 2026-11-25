@@ -138,3 +138,92 @@ describe("chat_stats_migration.sql", () => {
     expect(code).not.toMatch(/to anon|to public|using \(true\)/i);
   });
 });
+
+describe("awards_migration.sql", () => {
+  const s = sql("awards_migration.sql");
+  const code = s.replace(/--.*$/gm, "");
+  const awardsSvc = readFileSync(resolve(__dirname, "../features/awards/awardsService.ts"), "utf-8");
+
+  it("cria as 4 tabelas com RLS ligada e sem e-mail fixo", () => {
+    for (const t of ["awards_editions", "awards_categories", "awards_nominees", "awards_votes"]) {
+      expect(code).toMatch(new RegExp(`create table if not exists public\\.${t}`, "i"));
+      expect(code).toMatch(new RegExp(`alter table public\\.${t} enable row level security`, "i"));
+    }
+    expect(code).not.toMatch(EMAIL);
+  });
+  it("não há INSERT direto em categorias/indicados nem policy em votos (só RPC)", () => {
+    expect(code).not.toMatch(/for insert to authenticated[\s\S]{0,80}awards_(categories|nominees)/i);
+    expect(code).not.toMatch(/create policy "[^"]*"\s+on public\.awards_(categories|nominees)\s+for (insert|all)/i);
+    expect(code).not.toMatch(/create policy[^;]*on public\.awards_votes/i);
+  });
+  it("limites de 5 contam o que o próprio usuário criou e o admin é isento", () => {
+    const cat = code.match(/function public\.create_award_category[\s\S]*?\$\$;/i)![0];
+    const nom = code.match(/function public\.add_award_nominee[\s\S]*?\$\$;/i)![0];
+    expect(cat).toMatch(/created_by = auth\.uid\(\)/);
+    expect(cat).toMatch(/if v_count >= 5/);
+    expect(cat).toMatch(/not public\.is_app_admin\(\)/);
+    expect(nom).toMatch(/category_id = p_category_id and created_by = auth\.uid\(\)/);
+    expect(nom).toMatch(/if v_count >= 5/);
+    expect(nom).toMatch(/not public\.is_app_admin\(\)/);
+  });
+  it("indicar exige fase nominations e votar exige fase voting", () => {
+    expect(code).toMatch(/v_phase <> 'nominations' and not public\.is_app_admin\(\)/);
+    expect(code).toMatch(/v_phase is distinct from 'voting'/);
+  });
+  it("resultado só para admin ou edição fechada que a pessoa pode ver; indicado precisa ser da categoria", () => {
+    const fn = code.match(/function public\.award_results[\s\S]*?\$\$;/i)![0];
+    expect(fn).toMatch(/public\.is_app_admin\(\)\s+or \(\s*public\.awards_can_view\(p_edition\)\s+and exists \(select 1 from public\.awards_editions where slug = p_edition and phase = 'closed'\)/i);
+    expect(code).toMatch(/where id = p_nominee_id and category_id = p_category_id/);
+  });
+  it("só o dono (na indicação) ou o admin edita/apaga", () => {
+    for (const p of ["awards_categories_update", "awards_categories_delete", "awards_nominees_update", "awards_nominees_delete"]) {
+      const body = code.match(new RegExp(`create policy "${p}"[\\s\\S]*?;`, "i"))![0];
+      expect(body).toMatch(/public\.is_app_admin\(\)/);
+      expect(body).toMatch(/created_by = auth\.uid\(\)/);
+      expect(body).toMatch(/phase = 'nominations'/);
+    }
+  });
+  it("edição oculta só aparece ao admin; fora disso vale a audiência (todos ou lista)", () => {
+    const fn = code.match(/function public\.awards_can_view[\s\S]*?\$\$;/i)![0];
+    expect(fn).toMatch(/public\.is_app_admin\(\)\s+or exists/);
+    expect(fn).toMatch(/e\.phase <> 'hidden'/);
+    expect(fn).toMatch(/e\.audience = 'all'/);
+    expect(fn).toMatch(/from public\.awards_viewers v where v\.slug = e\.slug and v\.user_id = auth\.uid\(\)/);
+    expect(code).toMatch(/"awards_editions_select"[\s\S]*?using \(public\.awards_can_view\(slug\)\)/i);
+    expect(code).toMatch(/"awards_categories_select"[\s\S]*?public\.awards_can_view\(edition_slug\)/i);
+    expect(code).toMatch(/"awards_nominees_select"[\s\S]*?public\.awards_can_view\(c\.edition_slug\)/i);
+  });
+  it("audiência: coluna validada, lista só editável pelo admin e visível ao próprio usuário", () => {
+    expect(code).toMatch(/add column if not exists audience text not null default 'all' check \(audience in \('all', 'selected'\)\)/i);
+    expect(code).toMatch(/create table if not exists public\.awards_viewers/i);
+    expect(code).toMatch(/alter table public\.awards_viewers enable row level security/i);
+    expect(code).toMatch(/"awards_viewers_select"[\s\S]*?user_id = auth\.uid\(\) or public\.is_app_admin\(\)/i);
+    expect(code).toMatch(/"awards_viewers_admin_write"[\s\S]*?using \(public\.is_app_admin\(\)\)\s+with check \(public\.is_app_admin\(\)\)/i);
+  });
+  it("indicar, votar e ver resultado também respeitam a audiência", () => {
+    for (const fn of ["create_award_category", "add_award_nominee", "cast_award_vote", "my_award_votes", "award_results"]) {
+      const body = code.match(new RegExp(`function public\\.${fn}[\\s\\S]*?\\$\\$;`, "i"))![0];
+      expect(body).toMatch(/awards_can_view/);
+    }
+  });
+  it("RPCs são SECURITY DEFINER com search_path fixo e só authenticated executa", () => {
+    expect((code.match(/security definer\s+set search_path = public/gi) ?? []).length).toBe(6); // 5 RPCs + awards_can_view
+    expect((code.match(/revoke all on function public\.\w+\([^)]*\) from public/gi) ?? []).length).toBe(6);
+    expect((code.match(/grant execute on function public\.\w+\([^)]*\) to authenticated/gi) ?? []).length).toBe(6);
+  });
+  it("os parâmetros que o service envia batem com as funções", () => {
+    for (const p of ["p_edition", "p_title", "p_description", "p_image_url", "p_category_id", "p_label", "p_nominee_id"]) {
+      expect(code).toMatch(new RegExp(`\\b${p}\\b`));
+      expect(awardsSvc).toMatch(new RegExp(`\\b${p}\\b`));
+    }
+    for (const fn of ["create_award_category", "add_award_nominee", "cast_award_vote", "my_award_votes", "award_results"]) {
+      expect(code).toMatch(new RegExp(`function public\\.${fn}`, "i"));
+      expect(awardsSvc).toContain(`"${fn}"`);
+    }
+  });
+  it("bucket awards: upload na própria pasta, leitura pública, apagar dono/admin", () => {
+    expect(code).toMatch(/'awards',\s*'awards',\s*true/);
+    expect(code).toMatch(/bucket_id = 'awards' and \(storage\.foldername\(name\)\)\[1\] = auth\.uid\(\)::text/);
+    expect(code).toMatch(/"awards_delete_own_or_admin"[\s\S]*?public\.is_app_admin\(\)/);
+  });
+});
