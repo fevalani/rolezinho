@@ -4,6 +4,8 @@ import type { VercelRequest} from "@vercel/node";
 export const rpName = "Rolezinho Roots";
 export const rpID = process.env.WEBAUTHN_RP_ID || "rolezinho-amigos.vercel.app";
 export const origin = process.env.WEBAUTHN_ORIGIN || "https://rolezinho-amigos.vercel.app";
+export const androidOrigin = "android:apk-key-hash:y_sUca4DUH4PKOEo7qaJPAxg29RMHOr6bbC3sI1APyE"
+export const expectedOrigins = [origin, androidOrigin]
 
 let cachedAdmin: SupabaseClient | null = null;
 

@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyAuthenticationResponse } from "@simplewebauthn/server";
-import { getSupabaseAdmin, origin, rpID } from "./_shared";
+import { getSupabaseAdmin, expectedOrigins, rpID } from "./_shared";
 
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -43,7 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const verification = await verifyAuthenticationResponse({
             response: credential,
             expectedChallenge: challengeRow.challenge,
-            expectedOrigin: origin,
+            expectedOrigin: expectedOrigins,
             expectedRPID: rpID,
             credential: {
                 id: passkey.id,
