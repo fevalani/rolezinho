@@ -17,7 +17,7 @@ export function PasskeySettings() {
     const [removing, setRemoving] = useState(false);
     const [devMode] = useDevMode();
 
-    const supportsPasskey = isPasskeySupported();
+    const supportsPasskey = isPasskeySupported() || Boolean(registerPasskey);
 
     useEffect(() => {
         const checkExistingPasskey = async () => {
@@ -91,8 +91,8 @@ export function PasskeySettings() {
     const confirmRemoval = async () => {
         if (!user?.email) return;
 
-        if (code.length !== 6) {
-            setError("Digite o código de 6 dígitos enviado por e-mail.");
+        if (!/^\d{8}$/.test(code)) {
+            setError("Digite o código de 8 dígitos enviado por e-mail.");
             return;
         }
 
@@ -130,9 +130,11 @@ export function PasskeySettings() {
         return null;
     }
 
-    if (!supportsPasskey || !registerPasskey || loading) {
+    const hasNativePasskeySupport = Boolean(registerPasskey);
+
+    if ((!supportsPasskey && !hasNativePasskeySupport) || loading) {
         return null;
-    }
+}
 
     if (hasPasskey) {
         return (
@@ -173,14 +175,14 @@ export function PasskeySettings() {
                                 setCode(event.target.value.replace(/\D/g, "").slice(0, 8));
                                 setError("");
                             }}
-                            placeholder="000000"
+                            placeholder="00000000"
                             className="w-full py-3 px-4 bg-[var(--bg-primary)] border border-[rgba(201,165,90,0.12)] rounded-lg text-(--text-primary) outline-none transition-all focus:border-(--gold) focus:shadow-[0_0_0_3px_rgba(201,165,90,0.08)] placeholder:text-(--text-muted) text-center tracking-[0.4em]"
                         />
 
                         <button
                             type="button"
                             onClick={confirmRemoval}
-                            disabled={removing || !(code.length === 6 || code.length === 8)}
+                            disabled={removing || !/^\d{8}$/.test(code)}
                             className="w-full py-3 px-6 rounded-lg font-semibold text-(--red) bg-transparent border border-[rgba(196,64,64,0.3)] hover:bg-[rgba(196,64,64,0.08)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {removing ? "Removendo..." : "Confirmar remoção"}
