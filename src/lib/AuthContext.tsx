@@ -64,6 +64,8 @@ interface AuthContextValue {
   signInWithPasskey?: (email?: string) => Promise<{ error?: string }>;
   registerPasskey?: (friendlyName?: string) => Promise<{ error?: string }>;
   removePasskey: () => Promise<{ error: string | null }>;
+  showPasskeyPrompt: boolean;
+  setShowPasskeyPrompt: (value: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -75,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [recovering, setRecovering] = useState(false);
   // Resultado de is_app_admin() e de QUEM ele é (evita mostrar o papel de um usuário para outro)
+  const [showPasskeyPrompt, setShowPasskeyPrompt] = useState(false);
   const [adminState, setAdminState] = useState<{ userId: string; value: boolean } | null>(null);
 
   const syncAppVersion = useCallback(async (userId: string) => {
@@ -163,6 +166,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, [fetchProfile, syncAppVersion]);
+
+  useEffect(() => {
+  if (!user) {
+    setShowPasskeyPrompt(false);
+    return;
+  }
+
+  let cancelled = false;
+
+  const checkPasskey = async () => {
+    const { data, error } = await supabase
+      .from("user_passkeys")
+      .select("id")
+      .eq("user_id", user.id);
+
+    if (cancelled) return;
+
+    if (error) {
+      console.error(error);
+      setShowPasskeyPrompt(false);
+      return;
+    }
+
+    const hasPasskey = (data ?? []).length > 0;
+
+    if (!hasPasskey) {
+      setShowPasskeyPrompt(true);
+    } else {
+      setShowPasskeyPrompt(false);
+    }
+  };
+
+  checkPasskey();
+
+  return () => {
+    cancelled = true;
+  };
+}, [user?.id]);
 
   // Pergunta ao banco se o usuário é admin (a regra mora na tabela app_admins).
   const userId = user?.id ?? null;
@@ -519,6 +560,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         isAdmin,
         adminLoading,
+        showPasskeyPrompt,
+        setShowPasskeyPrompt,
         signIn,
         signUp,
         resetPassword,

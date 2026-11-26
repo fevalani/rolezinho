@@ -19,6 +19,7 @@ import { LoginPage } from "@/pages/LoginPage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { HomePage } from "@/pages/HomePage";
 import { AppShell } from "@/components/AppShell";
+import { PasskeyPromptModal } from "./components/PasskeyPromptModal";
 
 // Code-splitting (auditoria P-01): cada tela vira um chunk baixado só quando a rota abre.
 // Home, shell, login e rota protegida ficam no bundle inicial.
@@ -283,6 +284,7 @@ export default function App() {
         <FeatureFlagsProvider>
           <SeasonalThemeProvider>
             <AppRoutes />
+            <PasskeyPromptModal />
           </SeasonalThemeProvider>
         </FeatureFlagsProvider>
       </AuthProvider>
