@@ -51,3 +51,11 @@ scripts/hero-source/
 server/*
 package-json-backup.json
 android-backup/
+
+# Android & Node
+android/app/build/
+android/.gradle/
+android/local.properties
+node_modules/
+android/app/debug.keystore
+*.apk
