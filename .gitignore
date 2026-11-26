@@ -50,3 +50,4 @@ scripts/hero-source/
 # Local server for API testing
 server/*
 package-json-backup.json
+android-backup/
