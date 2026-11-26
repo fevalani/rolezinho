@@ -29,7 +29,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   {
     id: "awards",
     title: "Awards",
-    description: "Edições, fase (indicação/votação) e ordem das categorias",
+    description: "Edições, fase, quem vê, admins do awards e ordem das categorias",
     icon: "🏆",
     Component: AwardsAdminPage,
   },

@@ -1,7 +1,7 @@
 import { nomineeName, rankCategory, sortCategories } from "./awardsLogic";
 import type { AwardsCategory, AwardsNominee, AwardsResults as Results } from "./awardsTypes";
 
-/** Resultado por categoria: vencedor em destaque + ranking. Só na fase `closed`. */
+/** Resultado por categoria: vencedor em destaque + ranking. Só para admins do awards. */
 export function AwardsResultsView({
   categories,
   byCategory,

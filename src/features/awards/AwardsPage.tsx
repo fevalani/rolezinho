@@ -1,14 +1,24 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { useAdmin } from "@/lib/useAdmin";
 import { AddCard, CategoryCard } from "./AwardsCards";
 import { AwardsResultsView } from "./AwardsResults";
 import { NominationSheet, type SheetValues } from "./NominationSheet";
-import { ballotCategories, ballotProgress, canNominate, categoryQuota, PHASE_LABEL, sortCategories } from "./awardsLogic";
-import { createCategory } from "./awardsService";
-import { MAX_CATEGORIES_PER_USER } from "./awardsTypes";
+import {
+  approvedCategories,
+  ballotCategories,
+  ballotProgress,
+  canNominate,
+  categoryQuota,
+  PHASE_LABEL,
+  sortCategories,
+  visibleCategories,
+} from "./awardsLogic";
+import { createCategory, setCategoryApproval } from "./awardsService";
+import { MAX_CATEGORIES_PER_USER, MAX_NOMINEES_PER_USER_PER_CATEGORY, type AwardsCategory } from "./awardsTypes";
 import { useAwardsData } from "./useAwardsData";
+
+type Tab = "all" | "approved" | "results";
 
 function Skeleton() {
   return (
@@ -20,14 +30,18 @@ function Skeleton() {
   );
 }
 
-/** Entrada do Awards: grade de categorias (indicação), botão de votar (cédula) ou resultado, conforme a fase. */
+/**
+ * Entrada do Awards. Cada pessoa vê as próprias categorias (indicação) e o botão de votar (cédula).
+ * Admins do awards veem todas, com as abas "Todas" / "Aprovadas" (e "Resultado" quando encerrado).
+ */
 export function AwardsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { isAdmin } = useAdmin();
   const data = useAwardsData();
-  const { edition, categories, byCategory } = data;
+  const { edition, categories, byCategory, isAdmin } = data;
   const [sheet, setSheet] = useState(false);
+  const [chosenTab, setTab] = useState<Tab | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const header = (
     <div className="flex items-center gap-2 mb-4">
@@ -44,6 +58,11 @@ export function AwardsPage() {
         <span className="ml-auto shrink-0 text-[10px] font-semibold px-2 py-1 rounded-full bg-[rgba(201,165,90,0.12)] text-[var(--gold)]">
           {PHASE_LABEL[edition.phase]}
         </span>
+      )}
+      {edition && isAdmin && (
+        <button onClick={() => navigate("/awards/gerenciar")} aria-label="Gerenciar awards" className="shrink-0 p-2 -mr-2">
+          ⚙️
+        </button>
       )}
     </div>
   );
@@ -67,9 +86,19 @@ export function AwardsPage() {
   }
 
   const phase = edition.phase;
-  const sorted = sortCategories(categories);
+  const visible = sortCategories(visibleCategories(categories, user?.id, isAdmin));
+  const approved = sortCategories(approvedCategories(categories));
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "all", label: `Todas (${visible.length})` },
+    { id: "approved", label: `Aprovadas (${approved.length})` },
+    ...(phase === "closed" ? [{ id: "results" as const, label: "Resultado" }] : []),
+  ];
+  const defaultTab: Tab = phase === "closed" ? "results" : "all";
+  const tab: Tab = !isAdmin ? "all" : tabs.some((t) => t.id === chosenTab) ? chosenTab! : defaultTab;
+  const shown = tab === "approved" ? approved : visible;
+
   const quota = categoryQuota(categories, user?.id, isAdmin);
-  const nominating = canNominate(phase, isAdmin);
+  const nominating = canNominate(phase, isAdmin) && tab === "all";
   const ballotIds = ballotCategories(categories, byCategory).map((c) => c.id);
   const progress = ballotProgress(ballotIds, data.myVotes);
 
@@ -79,13 +108,19 @@ export function AwardsPage() {
     return error;
   };
 
+  const toggleApproval = async (c: AwardsCategory) => {
+    const { error } = await setCategoryApproval(c.id, !c.approved);
+    setActionError(error);
+    if (!error) await data.reload();
+  };
+
   return (
     <div className="p-4 pb-24 max-w-lg mx-auto">
       {header}
 
-      {data.error && (
+      {(data.error || actionError) && (
         <p role="alert" className="text-sm text-red-400 mb-3">
-          {data.error}
+          {data.error ?? actionError}
         </p>
       )}
 
@@ -96,7 +131,8 @@ export function AwardsPage() {
       {phase === "nominations" && (
         <p className="text-xs text-[var(--text-muted)] mb-3">
           Indique categorias e nomes. Você pode indicar até {MAX_CATEGORIES_PER_USER} categorias
-          {Number.isFinite(quota) ? ` (restam ${quota})` : ""} e {5} nomes em cada categoria.
+          {Number.isFinite(quota) ? ` (restam ${quota})` : ""} e {MAX_NOMINEES_PER_USER_PER_CATEGORY} nomes em cada
+          categoria.{!isAdmin && " Só você e os admins veem o que você indicou."}
         </p>
       )}
 
@@ -111,18 +147,59 @@ export function AwardsPage() {
         </button>
       )}
 
-      {phase === "closed" ? (
-        <AwardsResultsView categories={categories} byCategory={byCategory} results={data.results} />
+      {phase === "closed" && !isAdmin && (
+        <p className="text-sm text-[var(--text-primary)] text-center bg-[var(--bg-card)] border border-[rgba(201,165,90,0.25)] rounded-xl p-4 mb-4">
+          Votação encerrada. 🤫 O resultado vai aparecer no Wrapped quando for liberado.
+        </p>
+      )}
+
+      {isAdmin && (
+        <div role="tablist" aria-label="Listas de categorias" className="flex gap-1.5 mb-4">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => setTab(t.id)}
+              className={`text-xs px-3 py-1.5 rounded-full border ${
+                tab === t.id
+                  ? "bg-[var(--gold)] text-black border-[var(--gold)] font-semibold"
+                  : "border-[rgba(255,255,255,0.12)] text-[var(--text-muted)]"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tab === "results" ? (
+        <AwardsResultsView categories={approved} byCategory={byCategory} results={data.results} />
       ) : (
         <div className="grid grid-cols-2 gap-3">
-          {sorted.map((c) => (
-            <CategoryCard
-              key={c.id}
-              category={c}
-              count={byCategory[c.id]?.length ?? 0}
-              mine={c.createdBy === user?.id}
-              onOpen={() => navigate(`/awards/c/${c.id}`)}
-            />
+          {shown.map((c) => (
+            <div key={c.id} className="flex flex-col gap-1.5">
+              <CategoryCard
+                category={c}
+                count={byCategory[c.id]?.length ?? 0}
+                mine={c.createdBy === user?.id}
+                approved={isAdmin && c.approved}
+                onOpen={() => navigate(`/awards/c/${c.id}`)}
+              />
+              {isAdmin && (
+                <button
+                  onClick={() => void toggleApproval(c)}
+                  aria-label={`${c.approved ? "Remover aprovação de" : "Aprovar"} ${c.title}`}
+                  className={`text-xs py-1.5 rounded-lg border ${
+                    c.approved
+                      ? "border-[rgba(255,255,255,0.12)] text-[var(--text-muted)]"
+                      : "border-[var(--gold)] text-[var(--gold)] font-semibold"
+                  }`}
+                >
+                  {c.approved ? "Remover aprovação" : "✓ Aprovar"}
+                </button>
+              )}
+            </div>
           ))}
           {nominating && (
             <AddCard
@@ -135,8 +212,14 @@ export function AwardsPage() {
         </div>
       )}
 
-      {!sorted.length && phase !== "closed" && !nominating && (
-        <p className="text-sm text-[var(--text-muted)] text-center py-8">Ainda não há categorias.</p>
+      {tab !== "results" && !shown.length && !nominating && (
+        <p className="text-sm text-[var(--text-muted)] text-center py-8">
+          {tab === "approved"
+            ? "Nenhuma categoria aprovada ainda."
+            : isAdmin
+              ? "Ainda não há categorias."
+              : "Você não indicou nenhuma categoria."}
+        </p>
       )}
 
       {sheet && (

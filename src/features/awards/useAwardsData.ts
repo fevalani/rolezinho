@@ -3,11 +3,13 @@ import { groupNominees } from "./awardsLogic";
 import {
   fetchContent,
   fetchEdition,
+  fetchIsAwardsAdmin,
   fetchMyVotes,
   fetchResults,
   subscribeAwards,
 } from "./awardsService";
 import { supabase } from "@/lib/supabase";
+import { useAdmin } from "@/lib/useAdmin";
 import type { AwardsCategory, AwardsEdition, AwardsNominee, AwardsResults, MyVotes } from "./awardsTypes";
 
 export interface AwardsData {
@@ -19,14 +21,18 @@ export interface AwardsData {
   byCategory: Record<string, AwardsNominee[]>;
   myVotes: MyVotes;
   results: AwardsResults;
+  /** Admin deste awards (admin do app ou da lista da edição). Só esconde/mostra UI. */
+  isAdmin: boolean;
   reload: () => Promise<void>;
 }
 
 /**
- * Carrega a edição mais recente visível + categorias, indicados, votos do usuário e (se encerrada) o resultado.
- * Atualiza sozinho quando alguém do grupo adiciona/apaga algo (realtime).
+ * Carrega a edição mais recente visível + categorias, indicados, o papel do usuário, os votos dele e,
+ * para admins do awards numa edição encerrada, o resultado.
+ * Atualiza sozinho quando algo muda (realtime).
  */
 export function useAwardsData(): AwardsData {
+  const { isAdmin: isAppAdmin } = useAdmin();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [edition, setEdition] = useState<AwardsEdition | null>(null);
@@ -34,6 +40,7 @@ export function useAwardsData(): AwardsData {
   const [nominees, setNominees] = useState<AwardsNominee[]>([]);
   const [myVotes, setMyVotes] = useState<MyVotes>({});
   const [results, setResults] = useState<AwardsResults>({});
+  const [isListAdmin, setListAdmin] = useState(false);
 
   const reload = useCallback(async () => {
     const ed = await fetchEdition();
@@ -41,20 +48,24 @@ export function useAwardsData(): AwardsData {
     if (!ed) {
       setCategories([]);
       setNominees([]);
+      setListAdmin(false);
       setLoading(false);
       return;
     }
-    const [content, votes] = await Promise.all([
+    const [content, votes, listAdmin] = await Promise.all([
       fetchContent(ed.slug),
-      ed.phase === "voting" || ed.phase === "closed" ? fetchMyVotes(ed.slug) : Promise.resolve({}),
+      ed.phase === "voting" ? fetchMyVotes(ed.slug) : Promise.resolve({}),
+      fetchIsAwardsAdmin(ed.slug),
     ]);
     setError(content.error);
     setCategories(content.data.categories);
     setNominees(content.data.nominees);
     setMyVotes(votes);
-    if (ed.phase === "closed") setResults((await fetchResults(ed.slug)).data);
+    setListAdmin(listAdmin);
+    const seesResults = ed.phase === "closed" && (isAppAdmin || listAdmin);
+    setResults(seesResults ? (await fetchResults(ed.slug)).data : {});
     setLoading(false);
-  }, []);
+  }, [isAppAdmin]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial assíncrona
@@ -74,6 +85,7 @@ export function useAwardsData(): AwardsData {
     byCategory: groupNominees(nominees),
     myVotes,
     results,
+    isAdmin: isAppAdmin || isListAdmin,
     reload,
   };
 }

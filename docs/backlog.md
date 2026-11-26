@@ -17,6 +17,15 @@ substitui digitar a senha quando o login aparece (depois de logout ou sessão ex
 - Estrutura: `biometricLogic.ts` (regras puras), `biometricService.ts` (plugin), plugin mockado em
   `src/test/setup.ts`, telas no `pages.smoke.test.tsx` + testes de comportamento.
 
+## Resultado do Awards no Wrapped
+
+Decidido em 25/11/2026: o resultado do Awards hoje só aparece para os admins do awards. Falta levar os
+vencedores ao Wrapped, visíveis só no dia em que o admin liberar.
+
+- Liberação explícita (ex.: botão no painel do awards), imposta no banco: `award_results` (ou uma RPC própria)
+  passa a responder a quem vê a edição só depois de liberada.
+- Só categorias aprovadas; nunca expor quem votou em quem.
+
 ## Conquistas e troféus entre os módulos (entram no Wrapped)
 
 Ideia de 20/11/2026: selos calculados a partir dos dados que já existem em Bolão, Arena, Letreco,

@@ -45,6 +45,7 @@ import { AwardsPage } from "@/features/awards/AwardsPage";
 import { AwardsCategoryPage } from "@/features/awards/AwardsCategoryPage";
 import { AwardsBallotPage } from "@/features/awards/AwardsBallotPage";
 import { AwardsAdminPage } from "@/features/awards/AwardsAdminPage";
+import { AwardsManagePage } from "@/features/awards/AwardsManagePage";
 import { AdminPage, AdminSectionPage } from "@/features/admin/AdminPage";
 
 vi.mock("@capacitor/core", async (orig) => ({
@@ -102,6 +103,7 @@ const PAGES: Case[] = [
   { name: "AwardsPage", Component: AwardsPage, pattern: "/awards", route: "/awards" },
   { name: "AwardsCategoryPage", Component: AwardsCategoryPage, pattern: "/awards/c/:categoryId", route: "/awards/c/c1" },
   { name: "AwardsBallotPage", Component: AwardsBallotPage, pattern: "/awards/votar", route: "/awards/votar" },
+  { name: "AwardsManagePage", Component: AwardsManagePage, pattern: "/awards/gerenciar", route: "/awards/gerenciar" },
   { name: "AwardsAdminPage", Component: AwardsAdminPage, pattern: "/admin/awards", route: "/admin/awards" },
 ];
 

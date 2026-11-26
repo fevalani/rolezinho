@@ -36,18 +36,36 @@ export const categoryQuota = (categories: AwardsCategory[], userId: string | nul
 export const nomineeQuota = (nominees: AwardsNominee[], userId: string | null | undefined, isAdmin: boolean) =>
   remainingQuota(countOwned(nominees, userId), MAX_NOMINEES_PER_USER_PER_CATEGORY, isAdmin);
 
-/** Indicação só na fase `nominations` (o admin pode também nas outras, para corrigir). */
+/** Categoria nova só na fase `nominations` (admin do awards pode também nas outras, para corrigir). */
 export const canNominate = (phase: AwardsPhase, isAdmin: boolean) => phase === "nominations" || isAdmin;
 
-/** Dono edita/apaga só durante a indicação; admin sempre. */
-export function canEditItem(
-  item: { createdBy: string },
+/** Fora da cédula, cada um só vê as categorias que criou; admin do awards vê todas. */
+export const visibleCategories = (categories: AwardsCategory[], userId: string | null | undefined, isAdmin: boolean) =>
+  isAdmin ? categories : categories.filter((c) => !!userId && c.createdBy === userId);
+
+export const approvedCategories = (categories: AwardsCategory[]) => categories.filter((c) => c.approved);
+
+const isOwnerNominating = (category: AwardsCategory, userId: string | null | undefined, phase: AwardsPhase) =>
+  !!userId && category.createdBy === userId && phase === "nominations";
+
+/** Renomear/apagar a categoria: dono na indicação enquanto não aprovada; admin sempre. */
+export function canEditCategory(
+  category: AwardsCategory,
   userId: string | null | undefined,
   isAdmin: boolean,
   phase: AwardsPhase,
 ): boolean {
-  if (isAdmin) return true;
-  return !!userId && item.createdBy === userId && phase === "nominations";
+  return isAdmin || (!category.approved && isOwnerNominating(category, userId, phase));
+}
+
+/** Adicionar/editar/apagar indicados: dono da categoria na indicação (mesmo aprovada); admin sempre. */
+export function canManageNominees(
+  category: AwardsCategory,
+  userId: string | null | undefined,
+  isAdmin: boolean,
+  phase: AwardsPhase,
+): boolean {
+  return isAdmin || isOwnerNominating(category, userId, phase);
 }
 
 export interface ValidationResult {
@@ -83,9 +101,9 @@ export function groupNominees(nominees: AwardsNominee[]): Record<string, AwardsN
 
 // ─── Cédula ─────────────────────────────────────────────────────────────────
 
-/** Só entram na cédula categorias com pelo menos 2 indicados (com 1 não há o que escolher). */
+/** Só entram na cédula categorias aprovadas com pelo menos 2 indicados (com 1 não há o que escolher). */
 export const ballotCategories = (categories: AwardsCategory[], byCategory: Record<string, AwardsNominee[]>) =>
-  sortCategories(categories).filter((c) => (byCategory[c.id]?.length ?? 0) >= 2);
+  sortCategories(approvedCategories(categories)).filter((c) => (byCategory[c.id]?.length ?? 0) >= 2);
 
 export interface BallotProgress {
   voted: number;

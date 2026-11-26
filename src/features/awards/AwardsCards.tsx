@@ -9,11 +9,13 @@ export function CategoryCard({
   category,
   count,
   mine,
+  approved,
   onOpen,
 }: {
   category: AwardsCategory;
   count: number;
   mine: boolean;
+  approved?: boolean;
   onOpen: () => void;
 }) {
   return (
@@ -29,6 +31,11 @@ export function CategoryCard({
       {mine && (
         <span className="absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[rgba(201,165,90,0.9)] text-black">
           sua
+        </span>
+      )}
+      {approved && (
+        <span className="absolute top-2 left-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500 text-black">
+          ✓ aprovada
         </span>
       )}
       <span className="relative mt-auto p-3 flex flex-col gap-0.5">

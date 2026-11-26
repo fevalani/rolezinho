@@ -9,8 +9,10 @@ import {
   fetchContent,
   fetchAppUsers,
   fetchEdition,
-  fetchViewers,
-  saveViewers,
+  fetchPeople,
+  savePeople,
+  fetchIsAwardsAdmin,
+  setCategoryApproval,
   setAudience,
   fetchMyVotes,
   fetchResults,
@@ -69,8 +71,12 @@ describe("awardsService — leitura", () => {
     ];
     const { data, error } = await fetchContent("2026");
     expect(error).toBeNull();
-    expect(data.categories[0]).toMatchObject({ id: "c1", editionSlug: "2026", createdBy: "u1" });
+    expect(data.categories[0]).toMatchObject({ id: "c1", editionSlug: "2026", createdBy: "u1", approved: false });
     expect(data.nominees[0]).toMatchObject({ categoryId: "c1", label: "Ana", imageUrl: "https://img/a.webp" });
+  });
+  it("fetchContent marca como aprovada a categoria com approved_at", async () => {
+    mockDb.tables.awards_categories = [{ id: "c1", edition_slug: "2026", title: "A", position: 0, created_by: "u1", approved_at: "2026-11-25T00:00:00Z" }];
+    expect((await fetchContent("2026")).data.categories[0].approved).toBe(true);
   });
   it("fetchContent sem categorias não consulta indicados", async () => {
     const { data } = await fetchContent("2026");
@@ -98,15 +104,15 @@ describe("awardsService — indicações (RPC)", () => {
     mockDb.errors["rpc:create_award_category"] = { message: "Você já indicou 5 categorias." };
     expect((await createCategory("2026", "X", null, null)).error).toBe("Você já indicou 5 categorias.");
   });
-  it("addNominee chama a RPC e devolve o erro do limite de 5 por categoria", async () => {
+  it("addNominee chama a RPC e devolve o erro do limite por categoria", async () => {
     expect((await addNominee("c1", "Ana", null)).error).toBeNull();
     expect(supabase.rpc).toHaveBeenCalledWith("add_award_nominee", {
       p_category_id: "c1",
       p_label: "Ana",
       p_image_url: null,
     });
-    mockDb.errors["rpc:add_award_nominee"] = { message: "Você já indicou 5 nomes nesta categoria." };
-    expect((await addNominee("c1", "Beto", null)).error).toContain("5 nomes");
+    mockDb.errors["rpc:add_award_nominee"] = { message: "Você já indicou 10 nomes nesta categoria." };
+    expect((await addNominee("c1", "Beto", null)).error).toContain("10 nomes");
   });
   it("apagar categoria e indicado grava delete", async () => {
     await deleteCategory("c1");
@@ -188,23 +194,48 @@ describe("awardsService — quem vê", () => {
       { id: "u2", displayName: "Sem nome", avatarUrl: "https://a/b.png" },
     ]);
   });
-  it("fetchViewers lê os ids", async () => {
-    mockDb.tables.awards_viewers = [{ user_id: "u1" }, { user_id: "u2" }];
-    expect(await fetchViewers("2026")).toEqual(["u1", "u2"]);
+  it.each(["awards_viewers", "awards_admins"] as const)("fetchPeople lê os ids de %s", async (table) => {
+    mockDb.tables[table] = [{ user_id: "u1" }, { user_id: "u2" }];
+    expect(await fetchPeople(table, "2026")).toEqual(["u1", "u2"]);
   });
-  it("saveViewers aplica só a diferença (remove quem saiu, adiciona quem entrou)", async () => {
-    mockDb.tables.awards_viewers = [{ user_id: "u1" }, { user_id: "u2" }];
-    const r = await saveViewers("2026", ["u2", "u3"]);
+  it("fetchPeople é vazio em erro", async () => {
+    mockDb.errors.awards_admins = { message: "x" };
+    expect(await fetchPeople("awards_admins", "2026")).toEqual([]);
+  });
+  it.each(["awards_viewers", "awards_admins"] as const)("savePeople aplica só a diferença em %s", async (table) => {
+    mockDb.tables[table] = [{ user_id: "u1" }, { user_id: "u2" }];
+    const r = await savePeople(table, "2026", ["u2", "u3"]);
     expect(r.error).toBeNull();
     const del = mockDb.writes.find((w) => w.op === "delete");
     const up = mockDb.writes.find((w) => w.op === "upsert");
-    expect(del?.table).toBe("awards_viewers");
+    expect(del?.table).toBe(table);
     expect(mockDb.queries.some((q) => q.calls.some(([m, a]) => m === "in" && JSON.stringify(a) === JSON.stringify(["user_id", ["u1"]])))).toBe(true);
     expect(up?.args[0]).toEqual([{ slug: "2026", user_id: "u3" }]);
   });
-  it("saveViewers não apaga nada se a leitura falhar", async () => {
+  it("savePeople não apaga nada se a leitura falhar", async () => {
     mockDb.errors.awards_viewers = { message: "sem acesso" };
-    expect((await saveViewers("2026", ["u1"])).error).toBe("sem acesso");
+    expect((await savePeople("awards_viewers", "2026", ["u1"])).error).toBe("sem acesso");
     expect(mockDb.writes).toHaveLength(0);
+  });
+});
+
+describe("awardsService — aprovação e papel", () => {
+  it("setCategoryApproval usa a RPC (aprovar e remover)", async () => {
+    await setCategoryApproval("c1", true);
+    await setCategoryApproval("c1", false);
+    expect(supabase.rpc).toHaveBeenCalledWith("set_award_category_approval", { p_category_id: "c1", p_approved: true });
+    expect(supabase.rpc).toHaveBeenCalledWith("set_award_category_approval", { p_category_id: "c1", p_approved: false });
+  });
+  it("setCategoryApproval devolve o erro do banco", async () => {
+    mockDb.errors["rpc:set_award_category_approval"] = { message: "Só um admin do awards." };
+    expect((await setCategoryApproval("c1", true)).error).toBe("Só um admin do awards.");
+  });
+  it("fetchIsAwardsAdmin só é verdadeiro com true do banco", async () => {
+    expect(await fetchIsAwardsAdmin("2026")).toBe(false);
+    mockDb.rpcResults.is_awards_admin = true;
+    expect(await fetchIsAwardsAdmin("2026")).toBe(true);
+    expect(supabase.rpc).toHaveBeenCalledWith("is_awards_admin", { p_slug: "2026" });
+    mockDb.errors["rpc:is_awards_admin"] = { message: "x" };
+    expect(await fetchIsAwardsAdmin("2026")).toBe(false);
   });
 });

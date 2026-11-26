@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   ballotCategories,
+  approvedCategories,
   ballotProgress,
-  canEditItem,
+  canEditCategory,
+  canManageNominees,
   canNominate,
   categoryQuota,
   clampStep,
@@ -17,10 +19,11 @@ import {
   sortCategories,
   validateCategory,
   validateNominee,
+  visibleCategories,
 } from "@/features/awards/awardsLogic";
 import type { AwardsCategory, AwardsNominee } from "@/features/awards/awardsTypes";
 
-const cat = (id: string, by = "u1", position = 0, title = id): AwardsCategory => ({
+const cat = (id: string, by = "u1", position = 0, title = id, approved = true): AwardsCategory => ({
   id,
   editionSlug: "2026",
   title,
@@ -28,6 +31,7 @@ const cat = (id: string, by = "u1", position = 0, title = id): AwardsCategory =>
   imageUrl: null,
   position,
   createdBy: by,
+  approved,
 });
 const nom = (id: string, categoryId: string, by = "u1", label: string | null = id): AwardsNominee => ({
   id,
@@ -54,6 +58,11 @@ describe("limites por pessoa", () => {
     expect(categoryQuota(cats, "u1", false)).toBe(3);
     expect(categoryQuota(cats, "u2", false)).toBe(4);
   });
+  it("10 indicados seus esgotam a categoria; os de outras pessoas não contam", () => {
+    const mine = Array.from({ length: 10 }, (_, i) => nom(`n${i}`, "c1", "u1"));
+    expect(nomineeQuota(mine, "u1", false)).toBe(0);
+    expect(nomineeQuota([...mine.slice(1), nom("x", "c1", "u2")], "u1", false)).toBe(1);
+  });
   it("5 categorias esgotam a cota; apagar uma libera a vaga", () => {
     const five = ["a", "b", "c", "d", "e"].map((id) => cat(id, "u1"));
     expect(categoryQuota(five, "u1", false)).toBe(0);
@@ -61,7 +70,7 @@ describe("limites por pessoa", () => {
   });
   it("cota de indicados é por pessoa (o chamador passa os da categoria)", () => {
     const list = [nom("n1", "c1", "u1"), nom("n2", "c1", "u1"), nom("n3", "c1", "u2")];
-    expect(nomineeQuota(list, "u1", false)).toBe(3);
+    expect(nomineeQuota(list, "u1", false)).toBe(8); // limite de 10: o indicado de u2 não gasta vaga de u1
     expect(nomineeQuota(list, "u1", true)).toBe(Infinity);
   });
 });
@@ -73,13 +82,28 @@ describe("permissões por fase", () => {
     expect(canNominate("hidden", false)).toBe(false);
     expect(canNominate("closed", true)).toBe(true);
   });
-  it("dono edita só na indicação; admin sempre; outro nunca", () => {
-    const item = { createdBy: "u1" };
-    expect(canEditItem(item, "u1", false, "nominations")).toBe(true);
-    expect(canEditItem(item, "u1", false, "voting")).toBe(false);
-    expect(canEditItem(item, "u2", false, "nominations")).toBe(false);
-    expect(canEditItem(item, "u2", true, "closed")).toBe(true);
-    expect(canEditItem(item, null, false, "nominations")).toBe(false);
+  it("categoria: dono renomeia/apaga na indicação enquanto não aprovada; admin sempre; outro nunca", () => {
+    const open = cat("c", "u1", 0, "c", false);
+    expect(canEditCategory(open, "u1", false, "nominations")).toBe(true);
+    expect(canEditCategory(open, "u1", false, "voting")).toBe(false);
+    expect(canEditCategory(open, "u2", false, "nominations")).toBe(false);
+    expect(canEditCategory(open, null, false, "nominations")).toBe(false);
+    expect(canEditCategory({ ...open, approved: true }, "u1", false, "nominations")).toBe(false);
+    expect(canEditCategory({ ...open, approved: true }, "u2", true, "closed")).toBe(true);
+  });
+  it("indicados: o dono da categoria cuida deles na indicação, mesmo aprovada", () => {
+    const approved = cat("c", "u1");
+    expect(canManageNominees(approved, "u1", false, "nominations")).toBe(true);
+    expect(canManageNominees(approved, "u1", false, "voting")).toBe(false);
+    expect(canManageNominees(approved, "u2", false, "nominations")).toBe(false);
+    expect(canManageNominees(approved, "u2", true, "closed")).toBe(true);
+  });
+  it("cada um vê só as próprias categorias; admin vê todas; aprovadas filtradas", () => {
+    const list = [cat("a", "u1", 0, "a", false), cat("b", "u2", 1, "b", true)];
+    expect(visibleCategories(list, "u1", false).map((c) => c.id)).toEqual(["a"]);
+    expect(visibleCategories(list, null, false)).toEqual([]);
+    expect(visibleCategories(list, "u3", true)).toHaveLength(2);
+    expect(approvedCategories(list).map((c) => c.id)).toEqual(["b"]);
   });
   it("hidden não é visível ao grupo", () => {
     expect(isEditionVisible("hidden")).toBe(false);
@@ -124,6 +148,11 @@ describe("cédula", () => {
     const cats = [cat("c1"), cat("c2", "u", 1), cat("c3", "u", 2)];
     const g = groupNominees([nom("a", "c1"), nom("b", "c1"), nom("c", "c2")]);
     expect(ballotCategories(cats, g).map((c) => c.id)).toEqual(["c1"]);
+  });
+  it("categoria não aprovada fica fora da cédula", () => {
+    const cats = [cat("c1", "u", 0, "c1", false), cat("c2", "u", 1)];
+    const g = groupNominees([nom("a", "c1"), nom("b", "c1"), nom("c", "c2"), nom("d", "c2")]);
+    expect(ballotCategories(cats, g).map((c) => c.id)).toEqual(["c2"]);
   });
   it("progresso, faltantes e conclusão", () => {
     expect(ballotProgress(["c1", "c2", "c3"], { c1: "a" })).toEqual({

@@ -1,27 +1,34 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { useAdmin } from "@/lib/useAdmin";
 import { AddCard, NomineeCard } from "./AwardsCards";
 import { NominationSheet, type SheetValues } from "./NominationSheet";
-import { canEditItem, canNominate, nomineeQuota } from "./awardsLogic";
-import { addNominee, deleteCategory, deleteNominee, updateCategory, updateNominee } from "./awardsService";
+import { canEditCategory, canManageNominees, nomineeQuota, visibleCategories } from "./awardsLogic";
+import {
+  addNominee,
+  deleteCategory,
+  deleteNominee,
+  setCategoryApproval,
+  updateCategory,
+  updateNominee,
+} from "./awardsService";
 import { MAX_NOMINEES_PER_USER_PER_CATEGORY, type AwardsNominee } from "./awardsTypes";
 import { useAwardsData } from "./useAwardsData";
 
 type SheetState = { type: "add" } | { type: "edit-nominee"; nominee: AwardsNominee } | { type: "edit-category" } | null;
 
-/** Categoria: indicados em grade + "indicar mais um". Dono/admin edita e apaga. */
+/** Categoria (do dono ou, para admin do awards, qualquer uma): indicados em grade + "indicar mais um". */
 export function AwardsCategoryPage() {
   const { categoryId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { isAdmin } = useAdmin();
   const data = useAwardsData();
+  const { isAdmin } = data;
   const [sheet, setSheet] = useState<SheetState>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const category = data.categories.find((c) => c.id === categoryId);
+  // Na votação o banco entrega também as aprovadas dos outros (para a cédula); aqui continuam fora.
+  const category = visibleCategories(data.categories, user?.id, isAdmin).find((c) => c.id === categoryId);
   const phase = data.edition?.phase ?? "hidden";
   const back = (
     <button onClick={() => navigate("/awards")} aria-label="Voltar" className="p-2 -ml-2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
@@ -53,8 +60,8 @@ export function AwardsCategoryPage() {
 
   const nominees = data.byCategory[category.id] ?? [];
   const quota = nomineeQuota(nominees, user?.id, isAdmin);
-  const nominating = canNominate(phase, isAdmin);
-  const canEditCategory = canEditItem(category, user?.id, isAdmin, phase);
+  const managing = canManageNominees(category, user?.id, isAdmin, phase);
+  const editable = canEditCategory(category, user?.id, isAdmin, phase);
 
   const run = async (p: Promise<{ error: string | null }>) => {
     const { error } = await p;
@@ -92,7 +99,7 @@ export function AwardsCategoryPage() {
           </h1>
           {category.description && <p className="text-xs text-[var(--text-muted)] mt-0.5">{category.description}</p>}
         </div>
-        {canEditCategory && (
+        {editable && (
           <div className="flex gap-1 shrink-0">
             <button onClick={() => setSheet({ type: "edit-category" })} aria-label="Editar categoria" className="p-2 text-[var(--text-muted)]">
               ✏️
@@ -110,7 +117,26 @@ export function AwardsCategoryPage() {
         </p>
       )}
 
-      {nominating && (
+      {isAdmin && (
+        <button
+          onClick={() => void run(setCategoryApproval(category.id, !category.approved))}
+          className={`w-full mb-3 py-2.5 rounded-xl text-sm font-semibold ${
+            category.approved
+              ? "border border-[rgba(255,255,255,0.12)] text-[var(--text-muted)]"
+              : "text-black bg-[var(--gold)]"
+          }`}
+        >
+          {category.approved ? "✓ Aprovada · remover aprovação" : "✓ Aprovar categoria"}
+        </button>
+      )}
+
+      {!isAdmin && category.approved && phase === "nominations" && (
+        <p className="text-xs text-[var(--gold)] mb-3">
+          Categoria aprovada: o nome fica travado, mas você ainda pode completar os indicados.
+        </p>
+      )}
+
+      {managing && (
         <p className="text-xs text-[var(--text-muted)] mb-3">
           Você pode indicar até {MAX_NOMINEES_PER_USER_PER_CATEGORY} nomes aqui
           {Number.isFinite(quota) ? ` (restam ${quota})` : ""}.
@@ -123,7 +149,7 @@ export function AwardsCategoryPage() {
             key={n.id}
             nominee={n}
             actions={
-              canEditItem(n, user?.id, isAdmin, phase) && (
+              managing && (
                 <>
                   <button className={btn} onClick={() => setSheet({ type: "edit-nominee", nominee: n })} aria-label={`Editar ${n.label ?? "indicado"}`}>
                     Editar
@@ -136,7 +162,7 @@ export function AwardsCategoryPage() {
             }
           />
         ))}
-        {nominating && (
+        {managing && (
           <AddCard
             aspect="aspect-square"
             label="Indicar mais um"
@@ -147,7 +173,7 @@ export function AwardsCategoryPage() {
         )}
       </div>
 
-      {!nominees.length && !nominating && (
+      {!nominees.length && !managing && (
         <p className="text-sm text-[var(--text-muted)] text-center py-8">Nenhum indicado ainda.</p>
       )}
 

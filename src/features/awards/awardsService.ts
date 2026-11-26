@@ -37,6 +37,7 @@ const categoryFromRow = (r: Row): AwardsCategory => ({
   imageUrl: (r.image_url as string | null) ?? null,
   position: (r.position as number) ?? 0,
   createdBy: r.created_by as string,
+  approved: !!r.approved_at,
 });
 
 const nomineeFromRow = (r: Row): AwardsNominee => ({
@@ -159,6 +160,26 @@ export async function deleteNominee(id: string): Promise<Result> {
   return { error: error?.message ?? null };
 }
 
+// ─── Aprovação e papel (RPC) ────────────────────────────────────────────────
+
+export async function setCategoryApproval(categoryId: string, approved: boolean): Promise<Result> {
+  const { error } = await supabase.rpc("set_award_category_approval", {
+    p_category_id: categoryId,
+    p_approved: approved,
+  });
+  return { error: error?.message ?? null };
+}
+
+/** Sou admin deste awards? (admin do app ou da lista da edição). Em erro, não. */
+export async function fetchIsAwardsAdmin(slug: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.rpc("is_awards_admin", { p_slug: slug });
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+}
+
 // ─── Votação (RPC) ──────────────────────────────────────────────────────────
 
 export async function castVote(categoryId: string, nomineeId: string): Promise<Result> {
@@ -231,10 +252,13 @@ export async function fetchAppUsers(): Promise<AwardsUser[]> {
   }
 }
 
-/** Ids de quem pode ver a edição quando `audience = 'selected'`. Só o admin lê a lista toda (RLS). */
-export async function fetchViewers(slug: string): Promise<string[]> {
+/** Listas de pessoas por edição: quem vê (`audience = 'selected'`) e quem administra o awards. */
+export type AwardsPeopleList = "awards_viewers" | "awards_admins";
+
+/** Ids das pessoas da lista. Só admins leem a lista toda (RLS). */
+export async function fetchPeople(table: AwardsPeopleList, slug: string): Promise<string[]> {
   try {
-    const { data, error } = await supabase.from("awards_viewers").select("user_id").eq("slug", slug);
+    const { data, error } = await supabase.from(table).select("user_id").eq("slug", slug);
     if (error || !data) return [];
     return (data as Row[]).map((r) => r.user_id as string);
   } catch {
@@ -242,22 +266,22 @@ export async function fetchViewers(slug: string): Promise<string[]> {
   }
 }
 
-/** Grava a lista de quem vê (só aplica a diferença; falha de leitura não apaga nada). */
-export async function saveViewers(slug: string, userIds: string[]): Promise<Result> {
+/** Grava a lista (só aplica a diferença; falha de leitura não apaga nada). */
+export async function savePeople(table: AwardsPeopleList, slug: string, userIds: string[]): Promise<Result> {
   try {
-    const { data, error } = await supabase.from("awards_viewers").select("user_id").eq("slug", slug);
+    const { data, error } = await supabase.from(table).select("user_id").eq("slug", slug);
     if (error) return { error: error.message };
     const current = new Set(((data ?? []) as Row[]).map((r) => r.user_id as string));
     const wanted = new Set(userIds);
     const removed = [...current].filter((id) => !wanted.has(id));
     const added = [...wanted].filter((id) => !current.has(id));
     if (removed.length) {
-      const { error: e } = await supabase.from("awards_viewers").delete().eq("slug", slug).in("user_id", removed);
+      const { error: e } = await supabase.from(table).delete().eq("slug", slug).in("user_id", removed);
       if (e) return { error: e.message };
     }
     if (added.length) {
       const { error: e } = await supabase
-        .from("awards_viewers")
+        .from(table)
         .upsert(added.map((user_id) => ({ slug, user_id })), { onConflict: "slug,user_id" });
       if (e) return { error: e.message };
     }

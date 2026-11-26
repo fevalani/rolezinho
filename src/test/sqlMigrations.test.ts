@@ -144,79 +144,123 @@ describe("awards_migration.sql", () => {
   const code = s.replace(/--.*$/gm, "");
   const awardsSvc = readFileSync(resolve(__dirname, "../features/awards/awardsService.ts"), "utf-8");
 
-  it("cria as 4 tabelas com RLS ligada e sem e-mail fixo", () => {
-    for (const t of ["awards_editions", "awards_categories", "awards_nominees", "awards_votes"]) {
-      expect(code).toMatch(new RegExp(`create table if not exists public\\.${t}`, "i"));
-      expect(code).toMatch(new RegExp(`alter table public\\.${t} enable row level security`, "i"));
+  it("cria as 6 tabelas com RLS ligada e sem e-mail fixo", () => {
+    for (const t of ["editions", "categories", "nominees", "votes", "viewers", "admins"]) {
+      expect(code).toMatch(new RegExp(`create table if not exists public\\.awards_${t}`, "i"));
+      expect(code).toMatch(new RegExp(`alter table public\\.awards_${t} enable row level security`, "i"));
     }
     expect(code).not.toMatch(EMAIL);
   });
+  const fnBody = (name: string) => code.match(new RegExp(`function public\\.${name}\\([\\s\\S]*?\\$\\$;`, "i"))![0];
+  const policy = (name: string) => code.match(new RegExp(`create policy "${name}"[\\s\\S]*?;`, "i"))![0];
   it("não há INSERT direto em categorias/indicados nem policy em votos (só RPC)", () => {
     expect(code).not.toMatch(/for insert to authenticated[\s\S]{0,80}awards_(categories|nominees)/i);
     expect(code).not.toMatch(/create policy "[^"]*"\s+on public\.awards_(categories|nominees)\s+for (insert|all)/i);
     expect(code).not.toMatch(/create policy[^;]*on public\.awards_votes/i);
   });
-  it("limites de 5 contam o que o próprio usuário criou e o admin é isento", () => {
-    const cat = code.match(/function public\.create_award_category[\s\S]*?\$\$;/i)![0];
-    const nom = code.match(/function public\.add_award_nominee[\s\S]*?\$\$;/i)![0];
-    expect(cat).toMatch(/created_by = auth\.uid\(\)/);
-    expect(cat).toMatch(/if v_count >= 5/);
-    expect(cat).toMatch(/not public\.is_app_admin\(\)/);
-    expect(nom).toMatch(/category_id = p_category_id and created_by = auth\.uid\(\)/);
-    expect(nom).toMatch(/if v_count >= 5/);
-    expect(nom).toMatch(/not public\.is_app_admin\(\)/);
+  it("limites (5 categorias, 10 indicados) contam o que o próprio usuário criou; admin do awards isento", () => {
+    const category = fnBody("create_award_category");
+    const nominee = fnBody("add_award_nominee");
+    expect(category).toMatch(/created_by = auth\.uid\(\)/);
+    expect(category).toMatch(/if v_count >= 5 /);
+    expect(category).toMatch(/not public\.is_awards_admin\(p_edition\)/);
+    expect(nominee).toMatch(/category_id = p_category_id and created_by = auth\.uid\(\)/);
+    expect(nominee).toMatch(/if v_count >= 10 /);
+    expect(nominee).toMatch(/if not v_admin then\s+select count/);
   });
-  it("indicar exige fase nominations e votar exige fase voting", () => {
-    expect(code).toMatch(/v_phase <> 'nominations' and not public\.is_app_admin\(\)/);
-    expect(code).toMatch(/v_phase is distinct from 'voting'/);
+  it("indicar só na própria categoria (ou admin do awards)", () => {
+    expect(fnBody("add_award_nominee")).toMatch(/\(v_owner <> auth\.uid\(\) and not v_admin\)/);
   });
-  it("resultado só para admin ou edição fechada que a pessoa pode ver; indicado precisa ser da categoria", () => {
-    const fn = code.match(/function public\.award_results[\s\S]*?\$\$;/i)![0];
-    expect(fn).toMatch(/public\.is_app_admin\(\)\s+or \(\s*public\.awards_can_view\(p_edition\)\s+and exists \(select 1 from public\.awards_editions where slug = p_edition and phase = 'closed'\)/i);
-    expect(code).toMatch(/where id = p_nominee_id and category_id = p_category_id/);
+  it("indicar exige fase nominations; votar exige fase voting e categoria aprovada", () => {
+    expect(fnBody("create_award_category")).toMatch(/v_phase <> 'nominations' and not public\.is_awards_admin/);
+    expect(fnBody("add_award_nominee")).toMatch(/v_phase <> 'nominations' and not v_admin/);
+    const vote = fnBody("cast_award_vote");
+    expect(vote).toMatch(/v_phase is distinct from 'voting'/);
+    expect(vote).toMatch(/if v_approved is null then/);
+    expect(vote).toMatch(/where id = p_nominee_id and category_id = p_category_id/);
   });
-  it("só o dono (na indicação) ou o admin edita/apaga", () => {
-    for (const p of ["awards_categories_update", "awards_categories_delete", "awards_nominees_update", "awards_nominees_delete"]) {
-      const body = code.match(new RegExp(`create policy "${p}"[\\s\\S]*?;`, "i"))![0];
-      expect(body).toMatch(/public\.is_app_admin\(\)/);
-      expect(body).toMatch(/created_by = auth\.uid\(\)/);
-      expect(body).toMatch(/phase = 'nominations'/);
+  it("admin do awards = admin do app ou lista da edição; só o admin do app monta a lista", () => {
+    expect(fnBody("is_awards_admin")).toMatch(
+      /public\.is_app_admin\(\) or exists \(\s+select 1 from public\.awards_admins a where a\.slug = p_slug and a\.user_id = auth\.uid\(\)/,
+    );
+    expect(policy("awards_admins_app_admin_write")).toMatch(/using \(public\.is_app_admin\(\)\)\s+with check \(public\.is_app_admin\(\)\)/);
+    expect(policy("awards_admins_select")).toMatch(/user_id = auth\.uid\(\) or public\.is_awards_admin\(slug\)/);
+  });
+  it("resultado e aprovação são só dos admins do awards", () => {
+    const results = fnBody("award_results");
+    expect(results).toMatch(/if not public\.is_awards_admin\(p_edition\) then\s+raise exception/);
+    expect(results).not.toMatch(/closed/);
+    expect(fnBody("set_award_category_approval")).toMatch(/not public\.is_awards_admin\(v_slug\)[\s\S]*raise exception[\s\S]*update public\.awards_categories/);
+  });
+  it("categoria só é lida por admin, dono, ou por todos quando aprovada e em votação", () => {
+    const p = policy("awards_categories_select");
+    expect(p).toMatch(/public\.awards_can_view\(edition_slug\)\s+and \(/);
+    expect(p).toMatch(/public\.is_awards_admin\(edition_slug\)\s+or created_by = auth\.uid\(\)\s+or \(approved_at is not null and exists/);
+    expect(p).toMatch(/e\.phase = 'voting'/);
+    expect(policy("awards_nominees_select")).toMatch(/using \(public\.awards_can_see_category\(category_id\)\)/);
+    const see = fnBody("awards_can_see_category");
+    expect(see).toMatch(/public\.awards_can_view\(c\.edition_slug\)/);
+    expect(see).toMatch(/or c\.created_by = auth\.uid\(\)\s+or \(e\.phase = 'voting' and c\.approved_at is not null\)/);
+    expect(see).not.toMatch(/awards_nominees/); // quem indicou na categoria alheia não a vê
+  });
+  it("dono renomeia/apaga categoria só na indicação e sem aprovação; admin sempre", () => {
+    for (const name of ["awards_categories_update", "awards_categories_delete"]) {
+      const p = policy(name);
+      expect(p).toMatch(/public\.is_awards_admin\(edition_slug\)\s+or \(created_by = auth\.uid\(\) and approved_at is null/);
+      expect(p).toMatch(/phase = 'nominations'/);
     }
   });
-  it("edição oculta só aparece ao admin; fora disso vale a audiência (todos ou lista)", () => {
-    const fn = code.match(/function public\.awards_can_view[\s\S]*?\$\$;/i)![0];
-    expect(fn).toMatch(/public\.is_app_admin\(\)\s+or exists/);
+  it("indicados são alterados pelo dono da categoria (não por quem indicou) ou admin", () => {
+    for (const name of ["awards_nominees_update", "awards_nominees_delete"]) {
+      const p = policy(name);
+      expect(p).toMatch(/public\.is_awards_admin\(c\.edition_slug\)/);
+      expect(p).toMatch(/c\.created_by = auth\.uid\(\) and e\.phase = 'nominations'/);
+      expect(p).not.toMatch(/awards_nominees\.created_by/);
+    }
+  });
+  it("update direto não alcança dono nem aprovação (só colunas de conteúdo)", () => {
+    expect(code).toMatch(/revoke update on public\.awards_categories from anon, authenticated;/);
+    expect(code).toMatch(/grant update \(title, description, image_url, position\) on public\.awards_categories to authenticated;/);
+    expect(code).toMatch(/revoke update on public\.awards_nominees from anon, authenticated;/);
+    expect(code).toMatch(/grant update \(label, image_url\) on public\.awards_nominees to authenticated;/);
+  });
+  it("edição oculta só aparece aos admins; fora disso vale a audiência (todos ou lista)", () => {
+    const fn = fnBody("awards_can_view");
+    expect(fn).toMatch(/public\.is_awards_admin\(p_slug\) or exists/);
     expect(fn).toMatch(/e\.phase <> 'hidden'/);
     expect(fn).toMatch(/e\.audience = 'all'/);
     expect(fn).toMatch(/from public\.awards_viewers v where v\.slug = e\.slug and v\.user_id = auth\.uid\(\)/);
-    expect(code).toMatch(/"awards_editions_select"[\s\S]*?using \(public\.awards_can_view\(slug\)\)/i);
-    expect(code).toMatch(/"awards_categories_select"[\s\S]*?public\.awards_can_view\(edition_slug\)/i);
-    expect(code).toMatch(/"awards_nominees_select"[\s\S]*?public\.awards_can_view\(c\.edition_slug\)/i);
+    expect(policy("awards_editions_select")).toMatch(/using \(public\.awards_can_view\(slug\)\)/);
   });
-  it("audiência: coluna validada, lista só editável pelo admin e visível ao próprio usuário", () => {
+  it("audiência e fase: admin do awards edita; criar/apagar edição só o admin do app", () => {
     expect(code).toMatch(/add column if not exists audience text not null default 'all' check \(audience in \('all', 'selected'\)\)/i);
-    expect(code).toMatch(/create table if not exists public\.awards_viewers/i);
-    expect(code).toMatch(/alter table public\.awards_viewers enable row level security/i);
-    expect(code).toMatch(/"awards_viewers_select"[\s\S]*?user_id = auth\.uid\(\) or public\.is_app_admin\(\)/i);
-    expect(code).toMatch(/"awards_viewers_admin_write"[\s\S]*?using \(public\.is_app_admin\(\)\)\s+with check \(public\.is_app_admin\(\)\)/i);
+    expect(policy("awards_viewers_select")).toMatch(/user_id = auth\.uid\(\) or public\.is_awards_admin\(slug\)/);
+    expect(policy("awards_viewers_admin_write")).toMatch(/using \(public\.is_awards_admin\(slug\)\)\s+with check \(public\.is_awards_admin\(slug\)\)/);
+    expect(policy("awards_editions_manager_update")).toMatch(/for update to authenticated/);
+    expect(policy("awards_editions_admin_write")).toMatch(/for all to authenticated\s+using \(public\.is_app_admin\(\)\)/);
   });
-  it("indicar, votar e ver resultado também respeitam a audiência", () => {
-    for (const fn of ["create_award_category", "add_award_nominee", "cast_award_vote", "my_award_votes", "award_results"]) {
-      const body = code.match(new RegExp(`function public\\.${fn}[\\s\\S]*?\\$\\$;`, "i"))![0];
-      expect(body).toMatch(/awards_can_view/);
+  it("não apaga dados ao rodar de novo", () => {
+    expect(code).not.toMatch(/drop table|truncate|delete from/i);
+    expect(code).toMatch(/add column if not exists approved_at/);
+  });
+  it("indicar, votar e ver as próprias coisas respeitam a audiência", () => {
+    for (const fn of ["create_award_category", "add_award_nominee", "cast_award_vote", "my_award_votes"]) {
+      expect(fnBody(fn)).toMatch(/awards_can_view/);
     }
   });
-  it("RPCs são SECURITY DEFINER com search_path fixo e só authenticated executa", () => {
-    expect((code.match(/security definer\s+set search_path = public/gi) ?? []).length).toBe(6); // 5 RPCs + awards_can_view
-    expect((code.match(/revoke all on function public\.\w+\([^)]*\) from public/gi) ?? []).length).toBe(6);
-    expect((code.match(/grant execute on function public\.\w+\([^)]*\) to authenticated/gi) ?? []).length).toBe(6);
+  const rpcs = ["create_award_category", "add_award_nominee", "cast_award_vote", "my_award_votes", "award_results", "set_award_category_approval", "is_awards_admin"];
+  it("funções são SECURITY DEFINER com search_path fixo e só authenticated executa", () => {
+    const total = rpcs.length + 2; // + awards_can_view e awards_can_see_category
+    expect((code.match(/security definer\s+set search_path = public/gi) ?? []).length).toBe(total);
+    expect((code.match(/revoke all on function public\.\w+\([^)]*\) from public/gi) ?? []).length).toBe(total);
+    expect((code.match(/grant execute on function public\.\w+\([^)]*\) to authenticated/gi) ?? []).length).toBe(total);
   });
   it("os parâmetros que o service envia batem com as funções", () => {
-    for (const p of ["p_edition", "p_title", "p_description", "p_image_url", "p_category_id", "p_label", "p_nominee_id"]) {
+    for (const p of ["p_edition", "p_title", "p_description", "p_image_url", "p_category_id", "p_label", "p_nominee_id", "p_approved", "p_slug"]) {
       expect(code).toMatch(new RegExp(`\\b${p}\\b`));
       expect(awardsSvc).toMatch(new RegExp(`\\b${p}\\b`));
     }
-    for (const fn of ["create_award_category", "add_award_nominee", "cast_award_vote", "my_award_votes", "award_results"]) {
+    for (const fn of rpcs) {
       expect(code).toMatch(new RegExp(`function public\\.${fn}`, "i"));
       expect(awardsSvc).toContain(`"${fn}"`);
     }

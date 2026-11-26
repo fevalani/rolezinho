@@ -319,7 +319,7 @@ export function HomePage() {
                 ? "Indique categorias e nomes"
                 : awards.phase === "voting"
                   ? "A votação está aberta"
-                  : "Veja os resultados"}
+                  : "Encerrado: resultado em breve no Wrapped"}
             </span>
           </span>
         </button>
