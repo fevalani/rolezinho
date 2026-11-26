@@ -17,6 +17,18 @@ substitui digitar a senha quando o login aparece (depois de logout ou sessão ex
 - Estrutura: `biometricLogic.ts` (regras puras), `biometricService.ts` (plugin), plugin mockado em
   `src/test/setup.ts`, telas no `pages.smoke.test.tsx` + testes de comportamento.
 
+  <!-- Atualizações de Entrada com biometria -->
+  Credenciais guardadas no Keystore do andoide protegidas pela biometria, ok. Estrutura foi montada em api/webauthn/todos, src/plugins, src/components/PasskeySettings.tsx com atualizações no src/lib/AuthContext.tsx. Atualizações para rodar em android feita em todos os arquivos da path: *android\app\src\main\java\com\taverna\amigos*. 
+
+  FALTA NO AMBIENTE DE PRODUÇÃO: 
+  
+  - Configurar as variáveis novas
+  - Arquivo assetlinks.json refletir na url
+  - Alterar o SHA-256
+  - Adicionar a origem Android em api\webauthn\_shared.ts "android:apk-key-hash:<BASE64URL_DO_SHA256_DE_PRODUCAO>"
+  - Gerar o fingerprint de produção.
+
+
 ## Resultado do Awards no Wrapped
 
 Decidido em 25/11/2026: o resultado do Awards hoje só aparece para os admins do awards. Falta levar os
