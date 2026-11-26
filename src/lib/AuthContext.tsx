@@ -492,17 +492,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const verifyData = await parseJson(verifyRes);
 
         if (!verifyRes.ok || !verifyData.verified) {
-          return { error: verifyData.error || "Erro ao salvar Passkey." };
+          return { error: verifyData.error || "Erro ao salvar chave de acesso." };
         }
 
         return {};
       } catch (err: any) {
         if (err?.name === "NotAllowedError") {
-          return { error: "Cadastro de Passkey cancelado." };
+          return { error: "Cadastro de chave de acesso cancelado." };
         }
 
         return {
-          error: err?.message || "Erro ao cadastrar Passkey.",
+          error: err?.message || "Erro ao cadastrar chave de acesso.",
         };
       }
     },
